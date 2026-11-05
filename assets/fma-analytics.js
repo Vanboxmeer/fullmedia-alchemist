@@ -10,7 +10,7 @@
   try { off = navigator.doNotTrack === "1" || window.doNotTrack === "1" || localStorage.getItem("fma-no-track") === "1"; } catch (e) {}
   try { if (navigator.webdriver || /bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|embedly|monitor|curl|python|wget/i.test(navigator.userAgent)) off = true; } catch (e) {}
   var h = location.hostname;
-  if (h === "localhost" || h === "127.0.0.1" || /^\/(review|admin)(\/|$)/.test(location.pathname)) off = true;
+  if (!/^(www\.)?fullmediaalchemist\.com$/.test(h) || /^\/(review|admin)(\/|$)/.test(location.pathname)) off = true;   // only the live site counts: no previews, localhost or other apps
   var sid = "";
   try {
     sid = sessionStorage.getItem("fma-sid") || "";

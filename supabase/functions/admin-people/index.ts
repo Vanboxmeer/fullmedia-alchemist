@@ -72,6 +72,17 @@ Deno.serve(async (req: Request) => {
       supabase.from('site_events').select('sid, extra, at').eq('event', 'signup').not('extra', 'is', null).limit(5000),
       supabase.from('cc_usage_events').select('client_id, credits_consumed, event_type').gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString()).in('event_type', ['content_generated', 'post_generated']).limit(50000),
     ]);
+    // Which app is each account from? The login system is shared with SpinQuest, so the database view fma_accounts classifies every
+    // account (alchemist / spinquest / unknown, plus 'internal' for the owner's own accounts). Before that view exists, app is null
+    // and the page falls back to its older guess.
+    const cls = new Map<string, { app: string; internal: boolean }>();
+    let haveView = true;
+    for (let from = 0; haveView; from += 1000) {
+      const { data, error } = await supabase.from('fma_accounts').select('id, app, internal').range(from, from + 999);
+      if (error) { haveView = false; break; }
+      (data || []).forEach((r: any) => cls.set(String(r.id), { app: r.app, internal: !!r.internal }));
+      if (!data || data.length < 1000) break;
+    }
     const planById = new Map((plans || []).map((p: any) => [p.id, p]));
     const subByClient = new Map((subs || []).map((s: any) => [s.client_id, s]));
     const arPlanByKey = new Map((arPlans || []).map((p: any) => [p.key, p]));
@@ -104,6 +115,8 @@ Deno.serve(async (req: Request) => {
       return {
         id: u.id, email: u.email, name: um.full_name || um.name || null,
         created_at: u.created_at, last_sign_in_at: u.last_sign_in_at || null, signup_app: um.signup_app || null,
+        app: haveView ? (cls.get(u.id)?.app || 'unknown') : null,
+        internal: haveView ? !!cls.get(u.id)?.internal : ADMIN_EMAILS.includes(u.email || ''),
         provider: (u.app_metadata && u.app_metadata.provider) || ((u.identities && u.identities[0] && u.identities[0].provider) || 'email'),
         confirmed: !!u.email_confirmed_at, tz: um.tz || null, lang: um.lang || um.locale || null,
         brands: bl.map((b) => b.brand), client_id: cid, client_name: cid ? clientName.get(cid) || null : null,

@@ -165,6 +165,7 @@ a{color:var(--gold)}
     }).join("");
   }
 
+  var STAGE = { signed_up: "Signed up only", added_brand: "Added a brand", made_content: "Made content", paying: "Paying" };
   function insights(j) {
     var out = [], s = j.site, f = s.funnel, ch = s.channels || [];
     if (s.visits < 25) out.push("Only " + n(s.visits) + " tracked visits so far — the counter is new, so give it a week or two before reading much into the percentages.");
@@ -186,6 +187,11 @@ a{color:var(--gold)}
     var rc = j.reach, rm = j.revenue.reach_mrr_cents;
     if (rc.est_cost_cents > 0 && rm > 0 && rc.est_cost_cents > rm * 0.3) out.push("Reach AI cost (" + usd(rc.est_cost_cents) + " est.) is over 30% of Reach monthly revenue — watch plan limits.");
     if (rc.calls && rc.failed / rc.calls > 0.05) out.push(Math.round(rc.failed / rc.calls * 100) + "% of Reach AI calls failed — check the logs.");
+    var stuck = (j.recent || []).filter(function (x) { return (x.stage === "signed_up" || x.stage === "added_brand") && (Date.now() - Date.parse(x.created_at)) / 86400000 >= 2; });
+    if (stuck.length) out.push(n(stuck.length) + " of your last " + n((j.recent || []).length) + " accounts joined 2+ days ago and never made content. See Newest accounts and email them.");
+    if (j.accounts.unsure) out.push(n(j.accounts.unsure) + " new account(s) can\u2019t be told apart between Alchemist and SpinQuest yet. Check People \u2192 Alchemist \u2192 \u201capp unclear\u201d.");
+    var lp = (s.landing || []).filter(function (x) { return x.visits >= 15; })[0];
+    if (lp && s.visits >= 25 && !lp.pricing) out.push("People who land on " + lp.path + " (" + n(lp.visits) + " visits) never reach pricing. Make the next step obvious there.");
     if (!out.length) out.push("Nothing alarming. Numbers are steady for this period.");
     return out;
   }
@@ -205,7 +211,12 @@ a{color:var(--gold)}
       kpi("Monthly revenue", usd(mrr), n(v.content_paying + v.reach_paying) + " paying · " + n(v.comped) + " comped") +
       kpi("Active this week", n(a.active_7d), n(a.active_30d) + " in 30 days · " + n(a.total) + " total") +
       kpi("Bounce", pct(s.bounce, s.visits), "left after 1 page") + "</div>";
+    if (a.internal != null) h += '<p class="note" style="margin:-4px 0 14px">Alchemist accounts only. Left out: ' + n(a.internal) + ' of your own accounts and ' + n(a.other_apps) + ' accounts from other apps (SpinQuest).' + (a.unsure ? ' ' + n(a.unsure) + ' new account(s) could not be placed in either app yet. They show in People under Alchemist as \u201capp unclear\u201d.' : '') + ' Times are UTC.</p>';
     h += '<section class="card insights"><h2>What to look at</h2><ul>' + insights(j).map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul></section>";
+    h += '<section class="card" style="margin-bottom:14px"><h2>Newest accounts</h2>' + table(["Account", "Joined", "Last seen", "Where they are"], (j.recent || []).map(function (x) {
+      var age = (Date.now() - Date.parse(x.created_at)) / 86400000, stalled = (x.stage === "signed_up" || x.stage === "added_brand") && age >= 2;
+      return [esc(x.email), esc(ago(x.created_at)), esc(ago(x.last_seen)), '<span class="pill ' + (x.stage === "paying" || x.stage === "made_content" ? "ok" : stalled ? "warn" : "") + '">' + esc(STAGE[x.stage] || x.stage) + (stalled ? " \u00b7 follow up" : "") + "</span>" + (x.comped ? ' <span class="pill warn">comp</span>' : "")];
+    })) + '<p class="note">The last 15 accounts and how far each got. Orange means two or more days with no progress: a good moment to email them.</p></section>';
     h += '<section class="card" id="pp" style="margin-bottom:14px"><h2>People</h2><div id="ppBody" class="muted">Loading\u2026</div></section>';
     h += '<section class="card" id="tk" style="margin-bottom:14px"><h2>Problem reports</h2><div id="tkBody" class="muted">Loading\u2026</div></section>';
     h += '<div class="grid two"><section class="card"><h2>Visits per day</h2>' + bars((s.daily || []).map(function (d) { return { l: short(d.d), v: d.visits }; }), "var(--gold)") + "</section>" +
@@ -215,15 +226,16 @@ a{color:var(--gold)}
       '<p class="note">Counted per visit (one browser tab session). A visit can skip steps, so a later step can be larger than an earlier one.</p></section>' +
       '<section class="card"><h2>After sign-up (accounts made in this period)</h2>' + funnel([
         { l: "Signed up", v: ac.signed_up }, { l: "Added a brand", v: ac.brand }, { l: "Made content", v: ac.generated }, { l: "Paying", v: ac.paying }]) +
-      '<p class="note">Tells you where new accounts stall: no brand, no first post, or no upgrade.</p></section></div>';
+      '<p class="note">Tells you where new accounts stall: no brand, no first post, or no upgrade.' + (ac.signed_up ? " " + n(ac.returned) + " of " + n(ac.signed_up) + " came back on another day." : "") + '</p></section></div>';
     h += '<section class="card" style="margin-bottom:14px"><h2>Traffic sources</h2>' + table(["Source", "Visits", "Saw pricing", "Tried demo", "Sign-ups", "Rate"],
       (s.channels || []).map(function (x) { return [esc(x.channel), n(x.visits), n(x.pricing), n(x.tried), n(x.signups), pct(x.signups, x.visits)]; })) +
+      (s.signup_sources && s.signup_sources.length ? '<h3 style="margin:16px 0 6px;font-size:14px">Where this period\u2019s accounts came from</h3>' + table(["Source", "New accounts"], s.signup_sources.map(function (x) { return [esc(x.channel), n(x.n)]; })) + '<p class="note">Counts real new accounts. \u201cunknown\u201d = we could not link the account to a tracked visit (common with Google sign-in or a link opened in another tab).</p>' : "") +
       '<p class="note">Add <b>?utm_source=…&amp;utm_campaign=…</b> to any link you post (bio, newsletter, outreach) and it shows up here by name.</p></section>';
     h += '<div class="grid two"><section class="card"><h2>Your tagged links</h2>' + table(["Campaign", "Source", "Visits", "Sign-ups"],
       (s.campaigns || []).map(function (x) { return [esc(x.campaign), esc(x.channel), n(x.visits), n(x.signups)]; })) + "</section>" +
       '<section class="card"><h2>Websites sending visitors</h2>' + table(["Site", "Visits"], (s.referrers || []).map(function (x) { return [esc(x.host), n(x.visits)]; })) + "</section></div>";
-    h += '<div class="grid two"><section class="card"><h2>Pages people land on</h2>' + table(["Page", "Visits", "Sign-ups"],
-      (s.landing || []).map(function (x) { return [esc(x.path), n(x.visits), n(x.signups)]; })) + "</section>" +
+    h += '<div class="grid two"><section class="card"><h2>Pages people land on</h2>' + table(["Page", "Visits", "Saw pricing", "Sign-ups"],
+      (s.landing || []).map(function (x) { return [esc(x.path), n(x.visits), n(x.pricing), n(x.signups)]; })) + "</section>" +
       '<section class="card"><h2>Most viewed pages</h2>' + table(["Page", "Views", "People"], (s.pages || []).map(function (x) { return [esc(x.path), n(x.views), n(x.visits)]; })) +
       '<p class="note" style="margin-top:14px">Devices: ' + ((s.devices || []).map(function (d) { return esc(d.device) + " " + pct(d.visits, s.visits); }).join(" · ") || "—") + "</p></section></div>";
     h += '<div class="grid two"><section class="card"><h2>Revenue</h2>' + table(["", "Monthly", "Paying"], [
@@ -231,9 +243,9 @@ a{color:var(--gold)}
       '<p class="note">Plan mix, Content: ' + (v.content_by_plan.map(function (p) { return esc(p.plan) + " " + n(p.n); }).join(" · ") || "—") + "<br>Plan mix, Reach: " + (v.reach_by_plan.map(function (p) { return esc(p.plan) + " " + n(p.n); }).join(" · ") || "—") +
       "<br>Annual plans are counted as one twelfth per month. Comped accounts are not counted as revenue.</p></section>" +
       '<section class="card"><h2>Content use (credits per day)</h2>' + bars((c.daily || []).map(function (d) { return { l: short(d.d), v: Number(d.credits) }; }), "var(--blue)") +
-      '<p class="note">' + n(c.credits) + " credits used by " + n(c.active_brands) + " active accounts (admin test runs excluded).</p></section></div>";
+      '<p class="note">' + n(c.credits) + " credits used by " + n(c.active_brands) + " customer brands (your own brands and admin test runs excluded)." + (c.credits_yours ? " Your own brands used " + n(c.credits_yours) + " more, not counted." : "") + "</p></section></div>";
     h += '<section class="card"><h2>Reach</h2><div class="grid two" style="margin:0"><div>' + bars((rc.daily || []).map(function (d) { return { l: short(d.d), v: d.n }; }), "var(--gold)") + "</div><div>" +
-      table(["", ""], [["AI calls", n(rc.calls) + (rc.failed ? " (" + n(rc.failed) + " failed)" : "")], ["Active workspaces", n(rc.active_workspaces)], ["Web searches", n(rc.web_searches)],
+      table(["", ""], [["AI calls (everyone)", n(rc.calls) + (rc.failed ? " (" + n(rc.failed) + " failed)" : "")], ["\u2026of which customers", rc.calls_customers != null ? n(rc.calls_customers) : "\u2014"], ["Customer workspaces using it", n(rc.active_workspaces)], ["Web searches", n(rc.web_searches)],
         ["Estimated AI cost", usd(rc.est_cost_cents)], ["Workspaces / deals tracked", n(rc.workspaces_total) + " / " + n(rc.deals_total)]]) +
       '<p class="note">Cost is an estimate from token counts (Haiku 4.5 rates) plus about 1¢ per web search — compare with the bill.</p></div></div></section>';
     h += '<p class="note" style="margin-top:18px">Visit data is first-party and cookie-free: no IP address, no third-party tool, and browsers sending Do Not Track are skipped. Source: Supabase.</p>';
@@ -306,8 +318,8 @@ a{color:var(--gold)}
   }
   /* People: everyone who signed up, how they found us, roughly where, their plans, and the account actions. */
   var peopleQ = "", peopleF = "all", peopleScope = "alch", peopleData = null;
-  /* One login system is shared with SpinQuest and other apps, so "everyone" includes their players. Alchemist = has a brand, client or plan, or signed up in the last 14 days (so a brand-new signup is never hidden). */
-  function isAlch(p) { return !!(p.signup_app === "alchemist" || p.brands.length || p.client_id || p.content || p.reach || p.is_admin || (Date.now() - new Date(p.created_at).getTime()) < 14 * 86400000); }
+  /* One login system is shared with SpinQuest and other apps, so "everyone" includes their players. Alchemist = tagged Alchemist, accepted our terms, or has a brand or Reach workspace. "Unclear" = no sign of either app yet, shown here so a brand-new sign-up is never hidden. */
+  function isAlch(p) { if (p.app) return p.app === "alchemist" || p.app === "unknown"; return !!(p.signup_app === "alchemist" || p.brands.length || p.client_id || p.content || p.reach || p.is_admin || (Date.now() - new Date(p.created_at).getTime()) < 14 * 86400000); }
   var AREA = { America: "Americas", Europe: "Europe", Asia: "Asia", Africa: "Africa", Australia: "Oceania", Pacific: "Oceania", Atlantic: "Atlantic", Indian: "Indian Ocean" };
   function region(tz) { if (!tz) return "\u2014"; var p = String(tz).split("/"); return (p[p.length - 1] || "").replace(/_/g, " ") + (AREA[p[0]] ? " \u00b7 " + AREA[p[0]] : ""); }
   function ago(d) { if (!d) return "\u2014"; var m = Math.floor((Date.now() - Date.parse(d)) / 60000); if (m < 60) return Math.max(m, 1) + "m ago"; if (m < 2880) return Math.floor(m / 60) + "h ago"; return Math.floor(m / 1440) + "d ago"; }
@@ -346,14 +358,14 @@ a{color:var(--gold)}
     box.innerHTML = '<div class="pf"><span class="seg2"><button type="button" data-ps="alch" aria-pressed="' + (peopleScope === "alch") + '">Alchemist (' + n(nAlch) + ')</button><button type="button" data-ps="all" aria-pressed="' + (peopleScope === "all") + '">Everyone (' + n(d.people.length) + ')</button></span><input id="ppQ" placeholder="Search email, name, brand or place" value="' + esc(peopleQ) + '"><span class="seg2">' +
       [["all", "All"], ["paying", "Paying"], ["comped", "Comped"], ["free", "Free"], ["nobrand", "No brand yet"]].map(function (x) { return '<button type="button" data-pf="' + x[0] + '" aria-pressed="' + (peopleF === x[0]) + '">' + x[1] + "</button>"; }).join("") + '</span></div>' +
       '<div class="pp"><div class="prh phd"><span>Person</span><span>Signed up</span><span>How they came</span><span>Where</span><span>Plans</span><span>Used 30d</span></div><div id="ppList"></div></div>' +
-      '<p class="note">' + n(list.length) + " of " + n(d.people.length) + ". " + (peopleScope === "alch" ? "Accounts from SpinQuest and other apps share this login system. They are hidden here, and appear under Everyone. " : "") + "Region is a guess from the browser timezone (no IP kept), so older accounts fill in as people next open the app. \u201cHow they came\u201d only exists for sign-ups after the visit counter linked them; the rest show how they log in.</p>";
+      '<p class="note">' + n(list.length) + " of " + n(d.people.length) + ". " + (peopleScope === "alch" ? "SpinQuest players share this login system. They are hidden here and appear under Everyone. \u201capp unclear\u201d means no sign of either app yet. " : "") + "Region is a guess from the browser timezone (no IP kept), so older accounts fill in as people next open the app. \u201cHow they came\u201d only exists for sign-ups after the visit counter linked them; the rest show how they log in.</p>";
     var ul = document.getElementById("ppList");
     list.slice(0, 200).forEach(function (p) {
       var row = document.createElement("div"); row.className = "pr";
       var src = p.source ? p.source.channel + (p.source.campaign ? " \u00b7 " + p.source.campaign : "") : ({ google: "Google sign-in", email: "Email sign-up" }[p.provider] || p.provider);
       row.innerHTML = '<div class="prh"><div class="e"><b></b><span></span></div><span></span><span></span><span></span><span></span><span></span></div><div class="pdet" hidden></div>';
       var c = row.querySelectorAll(".prh>*");
-      c[0].querySelector("b").textContent = p.name || p.email; c[0].querySelector("span").textContent = (p.name ? p.email + " \u00b7 " : "") + (p.brands.join(", ") || "no brand yet");
+      c[0].querySelector("b").textContent = p.name || p.email; c[0].querySelector("span").textContent = (p.name ? p.email + " \u00b7 " : "") + (p.brands.join(", ") || "no brand yet") + (p.internal ? " \u00b7 yours" : p.app === "spinquest" ? " \u00b7 SpinQuest player" : p.app === "unknown" ? " \u00b7 app unclear" : "");
       c[1].textContent = new Date(p.created_at).toLocaleDateString(); c[2].textContent = src; c[3].textContent = region(p.tz);
       c[4].innerHTML = planPill(p.content) + " " + (p.reach ? "Reach: " + planPill(p.reach) : ""); c[5].textContent = p.content ? String(p.content.used_30d) : "\u2014";
       row.querySelector(".prh").onclick = function () { var dt = row.querySelector(".pdet"); if (dt.hidden) { dt.hidden = false; fillDetail(dt, p); } else dt.hidden = true; };

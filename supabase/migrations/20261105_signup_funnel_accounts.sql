@@ -1,3 +1,4 @@
+-- SUPERSEDED by 20261106_alchemist_scope_and_stats.sql (that file includes this change). Do not run this one.
 -- Funnel: sign-ups = the larger of tracked browser events and real Alchemist accounts (signup_app = 'alchemist'), so a lost browser event no longer shows 0%.
 create or replace function public.site_report(p_days int default 30)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
