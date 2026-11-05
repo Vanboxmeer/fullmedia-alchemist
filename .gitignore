@@ -17,3 +17,4 @@ _to_delete/
 _to_delete_tools/
 .logos/
 *.bak*
+supabase/functions/*/supabase_cli
