@@ -1,0 +1,167 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f130c"><link rel="icon" href="/assets/logo-mark.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/assets/app-icon-dark-180.png">
+<title>Sign in | Fullmedia Alchemist</title><meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"><style>
+:root{--ground:#0f130c;--ground-2:#161c13;--ground-3:#1c2318;--line:#2a3126;--paper:#ece6d6;--muted:#9aa394;--soft:#cfc9b8;--gold:#e8a33d;--gold-2:#ffcf7a;--green:#2e9c74;--display:Fraunces,Georgia,serif;--body:"IBM Plex Sans",-apple-system,system-ui,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ground);color:var(--paper);font:400 16px/1.65 var(--body);-webkit-font-smoothing:antialiased;padding-bottom:env(safe-area-inset-bottom,0px)}
+a{color:inherit}img{max-width:100%;display:block}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);font-weight:500;line-height:1.08;margin:0;text-wrap:balance}
+h1{font-size:clamp(40px,6.4vw,76px);letter-spacing:-.01em}h1 em,h2 em{color:var(--gold);font-style:italic}
+h2{font-size:clamp(28px,3.8vw,46px);margin-bottom:14px}h3{font-size:22px;margin-bottom:8px}
+p{margin:0 0 14px}.lead{font-size:clamp(17px,2vw,20px);color:var(--soft);max-width:58ch}.muted{color:var(--muted)}
+.eyebrow{display:block;font:600 11px/1 var(--body);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}.eyebrow::before{content:"// ";color:var(--green)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;border-radius:10px;padding:12px 20px;font:600 14.5px/1.2 var(--body);text-decoration:none;cursor:pointer;border:1px solid transparent;min-height:44px}
+.btn-gold{background:linear-gradient(#f0b452,#e19a2c);color:#241a06;box-shadow:inset 0 0 0 1px rgba(255,207,122,.35),0 10px 30px -10px rgba(232,163,61,.7)}.btn-gold:hover{filter:brightness(1.07)}
+.btn-ghost{border-color:var(--line);color:var(--paper);background:transparent}.btn-ghost:hover{border-color:var(--muted)}
+.btn-lg{padding:15px 26px;font-size:16px}.btn-block{width:100%}
+.link{color:var(--gold);text-decoration:none;font-weight:600;font-size:14.5px}.link:hover{text-decoration:underline}
+header.top{position:sticky;top:0;z-index:30;background:rgba(15,19,12,.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.nav{display:flex;align-items:center;gap:18px;min-height:62px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:600 18px/1 var(--display);white-space:nowrap}.brand em{color:var(--gold);font-style:italic}
+.links{display:flex;gap:24px;margin-left:28px;font-size:14.5px;color:var(--muted)}.links a{text-decoration:none;padding:6px 0}.links a:hover,.links a.on{color:var(--paper)}
+.navbtns{display:flex;gap:10px;margin-left:auto}.navbtns .btn{padding:9px 16px;min-height:40px}
+.burger{display:none;margin-left:auto;width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--paper);cursor:pointer;align-items:center;justify-content:center}
+.burger span,.burger span::before,.burger span::after{display:block;width:20px;height:2px;background:currentColor;border-radius:2px;position:relative;transition:transform .2s,background .2s}
+.burger span::before,.burger span::after{content:"";position:absolute;left:0}.burger span::before{top:-6px}.burger span::after{top:6px}
+.burger[aria-expanded=true] span{background:transparent}.burger[aria-expanded=true] span::before{transform:translateY(6px) rotate(45deg)}.burger[aria-expanded=true] span::after{transform:translateY(-6px) rotate(-45deg)}
+.drawer{display:none;border-top:1px solid var(--line);background:var(--ground);padding:10px 0 18px}
+.drawer a.l{display:block;padding:14px 4px;font-size:17px;text-decoration:none;border-bottom:1px solid var(--line)}
+.drawer .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.drawer.open{display:block}
+section.s{padding-block:clamp(48px,7vw,88px);border-top:1px solid var(--line)}
+.hero{padding-block:clamp(44px,7vw,96px) clamp(36px,5vw,64px);text-align:center}
+.hero .lead{margin:20px auto 0}
+.trust{display:flex;flex-wrap:wrap;gap:8px 22px;justify-content:center;margin-top:22px;color:var(--muted);font-size:14px}.trust span::before{content:"\2713";color:var(--green);margin-right:7px;font-weight:700}
+.duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:clamp(32px,5vw,56px);text-align:left}
+.prod{position:relative;background:var(--ground-2);border:1px solid var(--line);border-radius:22px;padding:clamp(22px,3vw,34px);display:flex;flex-direction:column;overflow:hidden}
+.prod::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 85% -10%,rgba(232,163,61,.16),rgba(232,163,61,0) 55%);pointer-events:none}
+.prod>*{position:relative}
+.prod .tag{font:600 11px/1 var(--body);letter-spacing:.16em;text-transform:uppercase;color:var(--green);margin-bottom:12px}
+.prod h2{font-size:clamp(26px,3vw,34px);margin-bottom:10px}
+.prod p{color:var(--soft)}
+.prod .vis{margin:10px 0 20px;border:1px solid var(--line);border-radius:14px;background:var(--ground);overflow:hidden;aspect-ratio:16/10;position:relative}
+.prod .vis img{width:100%;height:100%;object-fit:cover}
+.prod .cta{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;margin-top:auto}
+.mock{padding:14px;font-size:13px;display:grid;gap:8px;align-content:center;height:100%}
+.mock .r{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--ground-2)}
+.mock .r b{font-weight:600}.mock .pill{margin-left:auto;font:600 10.5px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;padding:5px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.mock .pill.g{color:var(--green);border-color:rgba(46,156,116,.5)}.mock .pill.a{color:var(--gold);border-color:rgba(232,163,61,.5)}
+.mock .ck{display:flex;align-items:center;gap:9px;color:var(--soft);padding:2px 4px}.mock .ck i{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--muted);flex:none}.mock .ck i.on{background:var(--green);border-color:var(--green)}
+.mock .cap{font:600 10.5px/1 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:4px 2px 0}
+.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:30px;counter-reset:f}
+.fs{counter-increment:f;background:var(--ground-2);border:1px solid var(--line);border-radius:16px;padding:22px;position:relative}
+.fs::before{content:counter(f);display:grid;place-items:center;width:32px;height:32px;border-radius:50%;border:1px solid var(--gold);color:var(--gold);font:600 14px/1 var(--body);margin-bottom:14px}
+.fs .who{display:inline-block;font:600 10.5px/1 var(--body);letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}.who.r{color:var(--gold)}.who.c{color:var(--green)}
+.fs h3{font-size:19px}.fs p{color:var(--muted);font-size:15px;margin:0}
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(24px,5vw,64px);align-items:center}
+.split.rev>:first-child{order:2}
+.ticks{list-style:none;margin:18px 0 24px;padding:0;display:grid;gap:12px}
+.ticks li{padding-left:28px;position:relative;color:var(--soft)}.ticks li::before{content:"";position:absolute;left:0;top:.5em;width:14px;height:14px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 4px rgba(232,163,61,.15)}
+.ticks b{color:var(--paper)}
+.frame{border:1px solid var(--line);border-radius:20px;background:var(--ground-2);overflow:hidden}
+.frame img{width:100%;height:100%;object-fit:cover;aspect-ratio:4/3}
+.tease{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:28px}
+.tcard{background:var(--ground-2);border:1px solid var(--line);border-radius:18px;padding:26px}
+.tcard .p{font:600 38px/1.1 var(--display);margin:8px 0 4px}.tcard .p small{font:400 14px var(--body);color:var(--muted)}
+.tcard ul{margin:12px 0 0;padding:0;list-style:none;display:grid;gap:7px;color:var(--soft);font-size:15px}
+.tcard li::before{content:"\2713";color:var(--green);margin-right:9px;font-weight:700}
+.save{margin-top:22px;text-align:center;color:var(--soft)}.save b{color:var(--gold)}
+.faq details{border-bottom:1px solid var(--line);padding:2px 0}
+.faq summary{cursor:pointer;list-style:none;padding:18px 36px 18px 0;font:500 19px/1.35 var(--display);position:relative}
+.faq summary::-webkit-details-marker{display:none}.faq summary::after{content:"+";position:absolute;right:4px;top:14px;font:400 26px/1 var(--body);color:var(--gold);transition:transform .2s}
+.faq details[open] summary::after{transform:rotate(45deg)}.faq details p{color:var(--soft);max-width:70ch;padding-bottom:18px;margin:0}
+.final{text-align:center;position:relative;overflow:hidden}
+.final .art{width:min(230px,52vw);aspect-ratio:1/1;border-radius:50%;margin:0 auto 22px;overflow:hidden;border:1px solid var(--line);background:radial-gradient(circle at 50% 38%,rgba(232,163,61,.3),rgba(232,163,61,0) 70%),var(--ground-2)}
+.final .art img{width:100%;height:100%;object-fit:cover}
+.final h2{max-width:20ch;margin-inline:auto}.final .lead{margin:0 auto 26px}
+footer.foot{border-top:1px solid var(--line);padding-block:30px;color:var(--muted);font-size:13.5px}
+footer.foot .wrap{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center}footer.foot a{text-decoration:none}footer.foot a:hover{color:var(--paper)}footer.foot .sp{flex:1 1 auto}
+.sticky{display:none}
+@media(max-width:900px){
+ .links,.navbtns{display:none}.burger{display:inline-flex}
+ .duo,.tease,.split{grid-template-columns:1fr}.split.rev>:first-child{order:0}.flow{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .sticky{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;gap:10px;padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:rgba(15,19,12,.94);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line)}
+ .sticky .btn{flex:1}
+ body.hasSticky{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+}
+@media(max-width:520px){.flow{grid-template-columns:1fr}.hero{text-align:left}.hero .lead{margin-left:0}.trust{justify-content:flex-start}}
+
+body{display:grid;place-items:center;min-height:100vh;padding:24px 0}
+.card{width:min(420px,calc(100vw - 32px));background:var(--ground-2);border:1px solid var(--line);border-radius:18px;padding:32px 28px;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+.card .lg{display:flex;justify-content:center;margin-bottom:12px}.card .lg img{width:54px;height:54px}
+.card h1{font-size:28px;text-align:center}.card .sub{text-align:center;color:var(--muted);font-size:14.5px;margin:8px 0 20px}
+label{display:block;font:600 12.5px var(--body);margin:0 0 6px}
+input[type=email],input[type=password]{width:100%;background:var(--ground);color:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font:inherit;min-height:46px}
+input:focus{outline:none;border-color:var(--gold)}input::placeholder{color:#6f786a}
+.stack{display:grid;gap:12px}.or{text-align:center;color:#6f786a;font-size:12px;margin:14px 0}
+.msg{min-height:20px;font-size:13px;color:var(--gold);text-align:center;margin-top:12px}.msg.ok{color:var(--green)}
+.more{display:block;text-align:center;font-size:13px;color:var(--gold);margin-top:14px;text-decoration:none}.more:hover{text-decoration:underline}.more[hidden]{display:none}
+.legal{margin-top:20px;font-size:12px;color:#6f786a;text-align:center}.legal a{color:var(--gold)}
+.gbtn{display:flex;gap:10px}.gbtn svg{width:18px;height:18px}
+</style></head><body>
+<main class="card">
+<div class="lg"><a href="/" aria-label="Fullmedia Alchemist home"><img src="/assets/logo-mark.svg" alt="" width="28" height="28"></a></div>
+<h1>Fullmedia <em style="color:var(--gold)">Alchemist</em></h1>
+<p class="sub">One sign-in for Content and Reach. New here? Just enter your email and we will set you up.</p>
+<div class="stack"><button class="btn btn-ghost btn-block gbtn" id="g" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.7-5H1.3v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.3 14.3a7.2 7.2 0 0 1 0-4.6V6.6H1.3a12 12 0 0 0 0 10.8l4-3.1z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.3 6.6l4 3.1c.9-2.9 3.6-4.9 6.7-4.9z"/></svg>Continue with Google</button><div id="gsi" hidden style="justify-content:center;min-height:44px"></div></div>
+<div class="or">or use your email</div>
+<form id="f" class="stack" novalidate><div><label for="em">Email</label><input id="em" type="email" autocomplete="email" placeholder="you@company.com" required></div>
+<div id="pwbox" hidden><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" placeholder="Your password"></div>
+<button class="btn btn-gold btn-block" id="go" type="submit">Send my sign-in link</button></form>
+<a href="#" class="more" id="tog">Use a password instead</a>
+<a href="#" class="more" id="forgot" hidden>Forgot your password?</a>
+<div id="ts" style="display:flex;justify-content:center;margin-top:12px"></div>
+<div class="msg" id="msg" role="status"></div>
+<p class="legal">By continuing you agree to the <a href="/terms/">Terms</a> and <a href="/privacy/">Privacy Policy</a>.</p>
+</main>
+<script>
+(function(){
+var SB="https://tpqvvrdglnsdljdpzwfl.supabase.co",KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwcXZ2cmRnbG5zZGxqZHB6d2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0OTEwMTAsImV4cCI6MjA5NzA2NzAxMH0.gxr0vEWFBwPp8ErX41rHNFV0aMU_lhiceFhY64iA7Ko";
+var q=new URLSearchParams(location.search),nx=q.get("next")==="/reach/"?"/reach/":"/dashboard/";
+(function(){var pl=q.get("plan");if(pl&&/^(content|reach|suite)-(starter|growth|agency)$/.test(pl)){try{localStorage.setItem("fa_plan_intent",JSON.stringify({t:Date.now(),plan:pl,bill:q.get("bill")==="y"?"y":"m"}))}catch(e){}}})();
+function jwt(t){try{var b=t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");return JSON.parse(atob(b+"===".slice((b.length+3)%4)))}catch(e){return null}}
+function pend(){try{localStorage.setItem("fa_login_pending",JSON.stringify({t:Date.now(),next:nx==="/reach/"?"reach":"content"}))}catch(e){}}
+function msg(t,ok){var m=document.getElementById("msg");m.textContent=t;m.className="msg"+(ok?" ok":"")}
+/* A password-reset email normally returns to /dashboard/. If one lands here instead, keep the session and hand it to the dashboard, which asks for the new password. */
+try{var hp=new URLSearchParams(location.hash.slice(1));if(hp.get("access_token")&&hp.get("type")==="recovery"){var at=hp.get("access_token"),pj=jwt(at)||{};localStorage.setItem("ccb-session",JSON.stringify({access_token:at,refresh_token:hp.get("refresh_token")||"",expires_at:Date.now()+(parseInt(hp.get("expires_in")||"3600",10))*1000,email:pj.email||""}));try{sessionStorage.setItem("fma_recovery","1")}catch(e){}location.replace("/dashboard/");return}}catch(e){}
+/* Bot check (Cloudflare Turnstile). Dormant until a site key is placed in TS_SITE; with the key set, the box appears and its token rides along with every sign-in request. */
+var TS_SITE="",tsTok="",tsId=null;
+function sec(b){if(TS_SITE)b.gotrue_meta_security={captcha_token:tsTok};return b}
+function tsReset(){if(TS_SITE&&window.turnstile&&tsId!==null){try{turnstile.reset(tsId)}catch(e){}tsTok=""}}
+function tsOk(){if(TS_SITE&&!tsTok){msg("One moment while we confirm you are a person, then press the button again.");return false}return true}
+if(TS_SITE){var tss=document.createElement("script");tss.src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";tss.async=true;tss.onload=function(){tsId=turnstile.render("#ts",{sitekey:TS_SITE,theme:"dark",callback:function(t){tsTok=t},"expired-callback":function(){tsTok=""},"error-callback":function(){tsTok=""}})};document.head.appendChild(tss)}
+try{var o=JSON.parse(localStorage.getItem("ccb-session")||"null"),p=o&&jwt(o.access_token);if(p&&p.exp*1000>Date.now()+60000){pend();location.replace(nx);return}}catch(e){}
+var pwMode=false,tog=document.getElementById("tog"),go=document.getElementById("go"),pwbox=document.getElementById("pwbox");
+var forgot=document.getElementById("forgot");
+forgot.addEventListener("click",function(e){e.preventDefault();var em=document.getElementById("em").value.trim();if(!em){msg("Enter your email above first, then press this again.");return}if(!tsOk())return;msg("Sending…",1);
+fetch(SB+"/auth/v1/recover?redirect_to="+encodeURIComponent(location.origin+"/dashboard/"),{method:"POST",headers:{apikey:KEY,"content-type":"application/json"},body:JSON.stringify(sec({email:em}))}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){return{ok:r.ok,j:j}})}).then(function(x){tsReset();if(x.ok)msg("If that email has an account, a link to set a new password is on its way. No password yet? The same link lets you create one.",1);else msg(/rate limit/i.test(JSON.stringify(x.j))?"Too many emails were sent just now. Wait a while and try again.":(x.j.msg||x.j.error_description||"Could not send the link."))}).catch(function(){tsReset();msg("Could not reach the server. Try again.")})});
+tog.addEventListener("click",function(e){e.preventDefault();pwMode=!pwMode;pwbox.hidden=!pwMode;forgot.hidden=!pwMode;go.textContent=pwMode?"Sign in":"Send my sign-in link";tog.textContent=pwMode?"Email me a sign-in link instead":"Use a password instead";msg("")});
+document.getElementById("g").addEventListener("click",function(){pend();location.href=SB+"/auth/v1/authorize?provider=google&redirect_to="+encodeURIComponent(location.origin+nx)});
+/* Google sign-in under the Fullmedia Alchemist name: Google Identity Services with this product's own Google app, then the Google ID token goes to Supabase. If it cannot load, the button above still works. */
+(function(){var GID="1054192934388-8aio9oljiq5l5pin940sgcj2epq57qla.apps.googleusercontent.com";
+function fail(m){msg(m||"Google sign-in did not complete. Try the email link instead.");}
+function hex(buf){return Array.prototype.map.call(new Uint8Array(buf),function(b){return("0"+b.toString(16)).slice(-2)}).join("")}
+var raw=(function(){var a=new Uint8Array(16);crypto.getRandomValues(a);return hex(a)})();
+function start(){if(!window.google||!google.accounts||!crypto.subtle)return;
+crypto.subtle.digest("SHA-256",new TextEncoder().encode(raw)).then(function(h){
+google.accounts.id.initialize({client_id:GID,nonce:hex(h),ux_mode:"popup",use_fedcm_for_prompt:true,callback:function(r){
+if(!r||!r.credential){fail();return}msg("Signing in…",1);
+fetch(SB+"/auth/v1/token?grant_type=id_token",{method:"POST",headers:{apikey:KEY,"content-type":"application/json"},body:JSON.stringify(sec({provider:"google",id_token:r.credential,nonce:raw}))}).then(function(x){return x.json().then(function(j){return{ok:x.ok,j:j}})}).then(function(x){
+if(!x.ok||!x.j.access_token){fail(x.j.error_description||x.j.msg);return}
+var em=(x.j.user&&x.j.user.email)||"";localStorage.setItem("ccb-session",JSON.stringify({access_token:x.j.access_token,refresh_token:x.j.refresh_token,expires_at:(x.j.expires_at||Math.floor(Date.now()/1000)+(x.j.expires_in||3600))*1000,email:em}));pend();location.replace(nx)}).catch(function(){fail("Could not reach the server. Try again.")})}});
+var box=document.getElementById("gsi");google.accounts.id.renderButton(box,{type:"standard",theme:"outline",size:"large",text:"continue_with",shape:"rectangular",width:Math.min(360,(box.parentNode.clientWidth||320))});
+box.hidden=false;box.style.display="flex";document.getElementById("g").style.display="none"})}
+var sc=document.createElement("script");sc.src="https://accounts.google.com/gsi/client";sc.async=true;sc.onload=start;document.head.appendChild(sc)})();
+document.getElementById("f").addEventListener("submit",function(e){e.preventDefault();var em=document.getElementById("em").value.trim();if(!em){msg("Enter your email first.");return}
+if(!tsOk())return;
+go.disabled=true;
+if(pwMode){var pw=document.getElementById("pw").value;if(!pw){msg("Enter your password.");go.disabled=false;return}msg("Signing in…",1);
+fetch(SB+"/auth/v1/token?grant_type=password",{method:"POST",headers:{apikey:KEY,"content-type":"application/json"},body:JSON.stringify(sec({email:em,password:pw}))}).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})}).then(function(x){go.disabled=false;tsReset();
+if(!x.ok||!x.j.access_token){msg(x.j.error_description||x.j.msg||"That did not work. Check your email and password.");return}
+localStorage.setItem("ccb-session",JSON.stringify({access_token:x.j.access_token,refresh_token:x.j.refresh_token,expires_at:(x.j.expires_at||Math.floor(Date.now()/1000)+(x.j.expires_in||3600))*1000,email:em}));pend();location.replace(nx)}).catch(function(){go.disabled=false;msg("Could not reach the server. Try again.")});return}
+msg("Sending…",1);pend();
+fetch(SB+"/auth/v1/otp?redirect_to="+encodeURIComponent(location.origin+nx),{method:"POST",headers:{apikey:KEY,"content-type":"application/json"},body:JSON.stringify(sec({email:em,create_user:true}))}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){return{ok:r.ok,j:j}})}).then(function(x){go.disabled=false;tsReset();
+if(x.ok)msg("Check your inbox for the sign-in link.",1);else msg(/rate limit/i.test(JSON.stringify(x.j))?"Too many sign-in emails were sent just now. Wait a while, or use Google or a password.":(x.j.msg||x.j.error_description||"Could not send the link."))}).catch(function(){go.disabled=false;msg("Could not reach the server. Try again.")})});
+})();
+</script></body></html>

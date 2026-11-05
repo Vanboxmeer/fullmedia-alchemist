@@ -1,0 +1,1492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+  // Sign-in links can land here instead of /dashboard/: hand the token (or
+  // the error) straight to the app before this page renders.
+  (function () {
+    var h = location.hash || '';
+    if (h.indexOf('access_token') !== -1 || h.indexOf('error_description') !== -1 || h.indexOf('error=') !== -1) {
+      location.replace('/dashboard/' + h);
+    }
+  })();
+  // ── Homepage A/B test (2026-10-09) ────────────────────────────────────
+  // Two designs live in this one file; a visitor is assigned once (cookie,
+  // 90 days) before anything paints, so there is no redirect and no flash.
+  // ?v=a or ?v=b previews a design without being counted or reassigned.
+  (function () {
+    var d = document.documentElement;
+    var q = (location.search.match(/[?&]v=([ab])\b/) || [])[1];
+    var c = (document.cookie.match(/(?:^|; )fma_ab=([ab])/) || [])[1];
+    var v = q || c || (Math.random() < 0.5 ? 'a' : 'b');
+    var sid = (document.cookie.match(/(?:^|; )fma_sid=([a-z0-9]{10,40})/) || [])[1];
+    if (!q) {
+      if (!sid) sid = (Math.random().toString(36).slice(2) + Date.now().toString(36)).replace(/[^a-z0-9]/g, '').slice(0, 30);
+      var exp = ';path=/;max-age=7776000;samesite=lax';
+      document.cookie = 'fma_ab=' + v + exp;
+      document.cookie = 'fma_sid=' + sid + exp;
+    }
+    d.setAttribute('data-v', v);
+    window.FMA_AB = { v: v, sid: sid || null, preview: !!q };
+  })();
+</script>
+<title>Fullmedia Alchemist — social posts that look like your brand</title>
+<meta name="description" content="Paste your website. The Alchemist reads your colours, typefaces, logo and voice, then writes and designs finished social posts: caption, hashtags and image, from facts that are actually yours.">
+<meta property="og:title" content="Fullmedia Alchemist: social posts that look like your brand">
+<meta property="og:description" content="It reads your site, learns your look, then writes and designs every post. Never invented.">
+<meta property="og:image" content="https://www.fullmediaalchemist.com/assets/og-main.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Fullmedia Alchemist: the Alchemist reading beside a transmutation circle"><meta name="twitter:image" content="https://www.fullmediaalchemist.com/assets/og-main.jpg">
+<meta property="og:url" content="https://www.fullmediaalchemist.com/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Fullmedia Alchemist">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://www.fullmediaalchemist.com/">
+<meta name="theme-color" content="#0f130c">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+ {"@type":"Organization","@id":"https://www.fullmediaalchemist.com/#org","name":"Fullmedia Alchemist","url":"https://www.fullmediaalchemist.com/","logo":"https://www.fullmediaalchemist.com/assets/logo-mark-180.png","parentOrganization":{"@type":"Organization","name":"United Press Media","url":"https://unitedpress.media"}},
+ {"@type":"SoftwareApplication","name":"Fullmedia Alchemist","applicationCategory":"BusinessApplication","operatingSystem":"Web","url":"https://www.fullmediaalchemist.com/","description":"Reads your website, learns your brand's look and voice, then writes and designs finished social posts: caption, 4-5 hashtags and a branded image or carousel. 1 credit = 1 slide.","publisher":{"@id":"https://www.fullmediaalchemist.com/#org"},
+  "offers":[{"@type":"Offer","name":"Free","price":"0","priceCurrency":"USD"},{"@type":"Offer","name":"Starter","price":"25","priceCurrency":"USD"},{"@type":"Offer","name":"Growth","price":"99","priceCurrency":"USD"},{"@type":"Offer","name":"Agency","price":"599","priceCurrency":"USD"}]}
+]}
+</script>
+<link rel="icon" type="image/svg+xml" href="/assets/logo-mark.svg">
+<link rel="icon" type="image/png" href="/assets/logo-mark-32.png">
+<link rel="apple-touch-icon" href="/assets/app-icon-dark-180.png">
+<meta name="apple-mobile-web-app-title" content="Fullmedia Alchemist">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://tpqvvrdglnsdljdpzwfl.supabase.co" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:#0f130c;-webkit-font-smoothing:antialiased}
+img{max-width:100%}
+html[data-v="b"] .va,html:not([data-v="b"]) .vb{display:none}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+<style>
+/* ── A · "The Grand Transmutation" ─────────────────────────────────────
+   The Alchemist's own world: night-green lab, gold light, a live
+   transmutation circle that turns a website into real posts. */
+.va{
+  --ground:#0f130c;--ground-2:#161c13;--ground-3:#1c2318;--line:#2a3126;
+  --paper:#ece6d6;--muted:#9aa394;--gold:#e8a33d;--gold-2:#ffcf7a;--green:#2e9c74;
+  --display:Fraunces,Georgia,serif;--body:"IBM Plex Sans",-apple-system,system-ui,sans-serif;
+  background:var(--ground);color:var(--paper);font:16px/1.65 var(--body);overflow-x:clip;
+}
+html[data-v="a"] body,html:not([data-v]) body{background:#0f130c}
+.va .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+.va h1,.va h2,.va h3{font-family:var(--display);font-weight:600;line-height:1.08;text-wrap:balance;margin:0}
+.va .eyebrow{font:600 11px/1 var(--body);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:14px}
+.va .eyebrow::before{content:"// ";color:var(--green)}
+.va .btn{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;border-radius:10px;padding:12px 20px;font:600 14.5px/1.2 var(--body);text-decoration:none;cursor:pointer;border:1px solid transparent}
+.va .btn-gold{background:linear-gradient(180deg,#f0b452,#e19a2c);color:#241a06;box-shadow:0 0 0 1px rgba(255,207,122,.35) inset,0 10px 30px -10px rgba(232,163,61,.7)}
+.va .btn-gold:hover{filter:brightness(1.07)}
+.va .btn-ghost{border-color:var(--line);color:var(--paper)}
+.va .btn-ghost:hover{border-color:var(--muted)}
+.va .btn-lg{padding:16px 28px;font-size:16px;border-radius:12px}
+.va .textlink{color:var(--paper);font-weight:600;text-decoration:none;border-bottom:1px solid var(--green);padding-bottom:2px}
+.va .textlink:hover{border-color:var(--gold)}
+
+/* header */
+.va header{position:sticky;top:0;z-index:50;background:rgba(15,19,12,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.va .nav{display:flex;align-items:center;gap:26px;height:64px}
+.va .brand{color:var(--paper);display:flex;align-items:center;gap:9px;font:600 18px/1 var(--display);text-decoration:none;white-space:nowrap}
+.va .brand img{width:26px;height:26px}
+.va .brand em{color:var(--gold);font-style:italic}
+.va .navlinks{display:flex;gap:26px;margin-left:auto;font-size:14.5px}
+.va .navlinks a{text-decoration:none;color:var(--muted)}
+.va .navlinks a:hover{color:var(--paper)}
+.va .navbtns{display:flex;gap:10px}
+@media(max-width:900px){.va .navlinks{display:none}.va .navbtns{margin-left:auto}}
+@media(max-width:520px){.va .navbtns .btn-ghost{display:none}.va .brand{font-size:16px}.va .btn{padding:10px 14px;font-size:13.5px}}
+
+/* hero */
+.va .hero{position:relative;overflow:hidden;padding:56px 0 40px;isolation:isolate}
+.va .hero-bg{position:absolute;inset:0;z-index:-2;background:
+  linear-gradient(180deg,rgba(15,19,12,.55),rgba(15,19,12,.86) 55%,var(--ground)),
+  radial-gradient(60% 55% at 72% 52%,rgba(232,163,61,.16),transparent 70%),
+  url("https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/content-calendar/platform-brand/hero-illustration.png?width=1536&amp;height=1024&amp;resize=contain&amp;quality=75") center/cover no-repeat}
+.va .hero-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:20px;align-items:center}
+.va .hero h1{font-size:clamp(40px,5.6vw,72px);letter-spacing:-.015em}
+.va .hero h1 .ln{display:block}
+.va .hero h1 em{font-style:italic;background:linear-gradient(100deg,#ffd58c,#e8a33d 45%,#2e9c74);-webkit-background-clip:text;background-clip:text;color:transparent}
+.va .lede{color:#d4d0c0;font-size:18.5px;margin:22px 0 30px;max-width:46ch}
+.va .cta-row{display:flex;flex-wrap:wrap;align-items:center;gap:14px 26px}
+.va .micro{color:var(--muted);font-size:13.5px;margin-top:16px}
+.va .status{margin-top:26px;display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:18px;min-height:46px}
+.va .status i{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);flex:none;animation:va-blink 1.6s ease-in-out infinite}
+.va .status b{color:var(--paper);font-weight:600}
+.va .status span[data-st-look]{color:var(--gold)}
+@keyframes va-blink{50%{opacity:.35}}
+@media(max-width:940px){.va .hero-grid{grid-template-columns:1fr}.va .hero{padding-top:20px}.va .hero-grid > .stage{order:-1}}
+@media(max-width:560px){.va .lede{font-size:16.5px;margin:18px 0 24px}.va .hero h1{font-size:38px}}
+
+/* the stage: the Alchemist inside his circle, turning a website into posts */
+.va .stage{position:relative;width:100%;max-width:640px;aspect-ratio:1/1;margin-left:auto}
+@media(max-width:940px){.va .stage{margin:0 auto 18px;max-width:520px}}
+.va .ring{position:absolute;left:3%;top:0;width:94%;height:94%;filter:drop-shadow(0 0 10px rgba(232,163,61,.35));transition:filter .6s}
+.va .ring svg,.va .floor svg{width:100%;height:100%;overflow:visible;display:block}
+.va .g-slow{transform-origin:200px 200px;animation:va-spin 70s linear infinite}
+.va .g-rev{transform-origin:200px 200px;animation:va-spin 46s linear infinite reverse}
+.va .g-fast{transform-origin:200px 200px;animation:va-spin 28s linear infinite}
+.va .ring .core{transform-origin:200px 200px;animation:va-breathe 3.2s ease-in-out infinite}
+.va .ring .draw{stroke-dasharray:1;stroke-dashoffset:1;animation:va-draw 2.4s cubic-bezier(.2,.8,.2,1) forwards}
+.va .ring .d2{animation-delay:.25s}.va .ring .d3{animation-delay:.5s}.va .ring .d4{animation-delay:.8s}.va .ring .d5{animation-delay:1.1s}
+.va .stage.flare .ring{filter:drop-shadow(0 0 22px rgba(255,207,122,.85)) brightness(1.35)}
+.va .stage.flare .g-slow{animation-duration:9s}
+.va .stage.flare .g-rev{animation-duration:6s}
+.va .stage.flare .g-fast{animation-duration:4s}
+.va .stage.flare .ring .core{animation-duration:.9s}
+@keyframes va-spin{to{transform:rotate(360deg)}}
+@keyframes va-breathe{0%,100%{transform:scale(.86);opacity:.75}50%{transform:scale(1.08);opacity:1}}
+@keyframes va-draw{to{stroke-dashoffset:0}}
+/* the same circle laid flat on the floor under his boots */
+.va .floor{position:absolute;z-index:2;left:18%;bottom:-24%;width:64%;aspect-ratio:1;transform:perspective(1100px) rotateX(76deg);opacity:.85;filter:drop-shadow(0 0 8px rgba(255,207,122,.7));transition:filter .5s,opacity .5s;pointer-events:none}
+.va .floor .core,.va .floor text{display:none}
+.va .stage.flare .floor{opacity:1;filter:drop-shadow(0 0 18px rgba(255,226,160,1)) brightness(1.5)}
+.va .halo{position:absolute;z-index:1;left:12%;top:8%;width:76%;aspect-ratio:1;border-radius:50%;background:radial-gradient(closest-side,rgba(232,163,61,.3),rgba(46,156,116,.12) 60%,transparent);pointer-events:none;transition:transform .6s,opacity .6s}
+.va .stage.flare .halo{transform:scale(1.15)}
+.va .wiz{position:absolute;z-index:3;left:50%;bottom:3%;height:90%;width:auto;max-width:none;transform:translateX(-50%);filter:drop-shadow(0 24px 40px rgba(0,0,0,.6));transition:filter .5s}
+.va .stage.flare .wiz{filter:drop-shadow(0 0 22px rgba(255,207,122,.55)) drop-shadow(0 24px 40px rgba(0,0,0,.6))}
+/* flask burst: where the website goes in and the posts come out */
+.va .burst{position:absolute;z-index:4;left:30.5%;top:32%;width:22%;aspect-ratio:1;transform:translate(-50%,-50%) scale(.3);border-radius:50%;background:radial-gradient(closest-side,#fff6dc,rgba(255,207,122,.75) 35%,rgba(232,163,61,.2) 65%,transparent);mix-blend-mode:screen;opacity:0;transition:opacity .35s,transform .6s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.va .stage.flare .burst{opacity:1;transform:translate(-50%,-50%) scale(1.25)}
+.va .chip{position:absolute;z-index:6;left:-4%;top:58%;display:flex;gap:8px;align-items:center;background:rgba(22,28,19,.94);border:1px solid #4a5642;border-radius:999px;padding:9px 14px;font:600 13px/1 var(--body);color:var(--paper);box-shadow:0 10px 30px -10px #000,0 0 18px rgba(232,163,61,.25);opacity:0;transform:translateY(10px);transition:left 1s cubic-bezier(.6,0,.35,1),top 1s cubic-bezier(.6,0,.35,1),transform 1s,opacity .4s}
+.va .chip svg{width:14px;height:14px;flex:none}
+.va .stage.feed .chip{opacity:1;transform:none}
+.va .stage.sink .chip{left:24%;top:29%;transform:scale(.3);opacity:0;transition:left 1s cubic-bezier(.6,0,.35,1),top 1s cubic-bezier(.6,0,.35,1),transform 1s,opacity .4s .7s}
+.va .post{position:absolute;z-index:5;width:27%;aspect-ratio:4/5;left:17%;top:15%;border-radius:12px;overflow:hidden;background:#1c2318;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 26px 50px -18px rgba(0,0,0,.85),0 0 30px rgba(232,163,61,.3);opacity:0;transform:scale(.12) rotate(0);transition:left 1s cubic-bezier(.2,.9,.25,1.04),top 1s cubic-bezier(.2,.9,.25,1.04),transform 1s cubic-bezier(.2,.9,.25,1.04),opacity .3s}
+.va .post img{width:100%;height:100%;object-fit:cover;display:block}
+.va .stage.out .post{opacity:1}
+.va .stage.out .p1{left:70%;top:2%;transform:rotate(-6deg);transition-delay:0s}
+.va .stage.out .p2{left:75%;top:31%;transform:rotate(4deg);transition-delay:.15s}
+.va .stage.out .p3{left:68%;top:60%;transform:rotate(9deg);transition-delay:.3s}
+.va .stage.fade .post{opacity:0;transform:translateY(-30px) scale(.94)!important;transition:transform .6s ease-in,opacity .5s;transition-delay:0s!important}
+.va .spark{position:absolute;z-index:4;width:6px;height:6px;border-radius:50%;background:var(--gold-2);box-shadow:0 0 10px var(--gold),0 0 22px var(--gold);left:30.5%;top:32%;opacity:0}
+.va .stage.flare .spark{animation:va-spark 1.1s ease-out forwards}
+@keyframes va-spark{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.3)}}
+.va .brandtag{position:absolute;z-index:6;left:0;top:0;background:rgba(22,28,19,.92);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--muted);opacity:0;transform:translateY(8px);transition:opacity .5s .9s,transform .5s .9s;max-width:46%}
+.va .brandtag b{display:block;color:var(--paper);font:600 15px/1.2 var(--display);margin-bottom:3px}
+.va .brandtag .sw{display:inline-flex;gap:3px;vertical-align:middle;margin-left:6px}
+.va .brandtag .sw i{width:11px;height:11px;border-radius:3px}
+.va .stage.out .brandtag{opacity:1;transform:none}
+.va .stage.fade .brandtag{opacity:0;transition-delay:0s}
+.va .stage.reset .chip,.va .stage.reset .post,.va .stage.reset .brandtag{transition:none!important}
+.va .stage.still .post{opacity:1}
+@media(max-width:560px){.va .chip{font-size:11.5px;padding:7px 10px}.va .brandtag{font-size:11px;padding:8px 10px}.va .brandtag b{font-size:13px}.va .post{border-radius:8px}}
+.va .ember{position:absolute;bottom:-10px;width:4px;height:4px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);opacity:0;animation:va-ember 9s linear infinite;pointer-events:none;z-index:1}
+@keyframes va-ember{0%{opacity:0;transform:translateY(0)}10%{opacity:.85}100%{opacity:0;transform:translateY(-560px) translateX(40px)}}
+.va .va-embers{position:absolute;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+
+
+/* sections */
+.va section{padding:92px 0;border-top:1px solid var(--line);position:relative}
+.va section h2{font-size:clamp(30px,4vw,48px);max-width:20ch;letter-spacing:-.01em}
+.va section h2 em{font-style:italic;color:var(--gold)}
+.va .sub{color:var(--muted);margin:16px 0 0;max-width:60ch;font-size:17.5px}
+@media(max-width:560px){.va section{padding:60px 0}}
+
+/* three brands */
+.va .brands{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px}
+.va .bcard{background:var(--ground-2);border:1px solid var(--line);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden}
+.va .bcard::before{content:"";position:absolute;inset:-40% -40% auto auto;width:220px;height:220px;border-radius:50%;border:1px dashed rgba(232,163,61,.25);pointer-events:none}
+.va .bhead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.va .bhead b{font:600 21px/1.1 var(--display)}
+.va .bhead span{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);border:1px solid #4a3a1c;border-radius:999px;padding:5px 10px;white-space:nowrap}
+.va .blook{font-size:14.5px;color:var(--muted);margin:0;min-height:4.8em;font-style:italic}
+.va .swatch{display:flex;gap:6px}
+.va .swatch i{flex:1;height:26px;border-radius:7px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.va .faces{display:flex;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted);align-items:center}
+.va .faces code{font:600 12.5px/1 var(--body);color:var(--paper);background:var(--ground);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+.va .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.va .pair img{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:10px;border:1px solid var(--line);background:var(--ground-3)}
+.va .note{font-size:14px;color:var(--muted);margin-top:22px}
+@media(max-width:980px){.va .brands{grid-template-columns:1fr}.va .blook{min-height:0}}
+
+/* characters */
+.va .chargrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:40px}
+.va .ch{margin:0;background:var(--ground-2);border:1px solid var(--line);border-radius:16px;overflow:hidden;position:relative}
+.va .ch img{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:var(--ground-3)}
+.va .ch.orig img,.va .ch.pose img{object-fit:contain;padding:16px;background:radial-gradient(circle at 50% 62%,rgba(232,163,61,.22),transparent 62%),var(--ground-3)}
+.va .ch.orig{border-style:dashed;border-color:#4a3a1c}
+.va .ch figcaption{padding:11px 13px 13px;font-size:13px;color:var(--muted);line-height:1.45}
+.va .ch figcaption b{display:block;color:var(--paper);font-weight:600;margin-bottom:2px}
+.va .ch .badge{position:absolute;top:10px;left:10px;font:600 10.5px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;background:rgba(15,19,12,.85);color:var(--gold);border:1px solid #4a3a1c;border-radius:999px;padding:5px 8px}
+.va .charrow + .charrow{margin-top:14px}
+@media(max-width:900px){.va .chargrid{grid-template-columns:1fr 1fr}}
+
+/* steps */
+.va .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px}
+.va .step{border:1px solid var(--line);border-radius:16px;padding:24px;background:var(--ground-2);position:relative;overflow:hidden}
+.va .step .sig{width:64px;height:64px;margin-bottom:14px;position:relative}
+.va .step .sig b{position:absolute;inset:0;display:grid;place-items:center;font:600 20px/1 var(--display);color:var(--paper)}
+.va .step h3{font-size:21px;margin-bottom:8px}
+.va .step p{color:var(--muted);font-size:15px;margin:0}
+@media(max-width:880px){.va .steps{grid-template-columns:1fr}}
+
+/* a real post */
+.va .anat{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:center;margin-top:40px}
+.va .postcard{background:var(--ground-2);border:1px solid var(--line);border-radius:18px;padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.va .postcard img{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:10px}
+.va .postcard .top{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;font-weight:600}
+.va .postcard .pill{font:600 11px/1 var(--body);letter-spacing:.06em;color:#06130d;background:var(--green);border-radius:99px;padding:5px 10px}
+.va .postcard .cap{grid-column:1/-1;margin:0;font-size:15.5px}
+.va .postcard .tags{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}
+.va .postcard .tags span{border:1px solid var(--line);border-radius:99px;padding:5px 12px;font-size:13.5px;color:var(--gold)}
+.va .checks{list-style:none;margin:0;padding:0;display:grid;gap:16px}
+.va .checks li{display:grid;grid-template-columns:30px 1fr;gap:14px}
+.va .checks li > span:first-child{width:30px;height:30px;border-radius:50%;border:1px solid var(--gold);color:var(--gold);display:grid;place-items:center;font:600 14px/1 var(--display)}
+.va .checks b{display:block;font-weight:600}
+.va .checks small{color:var(--muted);font-size:14.5px}
+@media(max-width:900px){.va .anat{grid-template-columns:1fr}}
+
+/* grounded + features */
+.va .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px}
+.va .feat{border:1px solid var(--line);border-radius:16px;padding:24px;background:var(--ground-2)}
+.va .feat h3{font-size:20px;margin-bottom:8px}
+.va .feat p{margin:0;color:var(--muted);font-size:15px}
+.va .feat .ic{width:34px;height:34px;border-radius:50%;border:1px solid var(--green);color:var(--green);display:grid;place-items:center;margin-bottom:14px;font-size:15px}
+@media(max-width:1000px){.va .feat-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.va .feat-grid{grid-template-columns:1fr}}
+
+/* review & improve */
+.va .split{display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:center;margin-top:36px}
+.va .split img{width:100%;max-width:440px;display:block;margin:0 auto;filter:drop-shadow(0 20px 40px rgba(0,0,0,.5))}
+.va .split p{margin:0 0 14px;color:var(--muted);font-size:17px;max-width:54ch}
+.va .split p strong{color:var(--paper);font-weight:600}
+@media(max-width:880px){.va .split{grid-template-columns:1fr;gap:28px}}
+
+/* equivalent exchange */
+.va .xgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:34px}
+.va .xcard{background:var(--ground-2);border:1px solid var(--line);border-radius:16px;padding:22px}
+.va .xcard .give{font:600 13px/1 var(--body);color:var(--gold);letter-spacing:.06em}
+.va .xcard .eq{display:block;font:500 32px/1.1 var(--display);margin:12px 0 6px}
+.va .xcard p{color:var(--muted);margin:0;font-size:15px}
+.va .xcard.soon{border-style:dashed;opacity:.8}
+.va .ranks{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.va .ranks span{border:1px solid var(--line);border-radius:99px;padding:7px 12px;font-size:13px;color:var(--muted)}
+.va .ranks span:first-child{color:var(--paper);border-color:var(--green)}
+.va .ranks span:last-child{color:var(--gold);border-color:var(--gold)}
+@media(max-width:760px){.va .xgrid{grid-template-columns:1fr}}
+
+/* pricing */
+.va .billing{display:inline-flex;gap:3px;border:1px solid var(--line);border-radius:99px;padding:3px;margin-top:24px}
+.va .billing button{background:transparent;border:0;color:var(--muted);font:600 12.5px/1 var(--body);padding:9px 16px;border-radius:99px;cursor:pointer}
+.va .billing button[aria-pressed=true]{background:var(--green);color:#06130d}
+.va .plans{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:32px;align-items:stretch}
+.va .plan{border:1px solid var(--line);border-radius:16px;padding:24px;background:var(--ground-2);position:relative;display:flex;flex-direction:column}
+.va .plan.pop{border-color:var(--gold);box-shadow:0 0 40px -18px rgba(232,163,61,.6)}
+.va .plan .tag{position:absolute;top:-10px;left:22px;background:var(--gold);color:#241a06;font:700 10px/1 var(--body);letter-spacing:.1em;text-transform:uppercase;padding:5px 9px;border-radius:99px}
+.va .plan h3{font-size:21px}
+.va .plan .blurb{color:var(--muted);font-size:13px;margin:7px 0 14px;min-height:38px}
+.va .plan .price{font:600 38px/1 var(--display);font-variant-numeric:tabular-nums}
+.va .plan .price span{font:400 13px/1 var(--body);color:var(--muted)}
+.va .plan .cycle{font-size:11.5px;color:var(--muted);margin:6px 0 16px}
+.va .plan ul{list-style:none;padding:0;margin:0 0 18px;font-size:13px;display:grid;gap:7px}
+.va .plan li{display:flex;gap:8px}
+.va .plan li .y{color:var(--green);flex:none}
+.va .plan li .n{color:#6f7768;flex:none}
+.va .plan li.off{color:#6f7768}
+.va .plan .btn{margin-top:auto;justify-content:center}
+.va .fineprint{color:var(--muted);font-size:12.5px;margin-top:22px}
+@media(max-width:980px){.va .plans{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.va .plans{grid-template-columns:1fr}}
+
+/* faq + closer + footer */
+.va .faq details{border-bottom:1px solid var(--line);padding:18px 0}
+.va .faq summary{cursor:pointer;font-weight:600;font-size:17px;list-style:none;display:flex;justify-content:space-between;gap:16px}
+.va .faq summary::-webkit-details-marker{display:none}
+.va .faq summary::after{content:"+";color:var(--green);font-size:22px;line-height:1}
+.va .faq details[open] summary::after{content:"–"}
+.va .faq details p{color:var(--muted);margin:12px 0 0;max-width:70ch}
+.va .closer{text-align:center;padding:90px 0 100px;position:relative;overflow:hidden}
+.va .closer .csig{position:absolute;left:50%;top:50%;width:620px;height:620px;transform:translate(-50%,-50%);opacity:.14;pointer-events:none}
+.va .closer img.wave{width:180px;margin:0 auto 10px;position:relative;filter:drop-shadow(0 16px 30px rgba(0,0,0,.6))}
+.va .closer h2{margin:0 auto;max-width:18ch;position:relative}
+.va .closer .sub{margin:16px auto 30px;position:relative}
+.va .closer .btn{position:relative}
+.va footer{border-top:1px solid var(--line);padding:34px 0;color:var(--muted);font-size:13px}
+.va footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.va footer a{color:var(--muted);text-decoration:none}
+.va footer a:hover{color:var(--paper)}
+.va .tc{width:100%;height:100%;overflow:visible;display:block}
+.va .tc .spin-slow{transform-origin:100px 100px;animation:va-spin 60s linear infinite}
+.va .tc .spin-rev{transform-origin:100px 100px;animation:va-spin 40s linear infinite reverse}
+.va .tc .spin-fast{transform-origin:100px 100px;animation:va-spin 24s linear infinite}
+.va .tc .core{transform-origin:100px 100px;animation:va-breathe 3s ease-in-out infinite}
+.va .tc .draw{stroke-dasharray:1;stroke-dashoffset:0}
+@media(max-width:560px){.va .wrap{padding:0 16px}.va h1,.va h2,.va h3,.va p,.va li,.va summary{overflow-wrap:anywhere}}
+.va .charnote{max-width:640px;margin:18px 0 0;font-size:13.5px;color:var(--muted)}
+
+/* Review & Improve: the animated loop (Brad asked 2026-10-07 for the
+   magnifying-glass illustration to go: "his shirt and chest are the same thing"). */
+.va .loop{position:relative;width:100%;max-width:440px;margin:0 auto;aspect-ratio:1}
+.va .loop [data-sigil]{position:absolute;inset:0}
+.va .loop [data-sigil] svg{width:100%;height:100%;display:block}
+.va .loop .lbl{position:absolute;font:600 12px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--paper);background:var(--ground-2);border:1px solid var(--line);border-radius:99px;padding:8px 12px;white-space:nowrap}
+.va .loop .l1{top:2%;left:50%;transform:translateX(-50%)}.va .loop .l2{top:50%;right:-2%;transform:translateY(-50%)}
+.va .loop .l3{bottom:2%;left:50%;transform:translateX(-50%)}.va .loop .l4{top:50%;left:-2%;transform:translateY(-50%)}
+.va .loop .lbl b{color:var(--gold);margin-right:6px}
+@media(max-width:420px){.va .loop .l2{right:0}.va .loop .l4{left:0}}
+
+</style>
+<style>
+.vb{
+    --ground:#12160f; --ground-2:#171c14; --line:#2a3126;
+    --paper:#ece6d6; --muted:#9aa394;
+    --gold:#e8a33d; --green:#2e9c74;
+    --maxw:1120px;
+    --display:Fraunces,Georgia,serif;
+    --body:"IBM Plex Sans",-apple-system,system-ui,sans-serif;
+  }
+.vb,.vb *{box-sizing:border-box}
+.vb{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){.vb{scroll-behavior:auto}
+.vb,.vb *{animation:none!important;transition:none!important}}
+.vb{margin:0;background:var(--ground);color:var(--paper);font:16px/1.65 var(--body);-webkit-font-smoothing:antialiased}
+.vb .wrap{max-width:var(--maxw);margin:0 auto;padding:0 20px}
+.vb h1,.vb h2,.vb h3{font-family:var(--display);font-weight:600;line-height:1.1;text-wrap:balance;margin:0}
+.vb a{color:inherit}
+.vb .eyebrow{font:600 11px/1 var(--body);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:14px}
+.vb .eyebrow::before{content:"// ";color:var(--green)}
+.vb .btn{display:inline-block;white-space:nowrap;border-radius:8px;padding:11px 20px;font:600 14px/1.2 var(--body);text-decoration:none;cursor:pointer;border:1px solid transparent}
+.vb .btn-ghost{border-color:var(--line);color:var(--paper)}
+.vb .btn-ghost:hover{border-color:var(--muted)}
+.vb .btn-gold{background:var(--gold);color:#241a06}
+.vb .btn-gold:hover{filter:brightness(1.07)}
+.vb .btn-lg{padding:15px 28px;font-size:16px;border-radius:10px}
+.vb .textlink{color:var(--paper);font-weight:600;font-size:15px;text-decoration:none;border-bottom:1px solid var(--green);padding-bottom:2px;white-space:nowrap}
+.vb .textlink:hover{border-color:var(--gold)}
+.vb /* header: one row,.vb nothing wraps. Four links,.vb two buttons. */
+  header.site{position:sticky;top:0;z-index:50;background:rgba(18,22,15,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.vb .nav{display:flex;align-items:center;gap:28px;height:64px}
+.vb .brand{display:flex;align-items:center;gap:9px;font-family:var(--display);font-size:18px;font-weight:600;text-decoration:none;flex:none;white-space:nowrap}
+.vb .brand img{width:26px;height:26px}
+.vb .brand em{color:var(--gold);font-style:italic}
+.vb .navlinks{display:flex;gap:28px;margin-left:auto;font-size:14.5px}
+.vb .navlinks a{text-decoration:none;color:var(--muted);white-space:nowrap}
+.vb .navlinks a:hover{color:var(--paper)}
+.vb .navbtns{display:flex;gap:10px;align-items:center}
+.vb .menu{display:none;position:relative}
+.vb .menu summary{white-space:nowrap;list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:9px 14px;font:600 13px/1 var(--body);color:var(--paper)}
+.vb .menu summary::-webkit-details-marker{display:none}
+.vb .menu-panel{position:absolute;right:0;top:calc(100% + 10px);min-width:200px;background:var(--ground-2);border:1px solid var(--line);border-radius:12px;padding:8px;display:grid;box-shadow:0 18px 40px rgba(0,0,0,.5)}
+.vb .menu-panel a{padding:11px 12px;text-decoration:none;border-radius:8px;color:var(--paper);font-size:15px}
+.vb .menu-panel a:hover{background:var(--ground)}
+@media(max-width:900px){.vb .navlinks{display:none}
+.vb .navbtns{margin-left:auto}
+.vb .menu{display:block}
+.vb .nav{gap:12px}
+
+  }
+@media(max-width:560px){.vb .nav{height:58px;gap:8px}
+.vb .brand{font-size:16px;gap:7px}
+.vb .brand img{width:22px;height:22px}
+.vb .navbtns .btn-ghost{display:none}
+.vb .btn{padding:10px 14px;font-size:13px}
+
+  }
+@media(max-width:370px){.vb .brand em{display:none}
+ }
+.vb /* hero */
+  .hero{padding:72px 0 64px}
+.vb .hero-grid{display:grid;grid-template-columns:.92fr 1.08fr;gap:48px;align-items:center}
+.vb .hero h1{font-size:clamp(34px,5vw,58px);letter-spacing:-.01em}
+.vb .hero h1 .ln{display:block}
+.vb .hero h1 em{color:var(--gold);font-style:italic}
+.vb .hero p.lede{color:#cfccbc;font-size:18px;margin:22px 0 30px;max-width:48ch}
+.vb .cta-row{display:flex;flex-wrap:wrap;align-items:center;gap:14px 24px}
+.vb .micro{color:var(--muted);font-size:13.5px;margin-top:16px}
+.vb .audience{color:var(--muted);font-size:13.5px;margin-top:30px;padding-top:20px;border-top:1px solid var(--line);max-width:48ch}
+@media(max-width:900px){.vb .hero-grid{grid-template-columns:1fr;gap:40px}
+.vb .hero{padding:44px 0 48px}}
+.vb .proof{background:var(--ground-2);border:1px solid var(--line);border-radius:16px;padding:18px}
+.vb .proof .t{display:block;font:600 11.5px/1 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.vb .fan{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.vb .fan img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+@media(max-width:560px){.vb .proof{padding:12px}
+.vb .fan{gap:8px}}
+.vb /* sections */
+  section{padding:76px 0;border-top:1px solid var(--line)}
+.vb section h2{font-size:clamp(28px,3.8vw,42px);max-width:20ch;letter-spacing:-.005em}
+.vb section .sub{color:var(--muted);margin:16px 0 0;max-width:60ch;font-size:17px}
+@media(max-width:560px){.vb section{padding:52px 0}}
+.vb /* anatomy of a post */
+  .anat{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:48px;align-items:start;margin-top:40px}
+.vb .anat > img{width:100%;border-radius:14px;border:1px solid var(--line);display:block}
+.vb .post{background:var(--ground-2);border:1px solid var(--line);border-radius:16px;padding:24px}
+.vb .post-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px;font-weight:600}
+.vb .chip{font:600 11px/1 var(--body);letter-spacing:.06em;color:#06130d;background:var(--green);border-radius:99px;padding:5px 10px;white-space:nowrap}
+.vb .lab{display:block;font:600 11px/1 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:20px 0 8px}
+.vb .lab:first-of-type{margin-top:0}
+.vb .post p{margin:0;font-size:16px}
+.vb .tags{display:flex;flex-wrap:wrap;gap:8px}
+.vb .tags span{border:1px solid var(--line);border-radius:99px;padding:5px 12px;font-size:14px;color:var(--gold)}
+.vb .anat-points{display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;margin-top:22px;padding-top:20px;border-top:1px solid var(--line);font-size:14px;color:var(--muted)}
+.vb .anat-points b{display:block;color:var(--paper);font-weight:600;margin-bottom:2px}
+@media(max-width:880px){.vb .anat{grid-template-columns:1fr;gap:28px}
+.vb .anat > img{max-width:340px}}
+@media(max-width:520px){.vb .anat-points{grid-template-columns:1fr}
+.vb .post{padding:18px}}
+.vb /* steps */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px}
+.vb .step{border:1px solid var(--line);border-radius:14px;padding:24px;background:var(--ground-2)}
+.vb .step .n{font-family:var(--display);font-size:30px;color:var(--green);display:block;margin-bottom:10px}
+.vb .step h3{font-size:20px;margin-bottom:8px}
+.vb .step p{color:var(--muted);font-size:15px;margin:0}
+@media(max-width:880px){.vb .steps{grid-template-columns:1fr}}
+.vb .split{display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:center;margin-top:36px}
+.vb .split img{width:100%;border-radius:14px;display:block}
+.vb .split p{margin:0 0 14px;color:var(--muted);font-size:17px;max-width:54ch}
+.vb .split p strong{color:var(--paper);font-weight:600}
+@media(max-width:880px){.vb .split{grid-template-columns:1fr;gap:28px}}
+.vb .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px}
+.vb .feat{border:1px solid var(--line);border-radius:14px;padding:24px;background:var(--ground-2)}
+.vb .feat h3{font-size:19px;margin-bottom:8px}
+.vb .feat p{margin:0;color:var(--muted);font-size:15px}
+@media(max-width:1000px){.vb .feat-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.vb .feat-grid{grid-template-columns:1fr;gap:12px}}
+.vb /* pricing */
+  .billing{display:inline-flex;gap:3px;border:1px solid var(--line);border-radius:99px;padding:3px;margin-top:24px}
+.vb .billing button{background:transparent;border:0;color:var(--muted);font:600 12.5px/1 var(--body);padding:9px 16px;border-radius:99px;cursor:pointer}
+.vb .billing button[aria-pressed=true]{background:var(--green);color:#06130d}
+.vb .plans{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:32px;align-items:start}
+.vb .plan{border:1px solid var(--line);border-radius:14px;padding:24px;background:var(--ground-2);position:relative;display:flex;flex-direction:column;height:100%}
+.vb .plan.pop{border-color:var(--green)}
+.vb .tag{position:absolute;top:-10px;left:22px;background:var(--green);color:#06130d;font:700 10px/1 var(--body);letter-spacing:.1em;text-transform:uppercase;padding:5px 9px;border-radius:99px}
+.vb .plan h3{font-size:20px}
+.vb .plan .blurb{color:var(--muted);font-size:13px;margin:7px 0 14px;min-height:38px}
+.vb .price{font-family:var(--display);font-size:36px;font-variant-numeric:tabular-nums}
+.vb .price span{font-family:var(--body);font-size:13px;color:var(--muted)}
+.vb .cycle{font-size:11.5px;color:var(--muted);margin-bottom:16px}
+.vb .plan ul{list-style:none;padding:0;margin:0 0 18px;font-size:13px;display:grid;gap:7px}
+.vb .plan li{display:flex;gap:8px;align-items:flex-start}
+.vb .plan li .y{color:var(--green);flex:none}
+.vb .plan li .n{color:#6f7768;flex:none}
+.vb .plan li.off{color:#6f7768}
+.vb .plan .btn{margin-top:auto;text-align:center}
+.vb .fineprint{color:var(--muted);font-size:12.5px;margin-top:22px}
+@media(max-width:980px){.vb .plans{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.vb .plans{grid-template-columns:1fr}
+.vb .plan{padding:20px}}
+.vb /* closing call to action */
+  .closer{text-align:center;padding:84px 0}
+.vb .closer h2{margin:0 auto;max-width:18ch}
+.vb .closer .sub{margin:16px auto 30px}
+@media(max-width:560px){.vb .closer{padding:56px 0}}
+.vb #faq details{border-bottom:1px solid var(--line);padding:18px 0}
+.vb #faq details summary{cursor:pointer;font-weight:600;font-size:17px;list-style:none;display:flex;justify-content:space-between;gap:16px;align-items:center}
+.vb #faq details summary::-webkit-details-marker{display:none}
+.vb #faq details summary::after{content:"+";color:var(--green);font-size:22px;line-height:1;flex:none}
+.vb #faq details[open] summary::after{content:"–"}
+.vb #faq details p{color:var(--muted);margin:12px 0 0;max-width:70ch}
+.vb footer.site{border-top:1px solid var(--line);padding:34px 0;color:var(--muted);font-size:13px}
+.vb .foot-row{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:center}
+.vb .foot-links{display:flex;flex-wrap:wrap;gap:8px 20px}
+.vb .foot-links a{color:var(--muted);text-decoration:none}
+.vb .foot-links a:hover{color:var(--paper)}
+.vb .foot-copy{margin-top:22px;padding-top:18px;border-top:1px solid var(--line);font-size:12.5px}
+@media(max-width:560px){.vb .wrap{padding:0 16px}
+.vb .hero p.lede{font-size:16.5px}
+.vb h1,.vb h2,.vb h3,.vb p,.vb li,.vb summary{overflow-wrap:anywhere}
+.vb .billing{width:100%;justify-content:center}
+.vb .billing button{flex:1;padding:9px 8px;font-size:12px}
+
+  }
+.vb /* 2026-10-07 transmutation circle + equivalent exchange */
+  .tc{width:100%;height:100%;overflow:visible;display:block}
+.vb .tc .draw{stroke-dasharray:1;stroke-dashoffset:1;animation:tcDraw 2.2s cubic-bezier(.2,.8,.2,1) forwards}
+.vb .tc .d2{animation-delay:.3s}
+.vb .tc .d3{animation-delay:.6s}
+.vb .tc .d4{animation-delay:.9s}
+@keyframes tcDraw{to{stroke-dashoffset:0}}
+.vb .tc .spin-slow{transform-origin:100px 100px;animation:tcSpin 60s linear infinite}
+.vb .tc .spin-rev{transform-origin:100px 100px;animation:tcSpin 40s linear infinite reverse}
+.vb .tc .spin-fast{transform-origin:100px 100px;animation:tcSpin 24s linear infinite}
+.vb .tc .core{transform-origin:100px 100px;animation:tcBreathe 3s ease-in-out infinite}
+@keyframes tcSpin{to{transform:rotate(360deg)}}
+@keyframes tcBreathe{0%,100%{transform:scale(.88);opacity:.8}50%{transform:scale(1.06);opacity:1}}
+.vb .hero{position:relative;overflow:hidden}
+.vb .hero-sigil{position:absolute;right:-180px;top:50%;width:760px;height:760px;transform:translateY(-50%);opacity:.13;pointer-events:none;z-index:0}
+.vb .hero .wrap{position:relative;z-index:1}
+@media(max-width:900px){.vb .hero-sigil{right:-300px;width:620px;height:620px;opacity:.09}}
+.vb .ember{position:absolute;bottom:-10px;width:4px;height:4px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);opacity:0;animation:ember 9s linear infinite;pointer-events:none;z-index:0}
+@keyframes ember{0%{opacity:0;transform:translateY(0)}10%{opacity:.8}100%{opacity:0;transform:translateY(-520px) translateX(40px)}}
+.vb .loop{position:relative;max-width:440px;margin:0 auto;aspect-ratio:1}
+.vb .loop .lbl{position:absolute;font:600 12px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--paper);background:var(--ground-2);border:1px solid var(--line);border-radius:99px;padding:8px 12px;white-space:nowrap}
+.vb .loop .l1{top:2%;left:50%;transform:translateX(-50%)}
+.vb .loop .l2{top:50%;right:-2%;transform:translateY(-50%)}
+.vb .loop .l3{bottom:2%;left:50%;transform:translateX(-50%)}
+.vb .loop .l4{top:50%;left:-2%;transform:translateY(-50%)}
+.vb .loop .lbl b{color:var(--gold);margin-right:6px}
+.vb .xgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:34px}
+.vb .xcard{background:var(--ground-2);border:1px solid var(--line);border-radius:16px;padding:22px;position:relative;overflow:hidden}
+.vb .xcard .give{font:600 13px/1 var(--body);color:var(--gold);letter-spacing:.06em}
+.vb .xcard .eq{display:block;font:500 34px/1.1 var(--display);margin:12px 0 6px;color:var(--paper)}
+.vb .xcard p{color:var(--muted);margin:0;font-size:15px}
+.vb .xcard.soon{border-style:dashed;opacity:.8}
+.vb .ranks{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.vb .ranks span{border:1px solid var(--line);border-radius:99px;padding:7px 12px;font-size:13px;color:var(--muted)}
+.vb .ranks span:first-child{color:var(--paper);border-color:var(--green)}
+.vb .ranks span:last-child{color:var(--gold);border-color:var(--gold)}
+@media(max-width:760px){.vb .xgrid{grid-template-columns:1fr}}
+
+
+.vb{overflow-x:clip}
+</style>
+<style>
+/* ── Try it on your site (2026-10-10) — shared by both homepage designs ── */
+html body .trysec{position:relative;padding:72px 20px;background:radial-gradient(circle at 80% 30%,rgba(232,163,61,.12),transparent 55%),#121810;border-top:1px solid #2a3126;border-bottom:1px solid #2a3126;color:#ece6d6;font-family:"IBM Plex Sans",-apple-system,system-ui,sans-serif}
+html body .trysec .ts-wrap{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+html body .trysec .ts-eyebrow{display:block;font:600 11px/1 inherit;letter-spacing:.18em;text-transform:uppercase;color:#9aa394;margin-bottom:14px}
+html body .trysec .ts-eyebrow::before{content:"// ";color:#2e9c74}
+html body .trysec h2{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(30px,4vw,44px);line-height:1.08;margin:0;text-wrap:balance;color:#ece6d6}
+html body .trysec h2 em{color:#e8a33d;font-style:italic}
+html body .trysec .ts-copy>p{color:#cfc8b6;font-size:17px;line-height:1.6;margin:16px 0 0;max-width:52ch}
+html body .trysec .ts-form{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
+html body .trysec .ts-form input[name=url]{flex:1 1 220px;min-width:0;border:1px solid #39432f;background:#0f130c;color:#ece6d6;border-radius:12px;padding:14px 16px;font:500 16px/1.2 inherit}
+html body .trysec .ts-form input[name=url]::placeholder{color:#7d8676}
+html body .trysec .ts-form input[name=url]:focus{outline:2px solid #e8a33d;outline-offset:2px;border-color:transparent}
+html body .trysec .ts-btn{border:0;border-radius:12px;padding:14px 20px;font:600 15px/1.2 inherit;cursor:pointer;color:#241a06;background:linear-gradient(180deg,#f0b452,#e19a2c);box-shadow:0 10px 30px -12px rgba(232,163,61,.7)}
+html body .trysec .ts-btn:disabled{opacity:.6;cursor:wait}
+html body .trysec .ts-btn:focus-visible{outline:2px solid #ffcf7a;outline-offset:3px}
+html body .trysec .ts-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+html body .trysec .ts-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+html body .trysec .ts-fine{font-size:13px;color:#9aa394;margin:12px 0 0}
+html body .trysec .ts-err{margin-top:12px;color:#ffb4a0;font-size:14px}
+html body .trysec .ts-agree{flex:1 1 100%;display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;color:#b9b29f;cursor:pointer}
+html body .trysec .ts-agree input{flex:none;width:18px;height:18px;margin:1px 0 0;accent-color:#e8a33d;cursor:pointer}
+html body .trysec .ts-agree a{color:#ffcf7a}
+html body .trysec .ts-agree.ts-need{color:#ffb4a0}
+html body .trysec .ts-out{display:grid;place-items:center}
+html body .trysec .ts-frame{width:100%;max-width:380px;aspect-ratio:4/5;border:1px dashed #39432f;border-radius:16px;align-content:center}
+html body .trysec .ts-idle,html body .trysec .ts-busy{display:grid;justify-items:center;gap:14px;color:#9aa394;font-size:14px;text-align:center}
+html body .trysec .ts-idle img{opacity:.35}
+html body .trysec .ts-busy img{width:96px;height:96px;animation:tsturn 6s linear infinite;filter:drop-shadow(0 0 22px rgba(232,163,61,.45))}
+html body .trysec .ts-busy b{color:#ece6d6;font-weight:600;font-size:15px}
+@keyframes tsturn{to{transform:rotate(360deg)}}
+/* The result: shown as a feed post at the app's real 4:5 size (1080x1350). */
+html body .trysec .ts-post{width:100%;max-width:400px;border-radius:18px;overflow:hidden;background:#161c13;border:1px solid #39432f;box-shadow:0 30px 60px -30px rgba(0,0,0,.8);animation:tsin .5s ease both}
+@keyframes tsin{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+html body .trysec .ts-ph{display:flex;align-items:center;gap:10px;padding:12px 14px;font-size:13.5px}
+html body .trysec .ts-av{width:32px;height:32px;border-radius:50%;background:#fff;display:grid;place-items:center;overflow:hidden;flex:none;color:#16130b;font-weight:700;font-size:14px}
+html body .trysec .ts-av img{width:78%;height:78%;object-fit:contain}
+html body .trysec .ts-ph b{color:#ece6d6;font-weight:600;display:block;line-height:1.2}
+html body .trysec .ts-ph small{color:#9aa394;font-size:12px}
+html body .trysec .ts-size{margin-left:auto;font-size:11px;letter-spacing:.06em;color:#9aa394;border:1px solid #39432f;border-radius:99px;padding:4px 9px;white-space:nowrap}
+html body .trysec .ts-real{aspect-ratio:4/5;background:#0f130d}html body .trysec .ts-real img{display:block;width:100%;height:100%;object-fit:cover}
+html body .trysec .ts-card{position:relative;aspect-ratio:4/5;container-type:inline-size;overflow:hidden;background:var(--bg);color:var(--fg);display:flex;flex-direction:column}
+html body .trysec .ts-photo{flex:0 0 57%;position:relative;overflow:hidden;background:rgba(0,0,0,.15)}
+html body .trysec .ts-photo img{width:100%;height:100%;object-fit:cover;display:block}
+html body .trysec .ts-chip{position:absolute;left:5cqw;top:5cqw;width:13cqw;height:13cqw;border-radius:3cqw;background:#fff;display:grid;place-items:center;box-shadow:0 2cqw 5cqw -2cqw rgba(0,0,0,.45)}
+html body .trysec .ts-chip img{width:76%;height:76%;object-fit:contain}
+html body .trysec .ts-panel{flex:1;display:flex;flex-direction:column;justify-content:center;gap:4.4cqw;padding:6cqw 7cqw 9cqw;position:relative;z-index:1}
+html body .trysec .ts-mark{display:flex;align-items:center;gap:2.6cqw;font-size:3.6cqw;font-weight:600;letter-spacing:.02em;opacity:.92}
+html body .trysec .ts-mark i{width:9cqw;height:9cqw;border-radius:2.2cqw;background:#fff;display:grid;place-items:center;overflow:hidden;flex:none}
+html body .trysec .ts-mark i img{width:76%;height:76%;object-fit:contain}
+html body .trysec .ts-hl{margin:0;font-family:var(--hf);font-weight:700;line-height:1.04;letter-spacing:-.015em;text-wrap:balance;font-size:var(--hs);overflow-wrap:anywhere}
+html body .trysec .ts-pill{align-self:flex-start;border-radius:99px;padding:2.6cqw 5cqw;font-size:3.9cqw;font-weight:700;background:var(--pb);color:var(--pf);font-family:"IBM Plex Sans",-apple-system,system-ui,sans-serif}
+html body .trysec .ts-foot{position:absolute;left:7cqw;right:7cqw;bottom:4.2cqw;font-size:3cqw;letter-spacing:.05em;opacity:.75;z-index:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html body .trysec .ts-card.np .ts-panel{justify-content:flex-start;padding:8cqw 8cqw 12cqw;gap:5cqw}
+html body .trysec .ts-card.np .ts-hl{margin-top:auto}
+html body .trysec .ts-card.np .ts-pill{margin-bottom:4cqw}
+html body .trysec .ts-card.np::before{content:"";position:absolute;width:86cqw;height:86cqw;right:-34cqw;top:-30cqw;border-radius:50%;background:var(--ac);opacity:.22}
+html body .trysec .ts-card.np::after{content:"";position:absolute;inset:3.4cqw;border:1px solid currentColor;border-radius:2cqw;opacity:.18;pointer-events:none}
+html body .trysec .ts-body{padding:14px 16px 16px}
+html body .trysec .ts-cap{font-size:14.5px;line-height:1.6;color:#ece6d6;margin:0}
+html body .trysec .ts-cap b{font-weight:600;margin-right:6px}
+html body .trysec .ts-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+html body .trysec .ts-tags span{font-size:13px;color:#ffcf7a}
+html body .trysec .ts-sw{display:flex;align-items:center;gap:6px;margin-top:14px;font-size:12px;color:#9aa394}
+html body .trysec .ts-sw i{width:18px;height:18px;border-radius:50%;border:1px solid rgba(255,255,255,.18)}
+html body .trysec .ts-next{border-top:1px solid #2a3126;padding:16px 16px 18px;display:grid;gap:12px}
+html body .trysec .ts-next p{margin:0;font-size:13.5px;line-height:1.5;color:#cfc8b6}
+html body .trysec .ts-next .ts-row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+html body .trysec .ts-next a.ts-go{display:inline-flex;border-radius:10px;padding:11px 18px;font-weight:600;font-size:14.5px;text-decoration:none;color:#241a06;background:linear-gradient(180deg,#f0b452,#e19a2c)}
+html body .trysec .ts-next button{background:none;border:0;color:#cfc8b6;text-decoration:underline;font:inherit;font-size:13.5px;cursor:pointer;padding:0}
+@media(max-width:860px){html body .trysec .ts-wrap{grid-template-columns:1fr;gap:30px}html body .trysec .ts-out{min-height:0}html body .trysec{padding:56px 16px}}
+@media (prefers-reduced-motion:reduce){html body .trysec .ts-busy img,html body .trysec .ts-post{animation:none}}
+
+</style>
+</head>
+<body>
+<!-- ═══════════════ VARIANT A · The Grand Transmutation ═══════════════ -->
+<div class="va">
+<header><div class="wrap nav">
+  <a class="brand" href="/"><img src="/assets/logo-mark.svg" alt="" width="26" height="26">Fullmedia <em>Alchemist</em></a>
+  <nav class="navlinks" aria-label="Main"><a href="#a-brands">Real brands</a><a href="#a-characters">Characters</a><a href="#a-how">How it works</a><a href="#a-exchange">Credits</a><a href="#a-pricing">Pricing</a><a href="#a-faq">FAQ</a><a href="/blog/">Blog</a></nav>
+  <div class="navbtns"><a class="btn btn-ghost" href="/dashboard/" data-cta="nav-signin">Sign in</a><a class="btn btn-gold" href="/dashboard/" data-cta="nav-start">Get started</a></div>
+</div></header>
+
+<main>
+<div class="hero">
+  <div class="hero-bg" aria-hidden="true"></div>
+  <div class="va-embers" aria-hidden="true"></div>
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">The Alchemist</span>
+      <h1><span class="ln">Your website in.</span> <span class="ln"><em>Posts that look like you</em> out.</span></h1>
+      <p class="lede">The Alchemist reads your site, learns your colours, typefaces, logo, character and voice, then writes and designs every post: caption, hashtags and image. You approve. He never makes up facts about you.</p>
+      <div class="cta-row">
+        <a class="btn btn-gold btn-lg" href="/dashboard/" data-cta="hero-start">Start free</a>
+        <a class="textlink" href="#try" data-cta="hero-try">Try it on your site, free</a>
+      </div>
+      <p class="micro">Free plan: 1 brand, 30 credits a month. No card needed.</p>
+      <div class="status" aria-live="polite"><i></i><span>Transmuting <b data-st-url>spinquest.app</b> → <span data-st-look>Glow gradient · Poppins · the wizard</span></span></div>
+    </div>
+
+    <div class="stage" data-stage aria-label="The Alchemist turning a brand's website into its posts">
+      <div class="ring" aria-hidden="true"><svg viewBox="0 0 400 400" data-ring="main"></svg></div>
+      <div class="floor" aria-hidden="true"><svg viewBox="0 0 400 400" data-ring="floor"></svg></div>
+      <div class="halo" aria-hidden="true"></div>
+      <img class="wiz" src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/content-calendar/platform-brand/assistant-hero.png?width=600&amp;height=900&amp;resize=contain&amp;quality=75" alt="The Alchemist in his transmutation circle, holding a glowing flask" width="600" height="900" fetchpriority="high">
+      <div class="burst" aria-hidden="true"></div>
+      <div class="chip" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="#e8a33d" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M1.5 8h13M8 1.5c2 2 2 11 0 13M8 1.5c-2 2-2 11 0 13"/></svg><span data-chip>spinquest.app</span></div>
+      <i class="spark" style="--dx:-90px;--dy:-70px" aria-hidden="true"></i><i class="spark" style="--dx:60px;--dy:-110px" aria-hidden="true"></i><i class="spark" style="--dx:150px;--dy:-40px" aria-hidden="true"></i><i class="spark" style="--dx:120px;--dy:40px" aria-hidden="true"></i><i class="spark" style="--dx:200px;--dy:-90px" aria-hidden="true"></i><i class="spark" style="--dx:-40px;--dy:-140px" aria-hidden="true"></i><i class="spark" style="--dx:180px;--dy:90px" aria-hidden="true"></i>
+      <div class="post p1"><img alt="" data-p="0"></div>
+      <div class="post p2"><img alt="" data-p="1"></div>
+      <div class="post p3"><img alt="" data-p="2"></div>
+      <div class="brandtag"><b data-bt-name>SpinQuest</b><span data-bt-look>Glow gradient</span><span class="sw" data-bt-sw></span></div>
+    </div>
+  </div>
+</div>
+
+<section class="trysec" id="try" aria-labelledby="try-h">
+  <div class="ts-wrap">
+    <div class="ts-copy">
+      <span class="ts-eyebrow">Try it on your site</span>
+      <h2 id="try-h">Paste your website. Get a post <em>in about 20 seconds.</em></h2>
+      <p>The Alchemist reads that one page and drafts a post from it: headline, caption and hashtags, in your voice, using only what the page says. No sign-up.</p>
+      <form class="ts-form" novalidate>
+        <label class="ts-sr" for="ts-url">Your website</label>
+        <input id="ts-url" name="url" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="yourbrand.com" maxlength="300">
+        <input class="ts-hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <button class="ts-btn" type="submit">Transmute it</button>
+        <label class="ts-agree"><input type="checkbox" name="agree" value="yes"><span>I own this brand or have permission to use its name, logo and website content, and I agree to the <a href="/terms/">Terms</a> and <a href="/privacy/">Privacy Policy</a>.</span></label>
+      </form>
+      <p class="ts-fine">Free, 3 previews a day. Shown at the 4:5 feed size the app makes. The full app adds your mascot, photos and QR code.</p>
+    </div>
+    <div class="ts-out" aria-live="polite">
+      <div class="ts-idle ts-frame"><img src="/assets/logo-mark.svg" alt="" width="96" height="96"><span>Your 4:5 post appears here</span></div>
+    </div>
+  </div>
+</section>
+
+
+<section id="a-brands"><div class="wrap">
+  <span class="eyebrow">Made with the Alchemist</span>
+  <h2>Three brands walked in. <em>Three looks</em> walked out.</h2>
+  <p class="sub">Each brand pasted its website once. The Alchemist read the colours, typefaces and logo off the site, picked a visual style to match, and every post since looks like that brand and nothing else.</p>
+  <div class="brands">
+    <article class="bcard">
+      <div class="bhead"><b>SpinQuest</b><span>Glow gradient</span></div>
+      <p class="blook">“A vibrant, playful app experience with gradient depth, bright accent colours, and modern geometric sans-serif type.”</p>
+      <div class="swatch" aria-label="Colours read from spinquest.app"><i style="background:#6366f1"></i><i style="background:#00e0d1"></i><i style="background:#ffd500"></i><i style="background:#ffffff"></i><i style="background:#000000"></i></div>
+      <div class="faces"><code>Poppins</code><code>Inter</code><span>+ logo + wizard</span></div>
+      <div class="pair"><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/sq-4.png?width=420&amp;height=525&amp;resize=contain&amp;quality=72&amp;v=2" alt="SpinQuest post with the wizard on a forest trail: Five new wheels, 227 quests live" loading="lazy"><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/sq-3.png?width=420&amp;height=525&amp;resize=contain&amp;quality=72&amp;v=2" alt="SpinQuest carousel slide listing four team games" loading="lazy"></div>
+    </article>
+    <article class="bcard">
+      <div class="bhead"><b>Reading Race</b><span>Playful bands</span></div>
+      <p class="blook">“A playful, social reading app with warm cream tones and friendly rounded typography for community-driven book races.”</p>
+      <div class="swatch" aria-label="Colours read from readingrace.com"><i style="background:#f4ecd8"></i><i style="background:#e8a33d"></i><i style="background:#42bed7"></i><i style="background:#ffffff"></i><i style="background:#12160f"></i></div>
+      <div class="faces"><code>Fredoka</code><code>Inter</code><span>+ icon + Dash</span></div>
+      <div class="pair"><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/rr-3.png?width=420&amp;height=525&amp;resize=contain&amp;quality=72&amp;v=2" alt="Reading Race post: Dash on a podium, Read a book, win an actual prize" loading="lazy"><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/rr-7.png?width=420&amp;height=525&amp;resize=contain&amp;quality=72&amp;v=2" alt="Reading Race post: Dash racing through space, Your speed. Your galaxy." loading="lazy"></div>
+    </article>
+    <article class="bcard">
+      <div class="bhead"><b>Bested</b><span>Pop poster</span></div>
+      <p class="blook">“A playful rivalry scorekeeper with warm golden tones, rounded friendly type, and vibrant pink and cyan accents for competitive fun.”</p>
+      <div class="swatch" aria-label="Colours read from bested.app"><i style="background:#f6efd9"></i><i style="background:#ffe08a"></i><i style="background:#f5b82e"></i><i style="background:#4fd8ff"></i><i style="background:#1d2233"></i></div>
+      <div class="faces"><code>Nunito</code><span>+ app icon</span></div>
+      <div class="pair"><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/be-1.png?width=420&amp;height=525&amp;resize=contain&amp;quality=72&amp;v=2" alt="Bested post: You think you're winning" loading="lazy"><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/be-2.png?width=420&amp;height=525&amp;resize=contain&amp;quality=72&amp;v=2" alt="Bested post: Settle every argument once and for all" loading="lazy"></div>
+    </article>
+  </div>
+  <p class="note">The quotes are the Alchemist’s own one-line read of each brand after scanning its site. Every image is a real post he made, unedited.</p>
+</div></section>
+
+<section id="a-characters"><div class="wrap">
+  <span class="eyebrow">Familiars</span>
+  <h2>Got a mascot? He gives it <em>a new scene</em> every post.</h2>
+  <p class="sub">Switch on character variations and each post gets a fresh picture of your character doing what the post is about. The face, colours and outfit stay locked. Only the action and the setting change.</p>
+  <div class="chargrid charrow">
+    <figure class="ch orig"><span class="badge">Original</span><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/brand-kits/bd651ef7-f0b8-438f-a7ff-08bd678c0113/character-0b8730d20c21.png?width=420&amp;height=630&amp;resize=contain&amp;quality=75" alt="SpinQuest’s wizard mascot" loading="lazy"><figcaption><b>SpinQuest’s wizard</b>From their own site. Never redrawn.</figcaption></figure>
+    <figure class="ch"><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/sq-fam-1.jpg?width=420&amp;height=630&amp;resize=contain&amp;quality=72&amp;v=2" alt="The wizard leaping past a carnival prize wheel, fist in the air" loading="lazy"><figcaption><b>Spin to decide</b>Leaping past a carnival prize wheel</figcaption></figure>
+    <figure class="ch"><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/sq-fam-2.jpg?width=420&amp;height=630&amp;resize=contain&amp;quality=72&amp;v=2" alt="The wizard paddling a canoe across a mountain lake at sunrise" loading="lazy"><figcaption><b>Weekend quest unlocked</b>Paddling a canoe at sunrise</figcaption></figure>
+    <figure class="ch"><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/sq-fam-3.jpg?width=420&amp;height=630&amp;resize=contain&amp;quality=72&amp;v=2" alt="The wizard racing through a lantern-lit night market with a food skewer" loading="lazy"><figcaption><b>Eat your way through the city</b>Racing through a night market</figcaption></figure>
+  </div>
+  <div class="chargrid charrow">
+    <figure class="ch orig"><span class="badge">Original</span><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/brand-kits/ef57f4fa-c234-4c88-a43e-98a152f94148/character-0f1300c73d6b.png?width=420&amp;height=630&amp;resize=contain&amp;quality=75" alt="Reading Race’s book mascot Dash" loading="lazy"><figcaption><b>Reading Race’s Dash</b>Same book, same sneakers, every time.</figcaption></figure>
+    <figure class="ch"><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/rr-fam-1.jpg?width=420&amp;height=630&amp;resize=contain&amp;quality=72&amp;v=2" alt="Dash kickflipping a skateboard off a ramp of books" loading="lazy"><figcaption><b>Race to the next chapter</b>Kickflipping off a ramp of books</figcaption></figure>
+    <figure class="ch"><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/rr-fam-2.jpg?width=420&amp;height=630&amp;resize=contain&amp;quality=72&amp;v=2" alt="Dash strolling through a dark forest beside a glowing lantern" loading="lazy"><figcaption><b>One more chapter</b>A lantern-lit walk after dark</figcaption></figure>
+    <figure class="ch"><img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/rr-fam-3.jpg?width=420&amp;height=630&amp;resize=contain&amp;quality=72&amp;v=2" alt="Dash conducting a choir of tiny bookmarks with a baton" loading="lazy"><figcaption><b>Reading clubs got social</b>Conducting a choir of bookmarks</figcaption></figure>
+  </div>
+  <p class="charnote">Every picture was made by the Alchemist from the brand’s own character image. Only the action and the setting were asked for.</p>
+</div></section>
+
+<section id="a-how"><div class="wrap">
+  <span class="eyebrow">How it works</span>
+  <h2>Three steps. You only do <em>the deciding</em>.</h2>
+  <div class="steps">
+    <div class="step"><div class="sig"><div data-sigil="step-one" style="width:100%;height:100%"></div><b>1</b></div><h3>Paste your website</h3><p>One click and your brand is set up: what you do, who it’s for, your voice, colours, typefaces, logo and character. Change anything later.</p></div>
+    <div class="step"><div class="sig"><div data-sigil="step-two" style="width:100%;height:100%"></div><b>2</b></div><h3>Say what to post about</h3><p>One sentence is enough, or pick one of the Alchemist’s campaign ideas. Add real dates and links when you have them.</p></div>
+    <div class="step"><div class="sig"><div data-sigil="step-three" style="width:100%;height:100%"></div><b>3</b></div><h3>Approve and post</h3><p>Approve in one click, or send a post back with a reason and it redrafts. Then copy the caption, download the images and post it wherever you already do.</p></div>
+  </div>
+</div></section>
+
+<section id="a-post"><div class="wrap">
+  <span class="eyebrow">A real post</span>
+  <h2>Every post arrives <em>whole</em>.</h2>
+  <p class="sub">Not a template and not a caption to go and illustrate. This is one post exactly as the Alchemist made it, ready to approve.</p>
+  <div class="anat">
+    <div class="postcard">
+      <div class="top"><span>Reading Race</span><span class="pill">Ready to post</span></div>
+      <img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/rr-3.png?width=420&amp;height=525&amp;resize=contain&amp;quality=72&amp;v=2" alt="Slide 1: Dash on a podium, Read a book, win an actual prize" loading="lazy">
+      <img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/site/showcase/rr-5.png?width=420&amp;height=525&amp;resize=contain&amp;quality=72&amp;v=2" alt="Slide 2: the stakes, in three points" loading="lazy">
+      <p class="cap">Most reading apps give you badges. We give you prizes. Join a race, hit the finish line, and actually win something for reading that book. It's not just for fun—there's real reward on the other side.</p>
+      <div class="tags"><span>#ReadingRace</span><span>#Gamification</span><span>#BookPrizes</span><span>#Motivation</span></div>
+    </div>
+    <ul class="checks">
+      <li><span>1</span><span><b>Caption in your voice</b><small>Written from your brand facts and the brief, linked to the right page on your site.</small></span></li>
+      <li><span>2</span><span><b>4 to 5 hashtags</b><small>Within Instagram’s limit, with any tags you require.</small></span></li>
+      <li><span>3</span><span><b>A designed image or carousel</b><small>In your colours and typefaces, with your logo, your character and a working QR code.</small></span></li>
+      <li><span>4</span><span><b>A layout that fits the content</b><small>A ticket for an event, a big number for a stat, a list for steps, a full scene for a story. The next post won’t repeat the last one’s layout.</small></span></li>
+    </ul>
+  </div>
+</div></section>
+
+<section id="a-grounded"><div class="wrap">
+  <span class="eyebrow">Grounded</span>
+  <h2>He writes from your facts. <em>He never invents them.</em></h2>
+  <p class="sub">An invented detail in one post becomes the grounding for every post after it. So the rules are checked in code, not just asked for.</p>
+  <div class="feat-grid">
+    <div class="feat"><div class="ic" aria-hidden="true">✓</div><h3>Read from your site, never guessed</h3><p>Setup takes what your website actually says. Anything it doesn’t say stays blank for you to fill, and a page that tries to instruct the AI is ignored.</p></div>
+    <div class="feat"><div class="ic" aria-hidden="true">✓</div><h3>Figures and quotes are checked</h3><p>A number or a quote only reaches a card if it appears in your brand facts or the brief you wrote. Anything else is dropped before the card is drawn.</p></div>
+    <div class="feat"><div class="ic" aria-hidden="true">✓</div><h3>Dates come only from you</h3><p>An event card takes its date from your brief, never from the AI. No “this weekend” on a post that runs next month.</p></div>
+  </div>
+</div></section>
+
+<section id="a-improve"><div class="wrap split">
+  <div>
+    <span class="eyebrow">Review &amp; Improve</span>
+    <h2>He looks back at what you posted, <em>then writes better.</em></h2>
+    <p style="margin-top:18px">Most tools stop at “published.” Ask the Alchemist to review the posts that actually went out, on any platform.</p>
+    <p>He reads the real copy, hashtags and your notes, then <strong>carries what he learned into your next campaign</strong>.</p>
+  </div>
+  <div class="loop" role="img" aria-label="A loop: posted, reviewed, learned, rewritten">
+    <div data-sigil="improve-loop"></div>
+    <span class="lbl l1"><b>1</b>Posted</span><span class="lbl l2"><b>2</b>Reviewed</span>
+    <span class="lbl l3"><b>3</b>Learned</span><span class="lbl l4"><b>4</b>Rewritten</span>
+  </div>
+</div></section>
+
+<section id="a-exchange"><div class="wrap">
+  <span class="eyebrow">Equivalent exchange</span>
+  <h2>Every creation is <em>a fair trade</em>.</h2>
+  <p class="sub">An alchemist trades something of equal value for what he creates. Here the medium is credits: you see the price before you press Transmute, and you only pay for what actually arrives.</p>
+  <div class="xgrid">
+    <div class="xcard"><span class="give">✦ 1 CREDIT</span><span class="eq">One image post</span><p>Caption, 4–5 hashtags and a designed image with your QR code, on the Fast model.</p></div>
+    <div class="xcard"><span class="give">✦ 3 CREDITS</span><span class="eq">A 3-slide carousel</span><p>One credit per slide. Every slide carries new information, never a repeat.</p></div>
+    <div class="xcard soon"><span class="give">✦ MORE</span><span class="eq">Video</span><p>Bigger creations cost more. Coming soon.</p></div>
+  </div>
+  <p class="fineprint">If an image or a character picture fails, its credits come straight back. Every post you create, approve and put out earns XP:</p>
+  <div class="ranks"><span>Initiate</span><span>Apprentice</span><span>Journeyman</span><span>Adept</span><span>Artisan</span><span>Master Alchemist</span><span>Grand Alchemist</span></div>
+</div></section>
+
+<section id="a-journal"><div class="wrap">
+    <span class="eyebrow">From the Journal</span>
+    <h2>What is new in the workshop.</h2>
+    <div class="feat-grid">
+      <div class="feat"><h3>Talk to the Alchemist</h3><p>Voice and hands-free for posts and outreach.</p><p><a style="color:var(--gold-2,#ffcf7a)" href="/blog/voice-and-hands-free/">Read the post</a></p></div>
+      <div class="feat"><h3>Who to pitch first</h3><p>Reach ranks every prospect and shows your top ten.</p><p><a style="color:var(--gold-2,#ffcf7a)" href="/blog/reach-priority-score/">Read the post</a></p></div>
+      <div class="feat"><h3>Carousel or single image?</h3><p>How to choose for each network, and how to test it.</p><p><a style="color:var(--gold-2,#ffcf7a)" href="/blog/carousel-or-single-image/">Read the post</a></p></div>
+    </div>
+    <p style="margin-top:22px"><a style="color:var(--gold-2,#ffcf7a)" href="/blog/">All Journal posts</a></p>
+  </div></section>
+
+<section id="a-pricing"><div class="wrap">
+  <span class="eyebrow">Pricing</span>
+  <h2>Start free. <em>Upgrade</em> when you add brands.</h2>
+  <div class="billing" role="group" aria-label="Billing period"><button type="button" aria-pressed="true" data-bill="m">Monthly</button><button type="button" aria-pressed="false" data-bill="y">Annual · 2 months free</button></div>
+  <div class="plans" data-plans></div>
+  <p class="fineprint">1 credit = 1 slide on the Fast model (Pro 2, Max 4) · a new character picture adds 2 · Review &amp; Improve covers one platform per review · need more than 10 brands? <a href="mailto:brad@unitedpress.media?subject=Fullmedia%20Alchemist%20%E2%80%94%20more%20brands">Get in touch</a>.</p>
+</div></section>
+
+<section id="a-faq"><div class="wrap faq">
+  <span class="eyebrow">Questions</span>
+  <h2>Questions worth <em>asking first</em>.</h2>
+  <div data-faq style="margin-top:20px"></div>
+</div></section>
+
+<div class="closer">
+  <div class="csig" data-sigil="closer-a" aria-hidden="true"></div>
+  <div class="wrap">
+    <img class="wave" src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/content-calendar/platform-brand/assistant-wave.png?width=360&amp;height=540&amp;resize=contain&amp;quality=75" alt="The Alchemist waving" loading="lazy">
+    <h2>Your first posts are <em>one website away</em>.</h2>
+    <p class="sub">Paste your site, pick a goal, and watch him make posts in your own colours.</p>
+    <a class="btn btn-gold btn-lg" href="/dashboard/" data-cta="closer-start">Start free</a>
+  </div>
+</div>
+</main>
+
+<footer><div class="wrap">
+  <span>Fullmedia Alchemist is a tool by <a href="https://unitedpress.media">United Press Media</a>. © 2026 United Press Media.</span>
+  <span><a href="/brand-assets.html">Brand assets</a> · <a href="/blog/">Blog</a> · <a href="/compare/">Compare</a> · <a href="/terms/">Terms</a> · <a href="/privacy/">Privacy</a> · <a href="#" data-install class="get-app">Get the app</a> · <a href="/dashboard/">Sign in</a></span>
+</div>
+<div class="wrap" style="justify-content:center;padding-top:0;padding-bottom:20px"><a href="https://marketingdb.live" target="_blank" rel="noopener noreferrer nofollow sponsored"><img src="https://marketingdb.live/badge.svg" alt="Launched on MarketingDB" width="190" height="44"/></a></div></footer>
+</div>
+
+<!-- ═══════════════ VARIANT B · the original site (control) ═══════════════ -->
+<div class="vb">
+
+<header class="site">
+  <div class="wrap nav">
+    <a class="brand" href="/"><img src="/assets/logo-mark.svg" alt="">Fullmedia <em>Alchemist</em></a>
+    <nav class="navlinks" aria-label="Main">
+      <a href="#how-it-works">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#exchange">Credits</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="navbtns">
+      <a class="btn btn-ghost" data-cta="b1" href="/dashboard/">Sign in</a>
+      <a class="btn btn-gold" data-cta="b2" href="/dashboard/">Get started</a>
+    </div>
+    <details class="menu" id="menu">
+      <summary>Menu</summary>
+      <div class="menu-panel">
+        <a href="#anatomy">A real post</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
+        <a href="/dashboard/">Sign in</a>
+      </div>
+    </details>
+  </div>
+</header>
+
+<section class="hero" style="border-top:0">
+  <div class="hero-sigil" data-sigil="alchemist" aria-hidden="true"></div>
+  <div class="embers" aria-hidden="true"></div>
+  <div class="wrap hero-grid">
+    <div>
+      <h1><span class="ln">Your website in.</span> <span class="ln">Finished <em>social posts</em> out.</span></h1>
+      <p class="lede">The Alchemist reads your site, learns your brand, then writes and designs every post: caption, hashtags and image. You approve. It never makes up facts about you.</p>
+      <div class="cta-row">
+        <a class="btn btn-gold btn-lg" data-cta="b3" href="/dashboard/">Start free</a>
+        <a class="textlink" href="#try-b" data-cta="hero-try">Try it on your site, free</a>
+      </div>
+      <p class="micro">Free plan: 1 brand, 30 credits a month. No card needed.</p>
+      <p class="audience">Built for founders, small businesses, creators and agencies who have to keep posting, on repeat.</p>
+    </div>
+    <div class="proof">
+      <span class="t">Made with the Alchemist</span>
+      <div class="fan">
+        <img src="/assets/showcase/CCB00454.jpg" alt="A finished social post about Vail's opening day" loading="eager">
+        <img src="/assets/showcase/CCB00461.jpg" alt="A finished social post about an AI guide for crypto newcomers" loading="eager">
+        <img src="/assets/showcase/CCB00484.jpg" alt="A finished social post for a live music community" loading="eager">
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="trysec" id="try-b" aria-labelledby="try-h-b">
+  <div class="ts-wrap">
+    <div class="ts-copy">
+      <span class="ts-eyebrow">Try it on your site</span>
+      <h2 id="try-h-b">Paste your website. Get a post <em>in about 20 seconds.</em></h2>
+      <p>The Alchemist reads that one page and drafts a post from it: headline, caption and hashtags, in your voice, using only what the page says. No sign-up.</p>
+      <form class="ts-form" novalidate>
+        <label class="ts-sr" for="ts-url-b">Your website</label>
+        <input id="ts-url-b" name="url" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="yourbrand.com" maxlength="300">
+        <input class="ts-hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <button class="ts-btn" type="submit">Transmute it</button>
+        <label class="ts-agree"><input type="checkbox" name="agree" value="yes"><span>I own this brand or have permission to use its name, logo and website content, and I agree to the <a href="/terms/">Terms</a> and <a href="/privacy/">Privacy Policy</a>.</span></label>
+      </form>
+      <p class="ts-fine">Free, 3 previews a day. Shown at the 4:5 feed size the app makes. The full app adds your mascot, photos and QR code.</p>
+    </div>
+    <div class="ts-out" aria-live="polite">
+      <div class="ts-idle ts-frame"><img src="/assets/logo-mark.svg" alt="" width="96" height="96"><span>Your 4:5 post appears here</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="anatomy">
+  <div class="wrap">
+    <span class="eyebrow">A real post</span>
+    <h2>Every post arrives whole.</h2>
+    <p class="sub">Not a template and not a caption to go and illustrate. This is one post exactly as the Alchemist made it, ready to approve.</p>
+    <div class="anat">
+      <img src="/assets/showcase/CCB00454.jpg" alt="The designed image for the post" loading="lazy">
+      <div class="post">
+        <div class="post-top"><span>SpinQuest</span><span class="chip">Ready to post</span></div>
+        <span class="lab">Caption</span>
+        <p>Vail Mountain is targeting a November 13 opening for the 2026-27 season — first tracks, first weekend, before the crowds catch on. Spin the Aspen &amp; Vail Rockies wheel and land on Vail Ski Resort to start planning. (Opening dates can shift with snowfall.)</p>
+        <span class="lab">Hashtags</span>
+        <div class="tags"><span>#SpinQuest</span><span>#Vail</span><span>#SkiSeason</span><span>#Colorado</span></div>
+        <span class="lab">Event date</span>
+        <p>November 13, 2026. Taken from Vail Resorts' own season announcement, with the caveat kept in the copy.</p>
+        <div class="anat-points">
+          <div><b>Written from your facts</b>Only details that are true of your brand go in.</div>
+          <div><b>4 to 5 hashtags</b>Kept within Instagram's 5-tag limit.</div>
+          <div><b>Image or carousel</b>Designed on your brand, QR code included.</div>
+          <div><b>Dated when it's real</b>Tied to a real event or place, or left evergreen.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how-it-works">
+  <div class="wrap">
+    <span class="eyebrow">How it works</span>
+    <h2>Three steps. You only do the deciding.</h2>
+    <div class="steps">
+      <div class="step"><span class="n">1</span><h3>Paste your website</h3><p>One click and your brand is set up: what you do, who it’s for, your voice, colours and logo. Change anything later.</p></div>
+      <div class="step"><span class="n">2</span><h3>Say what to post about</h3><p>One sentence is enough. Single images, carousels or a mix. Dates, platforms and hashtags are there if you want them.</p></div>
+      <div class="step"><span class="n">3</span><h3>Approve and post</h3><p>Approve in one click, or send a post back with a reason and it redrafts. Then copy the caption, download the images and post it wherever you already do.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="kickstart">
+  <div class="wrap">
+    <span class="eyebrow">Kickstart</span>
+    <h2>Skip the long brand questionnaire.</h2>
+    <div class="split">
+      <div>
+        <p>Paste your site and the Alchemist fills in your brand for you: mission, audience, tone, the facts it may cite, your palette and logo. One click, and you’re ready to post.</p>
+        <p><strong>If your site doesn't say it, it stays blank instead of being guessed.</strong> Every detail stays editable, and a page that tries to instruct the AI is ignored entirely.</p>
+      </div>
+      <img src="https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/object/public/wheel-assets/content-calendar/platform-brand/alchemist-action.png" alt="The Alchemist at work" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<section id="improve">
+  <div class="wrap">
+    <span class="eyebrow">Review &amp; Improve</span>
+    <h2>It looks back at what you posted, then writes better.</h2>
+    <div class="split">
+      <div class="loop" role="img" aria-label="A loop: posted, reviewed, learned, rewritten">
+        <div data-sigil="improve-loop"></div>
+        <span class="lbl l1"><b>1</b>Posted</span><span class="lbl l2"><b>2</b>Reviewed</span>
+        <span class="lbl l3"><b>3</b>Learned</span><span class="lbl l4"><b>4</b>Rewritten</span>
+      </div>
+      <div>
+        <p>Most tools stop at "published." Ask the Alchemist to review the posts that actually went out, on any platform.</p>
+        <p>It reads the real copy, hashtags and your notes, then carries what it learned into your next campaign.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <span class="eyebrow">Features</span>
+    <h2>Built for one brand or ten.</h2>
+    <div class="feat-grid">
+      <div class="feat"><h3>Campaigns, not loose posts</h3><p>Group content by goal, dates and platforms, and track the whole run as one.</p></div>
+      <div class="feat"><h3>Real details, never invented</h3><p>Copy comes only from what's true about your brand, and hooks to a real date when that fits your strategy. No generic filler that could run any day of the year.</p></div>
+      <div class="feat"><h3>Designed before it reaches you</h3><p>Branded artwork, a headline and a working QR code ship with every post. Nothing to hand to a designer.</p></div>
+      <div class="feat"><h3>Redos with real caps</h3><p>Send a post back and it redrafts. Every version is logged, so good copy is never lost and a bad day never turns into a bad bill.</p></div>
+      <div class="feat"><h3>Simple, safer sign-in</h3><p>Sign in with a one-time email link, Google or a password. Add two-step sign-in with an authenticator app, and download your data any time.</p></div>
+      <div class="feat"><h3>Works with your tools</h3><p>Connect your own Claude for scoped access to a brand's content, and copy any post out in one click for the scheduler you already use.</p></div>
+      <div class="feat"><h3>Talk instead of typing</h3><p>Dictate notes, fix a picture or sharpen a caption by voice, or go hands-free. Voice is included, with fair-use limits, and does not use credits.</p></div>
+      <div class="feat"><h3>Text, thread and poll versions</h3><p>From any post, write a text post, an X thread or a poll that fits each network's limits. 1 credit, refunded if it fails.</p></div>
+      <div class="feat"><h3>Keeps working in the background</h3><p>Tap Transmute and put the phone down. A sleeping screen no longer stops a batch, and a failed batch refunds its credits.</p></div>
+      <div class="feat"><h3>What worked where</h3><p>Save results on posted posts and see single image against carousel, per account, in Review my top posts.</p></div>
+      <div class="feat"><h3>Reach for outreach</h3><p>Find creators and free communities, rank prospects with a priority score, and draft the message. You review and send. <a style="color:var(--gold-2,#ffcf7a)" href="/reach-features/">See Reach</a></p></div>
+      <div class="feat"><h3>Unlimited campaigns</h3><p>Starter, Growth and Agency have no campaign cap. Credits are the real limit, so organize as much as you like.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="exchange">
+  <div class="wrap">
+    <span class="eyebrow">Equivalent exchange</span>
+    <h2>Every creation is a fair trade.</h2>
+    <p class="sub">An alchemist trades something of equal value for what they create. Here the medium is credits: you see the price before you press Transmute, and you only pay for what actually arrives.</p>
+    <div class="xgrid">
+      <div class="xcard"><span class="give">✦ 1 CREDIT</span><span class="eq">One image post</span><p>Caption, 4–5 hashtags and a designed image with your QR code, on the Fast model.</p></div>
+      <div class="xcard"><span class="give">✦ 3 CREDITS</span><span class="eq">A 3-slide carousel</span><p>One credit per slide. Every slide carries new information, never a repeat.</p></div>
+      <div class="xcard soon"><span class="give">✦ MORE</span><span class="eq">Video</span><p>Bigger creations cost more. Coming soon.</p></div>
+    </div>
+    <p class="sub" style="font-size:15px">If an image or a character picture fails, its credits come straight back.</p>
+    <h3 style="font-family:var(--display);font-size:24px;margin-top:44px">Become a better alchemist.</h3>
+    <p class="sub" style="font-size:16px">Every post you create, approve and put out earns XP. Rise through the ranks and earn badges as your brand profile grows stronger.</p>
+    <div class="ranks"><span>Initiate</span><span>Apprentice</span><span>Journeyman</span><span>Adept</span><span>Artisan</span><span>Master Alchemist</span><span>Grand Alchemist</span></div>
+  </div>
+</section>
+
+<section id="journal"><div class="wrap">
+    <span class="eyebrow">From the Journal</span>
+    <h2>What is new in the workshop.</h2>
+    <div class="feat-grid">
+      <div class="feat"><h3>Talk to the Alchemist</h3><p>Voice and hands-free for posts and outreach.</p><p><a style="color:var(--gold-2,#ffcf7a)" href="/blog/voice-and-hands-free/">Read the post</a></p></div>
+      <div class="feat"><h3>Who to pitch first</h3><p>Reach ranks every prospect and shows your top ten.</p><p><a style="color:var(--gold-2,#ffcf7a)" href="/blog/reach-priority-score/">Read the post</a></p></div>
+      <div class="feat"><h3>Carousel or single image?</h3><p>How to choose for each network, and how to test it.</p><p><a style="color:var(--gold-2,#ffcf7a)" href="/blog/carousel-or-single-image/">Read the post</a></p></div>
+    </div>
+    <p style="margin-top:22px"><a style="color:var(--gold-2,#ffcf7a)" href="/blog/">All Journal posts</a></p>
+  </div></section>
+
+<section id="pricing">
+  <div class="wrap">
+    <span class="eyebrow">Pricing</span>
+    <h2>Start free. Upgrade when you add brands.</h2>
+    <div class="billing" role="group" aria-label="Billing period">
+      <button id="bMonthly" aria-pressed="true">Monthly</button>
+      <button id="bAnnual" aria-pressed="false">Annual — 2 months free</button>
+    </div>
+    <div class="plans" id="plans"></div>
+    <p class="fineprint">1 credit = 1 slide on the Fast model (Pro 2, Max 4) · a new character picture adds 2 · Review &amp; Improve covers one platform per review · need more than 10 brands? <a href="mailto:brad@unitedpress.media?subject=Fullmedia%20Alchemist%20%E2%80%94%20more%20brands">Get in touch</a></p>
+  </div>
+</section>
+
+<section class="closer">
+  <div class="wrap">
+    <h2>Your first posts are one website away.</h2>
+    <p class="sub">Paste your site, pick a goal, and see finished posts for your own brand.</p>
+    <a class="btn btn-gold btn-lg" data-cta="b4" href="/dashboard/">Start free</a>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <span class="eyebrow">Questions</span>
+    <h2>Questions worth asking first.</h2>
+    <div style="margin-top:26px;max-width:860px">
+      <details><summary>Does it just make things up about my brand?</summary><p>No, and that's the rule it's built around. It only uses what your website actually says, and anything your page doesn't say is left blank rather than guessed at, because an invented detail would become the grounding for every post after it. You can see and edit everything it learned.</p></details>
+      <details><summary>Do I need any design skills?</summary><p>No. Every post arrives designed, with branded artwork, a headline and a working QR code. You can edit the caption and hashtags yourself, or send a post back with a note and it redrafts.</p></details>
+      <details><summary>What if I don't like a post?</summary><p>Send it back with a reason and it redrafts. Every post gets free redos: 1 on Free, 2 on Starter, 3 on Growth, 5 on Agency. After that, a redo costs credits like a new post.</p></details>
+      <details><summary>How does it get published?</summary><p>You post it yourself, wherever you already do. Copy the caption and hashtags in one click, download the images, then tick where it went out. There&#8217;s no direct connection to a scheduler yet.</p></details>
+      <details><summary>Can I run client brands on one account?</summary><p>Yes. Growth covers up to 3 brands and Agency up to 10, each with its own look, voice and knowledge. Need more than 10? Email brad@unitedpress.media.</p></details>
+      <details><summary>What is a credit?</summary><p>One credit buys one slide on the Fast model; Pro costs 2 per slide and Max costs 4. A single-image post on Fast costs 1 and a 3-slide carousel costs 3. A new picture of your character adds 2. You see the cost before you create anything, and if an image or character picture fails, its credits are returned automatically.</p></details>
+      <details><summary>What about video?</summary><p>AI video is coming soon. It isn't available on any plan yet; Growth and Agency will include it when it launches.</p></details>
+    </div>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="foot-row">
+      <a class="brand" href="/"><img src="/assets/logo-mark.svg" alt="">Fullmedia <em>Alchemist</em></a>
+      <div class="foot-links">
+        <a href="#anatomy">A real post</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
+        <a href="/brand-assets.html">Brand assets</a>
+        <a href="/compare/">Compare</a>
+        <a href="/terms/">Terms</a>
+        <a href="/privacy/">Privacy</a>
+        <a href="#" data-install class="get-app">Get the app</a>
+        <a href="https://unitedpress.media" target="_blank" rel="noopener">unitedpress.media</a>
+      </div>
+    </div>
+    <div class="foot-copy">Fullmedia Alchemist is a tool by UPM (<a href="https://unitedpress.media" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">unitedpress.media</a>). © 2026 United Press Media. All rights reserved. <a href="/dashboard/" style="color:inherit;margin-left:10px">Sign in</a></div>
+    <div style="margin-top:14px"><a href="https://marketingdb.live" target="_blank" rel="noopener noreferrer nofollow sponsored"><img src="https://marketingdb.live/badge.svg" alt="Launched on MarketingDB" width="190" height="44"/></a></div>
+  </div>
+</footer>
+
+</div>
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type": "Question", "name": "Will my posts look like everyone else’s?", "acceptedAnswer": {"@type": "Answer", "text": "No. The Alchemist reads your colours, typefaces and logo from your own website and matches them to one of twelve visual styles, then picks from fourteen layouts to fit each post. Your look is saved with your brand and used on every post."}},{"@type": "Question", "name": "Does it make things up about my brand?", "acceptedAnswer": {"@type": "Answer", "text": "No, and that’s the rule it’s built around. It only uses what your website actually says and what you tell it. Anything your site doesn’t say is left blank rather than guessed, and figures, quotes and event dates are checked in code before they reach a card."}},{"@type": "Question", "name": "Can it use our mascot or character?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Add your character image in Brand settings and choose whether posts show it in new scenes, new poses, or as it is. Its face, colours and outfit stay the same; only the action and setting change."}},{"@type": "Question", "name": "Do I need any design skills?", "acceptedAnswer": {"@type": "Answer", "text": "No. Every post arrives designed, with your colours, typefaces, logo, a headline and a working QR code. You can edit the caption and hashtags yourself, or send a post back with a note and it redrafts."}},{"@type": "Question", "name": "What if I don’t like a post?", "acceptedAnswer": {"@type": "Answer", "text": "Send it back with a reason and it redrafts. Every post gets free redos: 1 on Free, 2 on Starter, 3 on Growth, 5 on Agency. After that, a redo costs credits like a new post."}},{"@type": "Question", "name": "How does it get published?", "acceptedAnswer": {"@type": "Answer", "text": "You post it yourself, wherever you already do. Copy the caption and hashtags in one click, download the images, then tick where it went out. Add the live link and results and the Alchemist learns from them. There’s no direct connection to a scheduler yet."}},{"@type": "Question", "name": "Can I run client brands on one account?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Growth covers up to 3 brands and Agency up to 10, each with its own look, voice and knowledge. Need more than 10? Email brad@unitedpress.media."}},{"@type": "Question", "name": "What is a credit?", "acceptedAnswer": {"@type": "Answer", "text": "One credit buys one slide written with the Fast model; the Pro model costs 2 per slide and Max costs 4. A single-image post on Fast costs 1 and a 3-slide carousel costs 3. A new picture of your character adds 2. You see the cost before you create anything, and if an image or character picture fails, its credits are returned automatically."}},{"@type": "Question", "name": "Is there a limit per day?", "acceptedAnswer": {"@type": "Answer", "text": "Credits refill every month. Each plan can also use a set amount every 6 hours (10 on Free, 60 on Starter, 200 on Growth, 1,000 on Agency), which resets four times a day, so the service stays fast for everyone."}},{"@type": "Question", "name": "What about video?", "acceptedAnswer": {"@type": "Answer", "text": "AI video is coming soon. It isn’t available on any plan yet; Growth and Agency will include it when it launches."}},{"@type": "Question", "name": "What does Review & Improve include?", "acceptedAnswer": {"@type": "Answer", "text": "The Alchemist reviews the posts that went out on a platform and carries what worked into your next campaign. Starter includes 1 platform review a month, Growth 3, and Agency is unlimited. It isn’t included on Free."}}]}</script>
+<script>
+(function () {
+  'use strict';
+  var IMG = function (n, w, h) { return 'https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/' + (n.indexOf('/') > -1 ? n : 'site/showcase/' + n) + '?width=' + w + '&height=' + h + '&resize=contain&quality=72&v=2'; };
+
+  /* ── pricing (same plans as the app) ── */
+  var PLANS = [
+    { key: 'free', name: 'Free', blurb: 'Try it before you commit to a plan.', m: 0, y: 0, cta: 'Start for free',
+      feats: [[1, '1 brand'], [1, '30 credits / mo'], [1, 'Up to 10 every 6 hours'], [1, 'Fast, Pro &amp; Max writing models'], [1, '1 campaign at a time'], [1, '1 free redo per post, then credits'], [0, 'Review &amp; Improve: not included'], [0, 'Video: not available'], [1, 'Speech to text for notes and captions'], [1, 'Hands-free voice commands'], [1, 'Email support']] },
+    { key: 'starter', name: 'Starter', blurb: 'One brand, steady output, no extra tools to learn.', m: 25, y: 250, cta: 'Start with Starter',
+      feats: [[1, '1 brand'], [1, '300 credits / mo'], [1, 'Up to 60 every 6 hours'], [1, 'Fast, Pro &amp; Max writing models'], [1, 'Unlimited campaigns'], [1, '2 free redos per post, then credits'], [1, 'Review &amp; Improve: 1 platform / mo'], [0, 'Video: coming soon'], [1, 'Speech to text for notes and captions'], [1, 'Hands-free voice commands'], [1, 'Email support']] },
+    { key: 'growth', name: 'Growth', blurb: 'For a growing brand or a small team juggling a few accounts.', m: 99, y: 990, cta: 'Start with Growth', pop: true,
+      feats: [[1, 'Up to 3 brands'], [1, '1,500 credits / mo'], [1, 'Up to 200 every 6 hours'], [1, 'Fast, Pro &amp; Max writing models'], [1, 'Unlimited campaigns'], [1, '3 free redos per post, then credits'], [1, 'Review &amp; Improve: 3 platforms / mo'], [1, '10 AI videos / mo (coming soon)'], [1, 'Speech to text for notes and captions'], [1, 'Hands-free voice commands'], [1, 'Priority support']] },
+    { key: 'agency', name: 'Agency', blurb: 'A full roster of brands, yours or your clients\', with dedicated support.', m: 599, y: 5990, cta: 'Start with Agency',
+      feats: [[1, 'Up to 10 brands'], [1, '10,000 credits / mo'], [1, 'Up to 1,000 every 6 hours'], [1, 'Fast, Pro &amp; Max writing models'], [1, 'Unlimited campaigns'], [1, '5 free redos per post, then credits'], [1, 'Unlimited Review &amp; Improve'], [1, '30 AI videos / mo (coming soon)'], [1, 'Client approval links'], [1, 'Speech to text for notes and captions'], [1, 'Hands-free voice commands'], [1, 'Dedicated support']] }
+  ];
+  function plansHtml(annual, btnPop, btnOther) {
+    return PLANS.map(function (p) {
+      var shown = annual ? Math.round(p.y / 12) : p.m;
+      var cycle = p.m === 0 ? 'free forever' : (annual ? 'billed annually · 2 months free' : 'billed monthly');
+      return '<div class="plan' + (p.pop ? ' pop' : '') + '">' + (p.pop ? '<span class="tag">Most popular</span>' : '') +
+        '<h3>' + p.name + '</h3><p class="blurb">' + p.blurb + '</p>' +
+        '<div class="price">$' + shown + '<span> /mo</span></div><div class="cycle">' + cycle + '</div>' +
+        '<ul>' + p.feats.map(function (f) { return '<li class="' + (f[0] ? '' : 'off') + '"><span class="' + (f[0] ? 'y' : 'n') + '">' + (f[0] ? '✓' : '–') + '</span><span>' + f[1] + '</span></li>'; }).join('') + '</ul>' +
+        '<a class="btn ' + (p.pop ? btnPop : btnOther) + '" href="/dashboard/" data-cta="plan-' + p.name.toLowerCase() + '">' + p.cta + '</a></div>';
+    }).join('');
+  }
+  [['.va', 'btn-gold', 'btn-ghost']].forEach(function (v) {
+    var root = document.querySelector(v[0]); if (!root) return;
+    var el = root.querySelector('[data-plans]'), bs = root.querySelectorAll('[data-bill]');
+    var draw = function (annual) { el.innerHTML = plansHtml(annual, v[1], v[2]); };
+    for (var i = 0; i < bs.length; i++) bs[i].onclick = function () {
+      for (var j = 0; j < bs.length; j++) bs[j].setAttribute('aria-pressed', bs[j] === this ? 'true' : 'false');
+      draw(this.getAttribute('data-bill') === 'y');
+    };
+    draw(false);
+  });
+
+  /* ── FAQ (same answers in both designs) ── */
+  var FAQ = [["Will my posts look like everyone else’s?", "No. The Alchemist reads your colours, typefaces and logo from your own website and matches them to one of twelve visual styles, then picks from fourteen layouts to fit each post. Your look is saved with your brand and used on every post."], ["Does it make things up about my brand?", "No, and that’s the rule it’s built around. It only uses what your website actually says and what you tell it. Anything your site doesn’t say is left blank rather than guessed, and figures, quotes and event dates are checked in code before they reach a card."], ["Can it use our mascot or character?", "Yes. Add your character image in Brand settings and choose whether posts show it in new scenes, new poses, or as it is. Its face, colours and outfit stay the same; only the action and setting change."], ["Do I need any design skills?", "No. Every post arrives designed, with your colours, typefaces, logo, a headline and a working QR code. You can edit the caption and hashtags yourself, or send a post back with a note and it redrafts."], ["What if I don’t like a post?", "Send it back with a reason and it redrafts. Every post gets free redos: 1 on Free, 2 on Starter, 3 on Growth, 5 on Agency. After that, a redo costs credits like a new post."], ["How does it get published?", "You post it yourself, wherever you already do. Copy the caption and hashtags in one click, download the images, then tick where it went out. Add the live link and results and the Alchemist learns from them. There’s no direct connection to a scheduler yet."], ["Can I run client brands on one account?", "Yes. Growth covers up to 3 brands and Agency up to 10, each with its own look, voice and knowledge. Need more than 10? Email brad@unitedpress.media."], ["What is a credit?", "One credit buys one slide written with the Fast model; the Pro model costs 2 per slide and Max costs 4. A single-image post on Fast costs 1 and a 3-slide carousel costs 3. A new picture of your character adds 2. You see the cost before you create anything, and if an image or character picture fails, its credits are returned automatically."], ["Is there a limit per day?", "Credits refill every month. Each plan can also use a set amount every 6 hours (10 on Free, 60 on Starter, 200 on Growth, 1,000 on Agency), which resets four times a day, so the service stays fast for everyone."], ["What about video?", "AI video is coming soon. It isn’t available on any plan yet; Growth and Agency will include it when it launches."], ["What does Review & Improve include?", "The Alchemist reviews the posts that went out on a platform and carries what worked into your next campaign. Starter includes 1 platform review a month, Growth 3, and Agency is unlimited. It isn’t included on Free."]];
+  var faqEls = document.querySelectorAll('[data-faq]');
+  for (var f = 0; f < faqEls.length; f++) faqEls[f].innerHTML = FAQ.map(function (q) { return '<details><summary>' + q[0] + '</summary><p>' + q[1] + '</p></details>'; }).join('');
+
+  /* ── A/B events ── */
+  var ab = window.FMA_AB || {};
+  function track(ev) {
+    try { if (window.fmaSite && !ab.preview) { var sm = { cta: 'signup_click', pricing: 'pricing', try: 'try', try_ok: 'try_ok' }[ev]; if (sm) window.fmaSite.ev(sm); } } catch (e) {}
+    if (!ab.sid || ab.preview) return;
+    try {
+      fetch('https://tpqvvrdglnsdljdpzwfl.supabase.co/rest/v1/rpc/ccb_ab_track', {
+        method: 'POST', keepalive: true,
+        headers: { 'Content-Type': 'application/json', apikey: 'sb_publishable_TcW5WxZhUPuo2MhKWaBUKQ_EjkNzSJb', Authorization: 'Bearer sb_publishable_TcW5WxZhUPuo2MhKWaBUKQ_EjkNzSJb' },
+        body: JSON.stringify({ p_variant: ab.v, p_event: ev, p_sid: ab.sid })
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  window.fmaTrack = track;
+  track('view');
+  document.addEventListener('click', function (e) { var a = e.target.closest && e.target.closest('[data-cta]'); if (a) track('cta'); });
+  var pr = document.getElementById(ab.v === 'b' ? 'pricing' : 'a-pricing');
+  if (pr && 'IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (es) { if (es.some(function (x) { return x.isIntersecting; })) { track('pricing'); io.disconnect(); } }, { threshold: 0.25 });
+    io.observe(pr);
+  }
+})();
+</script>
+<script src="/assets/install.js" defer></script>
+<script>
+(function(){
+  'use strict';
+
+  /* ------------------------- pricing ------------------------- */
+  var PLANS = [
+    { key: 'free', name: 'Free', blurb: 'Try it before you commit to a plan.', m: 0, y: 0, cta: 'Start for free',
+      feats: [[1, '1 brand'], [1, '30 credits / mo'], [1, 'Up to 10 every 6 hours'], [1, 'Fast, Pro &amp; Max writing models'], [1, '1 campaign at a time'], [1, '1 free redo per post, then credits'], [0, 'Review &amp; Improve: not included'], [0, 'Video: not available'], [1, 'Speech to text for notes and captions'], [1, 'Hands-free voice commands'], [1, 'Email support']] },
+    { key: 'starter', name: 'Starter', blurb: 'One brand, steady output, no extra tools to learn.', m: 25, y: 250, cta: 'Start with Starter',
+      feats: [[1, '1 brand'], [1, '300 credits / mo'], [1, 'Up to 60 every 6 hours'], [1, 'Fast, Pro &amp; Max writing models'], [1, 'Unlimited campaigns'], [1, '2 free redos per post, then credits'], [1, 'Review &amp; Improve: 1 platform / mo'], [0, 'Video: coming soon'], [1, 'Speech to text for notes and captions'], [1, 'Hands-free voice commands'], [1, 'Email support']] },
+    { key: 'growth', name: 'Growth', blurb: 'For a growing brand or a small team juggling a few accounts.', m: 99, y: 990, cta: 'Start with Growth', pop: true,
+      feats: [[1, 'Up to 3 brands'], [1, '1,500 credits / mo'], [1, 'Up to 200 every 6 hours'], [1, 'Fast, Pro &amp; Max writing models'], [1, 'Unlimited campaigns'], [1, '3 free redos per post, then credits'], [1, 'Review &amp; Improve: 3 platforms / mo'], [1, '10 AI videos / mo (coming soon)'], [1, 'Speech to text for notes and captions'], [1, 'Hands-free voice commands'], [1, 'Priority support']] },
+    { key: 'agency', name: 'Agency', blurb: 'A full roster of brands, yours or your clients\', with dedicated support.', m: 599, y: 5990, cta: 'Start with Agency',
+      feats: [[1, 'Up to 10 brands'], [1, '10,000 credits / mo'], [1, 'Up to 1,000 every 6 hours'], [1, 'Fast, Pro &amp; Max writing models'], [1, 'Unlimited campaigns'], [1, '5 free redos per post, then credits'], [1, 'Unlimited Review &amp; Improve'], [1, '30 AI videos / mo (coming soon)'], [1, 'Client approval links'], [1, 'Speech to text for notes and captions'], [1, 'Hands-free voice commands'], [1, 'Dedicated support']] }
+  ];
+  var annual = false;
+  var plansEl = document.getElementById('plans');
+
+  function renderPlans(){
+    plansEl.innerHTML = PLANS.map(function(p){
+      // Annual is advertised as two months free, so it bills ten months'
+      // worth across the year. Shown as the equivalent monthly figure.
+      var shown = annual ? Math.round(p.y / 12) : p.m;
+      var cycle = p.m === 0 ? 'free forever'
+                : (annual ? 'billed annually — 2 months free' : 'billed monthly');
+      return '<div class="plan' + (p.pop ? ' pop' : '') + '">' +
+        (p.pop ? '<span class="tag">Most popular</span>' : '') +
+        '<h3>' + p.name + '</h3>' +
+        '<p class="blurb">' + p.blurb + '</p>' +
+        '<div class="price">$' + shown + '<span> /mo</span></div>' +
+        '<div class="cycle">' + cycle + '</div>' +
+        '<ul>' + p.feats.map(function(f){
+          return '<li class="' + (f[0] ? '' : 'off') + '"><span class="' + (f[0] ? 'y' : 'n') + '">' +
+                 (f[0] ? '✓' : '–') + '</span><span>' + f[1] + '</span></li>';
+        }).join('') + '</ul>' +
+        '<a class="btn ' + (p.pop ? 'btn-gold' : 'btn-ghost') + '" href="/dashboard/" data-cta="plan-' + p.key + '">' + p.cta + '</a>' +
+      '</div>';
+    }).join('');
+  }
+  var bm = document.getElementById('bMonthly'), ba = document.getElementById('bAnnual');
+  bm.onclick = function(){ annual = false; bm.setAttribute('aria-pressed','true'); ba.setAttribute('aria-pressed','false'); renderPlans(); };
+  ba.onclick = function(){ annual = true;  ba.setAttribute('aria-pressed','true'); bm.setAttribute('aria-pressed','false'); renderPlans(); };
+  renderPlans();
+})();
+
+(function(){var m=document.getElementById('menu');if(!m)return;
+  m.addEventListener('click',function(e){if(e.target.closest('.menu-panel a'))m.removeAttribute('open');});
+  document.addEventListener('click',function(e){if(!m.contains(e.target))m.removeAttribute('open');});})();
+
+(function(){
+  'use strict';
+  function hashStr(s){var h=7;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return Math.abs(h);}
+  function P(r,a){return[100+r*Math.cos(a),100+r*Math.sin(a)];}
+  function pts(arr){return arr.map(function(p){return p[0].toFixed(2)+','+p[1].toFixed(2);}).join(' ');}
+  function circle(seed){
+    var h=hashStr(seed),sides=[5,6,7,8,6,5][h%6],inner=[3,4,6][(h>>3)%3],i,ticks='',runes='',star=[],k=0,step=sides>=5?2:1,verts=[],innerP=[];
+    for(i=0;i<36;i++){var a=i*Math.PI/18,l=i%3===0,p1=P(l?83:85.5,a),p2=P(89,a);ticks+='M'+p1[0].toFixed(1)+' '+p1[1].toFixed(1)+'L'+p2[0].toFixed(1)+' '+p2[1].toFixed(1);}
+    for(i=0;i<12;i++){var b=i*Math.PI/6+Math.PI/12,q=P(76,b),x=q[0],y=q[1],t=(h+i)%3;
+      runes+=t===0?'<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="2.2"/>':t===1?'<path d="M'+(x-2.6).toFixed(1)+' '+(y+2).toFixed(1)+'L'+x.toFixed(1)+' '+(y-2.6).toFixed(1)+'L'+(x+2.6).toFixed(1)+' '+(y+2).toFixed(1)+'Z"/>':'<path d="M'+(x-2.5).toFixed(1)+' '+y.toFixed(1)+'H'+(x+2.5).toFixed(1)+'M'+x.toFixed(1)+' '+(y-2.5).toFixed(1)+'V'+(y+2.5).toFixed(1)+'"/>';}
+    for(i=0;i<sides;i++){star.push(P(64,-Math.PI/2+k*2*Math.PI/sides));k=(k+step)%sides;verts.push(P(64,-Math.PI/2+i*2*Math.PI/sides));}
+    for(i=0;i<inner;i++)innerP.push(P(34,Math.PI/2+i*2*Math.PI/inner));
+    var id='hg'+(h%100000);
+    return '<svg class="tc" viewBox="0 0 200 200" aria-hidden="true"><defs><radialGradient id="'+id+'"><stop offset="0%" stop-color="#e8a33d" stop-opacity=".95"/><stop offset="60%" stop-color="#e8a33d" stop-opacity=".25"/><stop offset="100%" stop-color="#2e9c74" stop-opacity="0"/></radialGradient></defs>'+
+      '<g class="spin-slow" fill="none" stroke="#e8a33d"><circle class="draw" pathLength="1" cx="100" cy="100" r="93" stroke-width="1.4"/><circle class="draw d2" pathLength="1" cx="100" cy="100" r="89" stroke-width=".7" opacity=".7"/><path d="'+ticks+'" stroke-width=".9" opacity=".75"/></g>'+
+      '<g class="spin-rev" fill="#e8a33d" stroke="#e8a33d" stroke-width="1" opacity=".85">'+runes+'</g>'+
+      '<circle class="draw d2" pathLength="1" cx="100" cy="100" r="70" fill="none" stroke="#e8a33d" stroke-width="1" opacity=".6"/>'+
+      '<g class="spin-fast" fill="none" stroke="#2e9c74" stroke-width="1.5"><polygon class="draw d3" pathLength="1" points="'+pts(star)+'"/>'+verts.map(function(v){return '<circle cx="'+v[0].toFixed(1)+'" cy="'+v[1].toFixed(1)+'" r="4" fill="#12160f" stroke="#2e9c74"/>';}).join('')+'</g>'+
+      '<g class="spin-rev" fill="none" stroke="#e8a33d" stroke-width="1.1"><polygon class="draw d4" pathLength="1" points="'+pts(innerP)+'"/><circle cx="100" cy="100" r="40" stroke-dasharray="3 5" opacity=".6"/></g>'+
+      '<circle class="core" cx="100" cy="100" r="24" fill="url(#'+id+')"/><circle cx="100" cy="100" r="5" fill="#e8a33d"/></svg>';
+  }
+  var els=document.querySelectorAll('[data-sigil]');
+  for(var j=0;j<els.length;j++)els[j].innerHTML=circle(els[j].getAttribute('data-sigil'));
+  // Embers rising behind the hero; skipped when the visitor prefers less motion.
+  var em=document.querySelector('.vb .embers');
+  if(em&&!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)){
+    for(var e=0;e<14;e++){var d=document.createElement('i');d.className='ember';d.style.left=(40+Math.random()*58)+'%';d.style.animationDelay=(Math.random()*9).toFixed(2)+'s';d.style.animationDuration=(7+Math.random()*5).toFixed(2)+'s';em.appendChild(d);}
+  }
+})();
+
+</script>
+<script>
+/* ── A: the Grand Transmutation ── */
+(function () {
+  'use strict';
+  var va = document.querySelector('.va'); if (!va) return;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var IMG = function (n, w, h) { return 'https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/' + (n.indexOf('/') > -1 ? n : 'site/showcase/' + n) + '?width=' + w + '&height=' + h + '&resize=contain&quality=72&v=2'; };
+
+  /* The big circle: drawn once, in the old site's gold and green. */
+  function P(r, a) { return [200 + r * Math.cos(a), 200 + r * Math.sin(a)]; }
+  function f(n) { return n.toFixed(1); }
+  function poly(r, n, rot, step) {
+    var out = [], k = 0; step = step || 1;
+    for (var i = 0; i < n; i++) { var p = P(r, rot + k * 2 * Math.PI / n); out.push(f(p[0]) + ',' + f(p[1])); k = (k + step) % n; }
+    return out.join(' ');
+  }
+  function ring(id) {
+    var i, ticks = '', minor = '', glyphs = '', nodes = '';
+    for (i = 0; i < 120; i++) {
+      var a = i * Math.PI / 60, big = i % 5 === 0, p1 = P(big ? 171 : 175, a), p2 = P(180, a);
+      var seg = 'M' + f(p1[0]) + ' ' + f(p1[1]) + 'L' + f(p2[0]) + ' ' + f(p2[1]);
+      if (big) ticks += seg; else minor += seg;
+    }
+    // seven planetary stations around the hexagram ring
+    var G = [
+      'M-5 0a5 5 0 1 0 10 0a5 5 0 1 0-10 0M-1 0a1 1 0 1 0 2 0a1 1 0 1 0-2 0',          // sun
+      'M2-6a6 6 0 1 0 0 12a4.5 4.5 0 1 1 0-12',                                          // moon
+      'M-4-1a4 4 0 1 0 8 0a4 4 0 1 0-8 0M0 3v6M-3 6h6',                                   // venus
+      'M-3 2a4 4 0 1 0 6 0a4 4 0 1 0-6 0M3-1l5-5M5-6h3v3',                               // mars
+      'M-4-6h5M-1-6v12M-1 0c3-3 6 0 3 3',                                                  // saturn
+      'M-5-3c3 0 4 3 0 7h7M2-6v12',                                                       // jupiter
+      'M-4-1a4 4 0 1 0 8 0a4 4 0 1 0-8 0M0 3v6M-3 6h6M-4-8c1 3 7 3 8 0'                  // mercury
+    ];
+    for (i = 0; i < 7; i++) {
+      var q = P(150, -Math.PI / 2 + i * 2 * Math.PI / 7);
+      nodes += '<circle cx="' + f(q[0]) + '" cy="' + f(q[1]) + '" r="13" fill="#0f130c" stroke="#e8a33d" stroke-width="1.2"/>';
+      glyphs += '<path transform="translate(' + f(q[0]) + ' ' + f(q[1]) + ')" d="' + G[i] + '"/>';
+    }
+    var motto = 'VISITA INTERIORA TERRAE RECTIFICANDO INVENIES OCCULTUM LAPIDEM · SOLVE ET COAGULA · ';
+    return '<defs>' +
+        '<radialGradient id="vaCore' + id + '"><stop offset="0" stop-color="#fff1c9" stop-opacity="1"/><stop offset=".35" stop-color="#ffcf7a" stop-opacity=".85"/><stop offset=".7" stop-color="#e8a33d" stop-opacity=".25"/><stop offset="1" stop-color="#2e9c74" stop-opacity="0"/></radialGradient>' +
+        '<path id="vaMotto' + id + '" d="M200 200m-160 0a160 160 0 1 1 320 0a160 160 0 1 1-320 0"/>' +
+      '</defs>' +
+      '<g class="g-slow" fill="none" stroke="#e8a33d">' +
+        '<circle class="draw" pathLength="1" cx="200" cy="200" r="190" stroke-width="2"/>' +
+        '<circle class="draw d2" pathLength="1" cx="200" cy="200" r="184" stroke-width=".8" opacity=".7"/>' +
+        '<path d="' + ticks + '" stroke-width="1.4"/><path d="' + minor + '" stroke-width=".7" opacity=".6"/>' +
+        '<circle class="draw d2" pathLength="1" cx="200" cy="200" r="168" stroke-width="1"/>' +
+        '<text fill="#e8a33d" stroke="none" font-family="Fraunces,Georgia,serif" font-size="11.5" letter-spacing="3.1" opacity=".9"><textPath href="#vaMotto' + id + '">' + motto + '</textPath></text>' +
+        '<circle cx="200" cy="200" r="152" stroke-width=".8" opacity=".55"/>' +
+      '</g>' +
+      '<g class="g-rev" fill="none" stroke="#2e9c74" stroke-width="1.6">' +
+        '<polygon class="draw d3" pathLength="1" points="' + poly(150, 7, -Math.PI / 2, 3) + '"/>' +
+        '<polygon class="draw d3" pathLength="1" points="' + poly(150, 7, -Math.PI / 2, 2) + '" stroke="#e8a33d" stroke-width="1" opacity=".7"/>' +
+        nodes + '<g stroke="#ffcf7a" stroke-width="1.3" stroke-linecap="round">' + glyphs + '</g>' +
+      '</g>' +
+      '<g class="g-fast" fill="none" stroke="#e8a33d" stroke-width="1.3">' +
+        '<circle cx="200" cy="200" r="104" stroke-dasharray="2 7" opacity=".8"/>' +
+        '<polygon class="draw d4" pathLength="1" points="' + poly(96, 3, -Math.PI / 2) + '"/>' +
+        '<polygon class="draw d4" pathLength="1" points="' + poly(96, 3, Math.PI / 2) + '" stroke="#2e9c74"/>' +
+        '<rect class="draw d5" pathLength="1" x="152" y="152" width="96" height="96" opacity=".75"/>' +
+      '</g>' +
+      '<circle class="draw d5" pathLength="1" cx="200" cy="200" r="68" fill="none" stroke="#ffcf7a" stroke-width="1.2"/>' +
+      '<circle class="core" cx="200" cy="200" r="66" fill="url(#vaCore' + id + ')"/>' +
+      '<circle cx="200" cy="200" r="7" fill="#fff1c9"/>';
+  }
+  var rings = va.querySelectorAll('[data-ring]');
+  for (var r = 0; r < rings.length; r++) rings[r].innerHTML = ring(rings[r].getAttribute('data-ring'));
+
+  /* Embers rising behind the hero */
+  var em = va.querySelector('.va-embers');
+  if (em && !reduce) for (var e = 0; e < 18; e++) {
+    var d = document.createElement('i'); d.className = 'ember';
+    d.style.left = (30 + Math.random() * 68) + '%'; d.style.animationDelay = (Math.random() * 9).toFixed(2) + 's';
+    d.style.animationDuration = (7 + Math.random() * 5).toFixed(2) + 's'; em.appendChild(d);
+  }
+
+  /* The transmutation: a real brand's website goes in, its real posts come out. */
+  /* fm-hero-v22 */ var BRANDS = [ { name: 'Everything Nightlife', url: 'everythingnightlife.com', look: 'Neon on black · Space Grotesk · Inter', style: 'Neon nightlife', sw: ['#08060d', '#ff2d78', '#22d3ee', '#f6f3fb'], cards: ['content-calendar/CCB00738/card_1.png', 'content-calendar/CCB00738/card_2.png', 'content-calendar/CCB00738/card_3.png'] }, { name: 'Evrylife', url: 'evrylife.org', look: 'Open and technical · Space Grotesk · Inter', style: 'Open and technical', sw: ['#0f1419', '#0052d6', '#188f00', '#f3eee4'], cards: ['content-calendar/CCB00721/card_1.png', 'content-calendar/CCB00721/card_2.png', 'content-calendar/CCB00721/card_3.png'] }, { name: 'UPM', url: 'unitedpress.media', look: 'Cyan on dark · Fraunces · IBM Plex Mono', style: 'Cyan on dark', sw: ['#0f172a', '#22d3ee', '#a855f7', '#ffffff'], cards: ['content-calendar/CCB00741/card_1.png', 'content-calendar/CCB00741/card_2.png', 'content-calendar/CCB00741/card_3.png'] } ];
+  var stage = va.querySelector('[data-stage]'); if (!stage) return;
+  var imgs = stage.querySelectorAll('[data-p]');
+  var q = function (s) { return va.querySelector(s); };
+  var cache = {};
+  function preload(b) { b.cards.forEach(function (c) { if (!cache[c]) { cache[c] = new Image(); cache[c].src = IMG(c, 420, 525); } }); }
+  function label(b) {
+    q('[data-st-url]').textContent = b.url;
+    q('[data-st-look]').textContent = b.look;
+    q('[data-bt-name]').textContent = b.name;
+    q('[data-bt-look]').textContent = b.style;
+    q('[data-bt-sw]').innerHTML = b.sw.map(function (c) { return '<i style="background:' + c + '"></i>'; }).join('');
+  }
+  function load(b) {
+    for (var k = 0; k < imgs.length; k++) { imgs[k].src = IMG(b.cards[k], 420, 525); imgs[k].alt = k === 0 ? b.name + ' posts made by the Alchemist' : ''; }
+    q('[data-chip]').textContent = b.url;
+  }
+
+  var cur = 0, timers = [], running = false;
+  function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
+  function setState(s) { stage.className = 'stage' + (s ? ' ' + s : ''); }
+  function cycle() {
+    var b = BRANDS[cur];
+    setState('reset'); void stage.offsetWidth;
+    load(b); preload(BRANDS[(cur + 1) % BRANDS.length]);
+    setState('');
+    later(function () { setState('feed'); }, 60);
+    later(function () { setState('feed sink'); }, 900);
+    later(function () { setState('sink flare'); }, 1750);
+    later(function () { setState('flare out'); label(b); }, 2300);
+    later(function () { setState('out'); }, 3400);
+    later(function () { setState('out fade'); }, 6900);
+    later(function () { cur = (cur + 1) % BRANDS.length; cycle(); }, 7700);
+  }
+  function start() { if (running) return; running = true; cycle(); }
+  function stop() { running = false; timers.forEach(clearTimeout); timers = []; }
+
+  if (reduce) { load(BRANDS[0]); label(BRANDS[0]); setState('out still'); return; }
+  preload(BRANDS[0]);
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (es) {
+      es.forEach(function (x) { if (x.isIntersecting && !document.hidden) start(); else if (!x.isIntersecting) stop(); });
+    }, { threshold: 0.15 }).observe(stage);
+  } else start();
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) stop();
+    else { var r = stage.getBoundingClientRect(); if (r.bottom > 0 && r.top < innerHeight) start(); }
+  });
+})();
+
+</script>
+<script>
+/* ── Try it on your site (2026-10-10): one free draft post from a pasted page ── */
+(function () {
+  var FN = 'https://tpqvvrdglnsdljdpzwfl.supabase.co/functions/v1/site-preview';
+  var KEY = 'sb_publishable_TcW5WxZhUPuo2MhKWaBUKQ_EjkNzSJb';
+  var TERMS = '2026-10-10';
+  var STAGES = ['Reading your page…', 'Finding your voice…', 'Choosing the angle…', 'Writing your post…'];
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function lum(hex) { var h = hex.replace('#', ''); if (h.length === 3) h = h.replace(/./g, '$&$&'); var n = parseInt(h, 16); var r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
+  function track(ev) { try { if (window.fmaTrack) window.fmaTrack(ev); } catch (e) {} }
+  function unamp(u) { return String(u || '').replace(/&amp;/g, '&'); }
+  function fontLink(name) {
+    if (!/^[A-Za-z0-9 ]{2,40}$/.test(name || '')) return false;
+    var id = 'tsf-' + name.replace(/ /g, '-');
+    if (!document.getElementById(id)) { var l = document.createElement('link'); l.id = id; l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(name).replace(/%20/g, '+') + ':wght@600;700&display=swap'; document.head.appendChild(l); }
+    return true;
+  }
+  function logoImg(src) { var i = new Image(); i.alt = ''; i.referrerPolicy = 'no-referrer'; i.decoding = 'async'; i.src = src; return i; }
+  // The post is drawn at the app's real feed size: 4:5 (1080 x 1350).
+  function render(out, d, form) {
+    out.innerHTML = '';
+    var c0 = (d.colors || []).filter(function (c) { return /^#[0-9a-f]{3,6}$/i.test(c); });
+    var bg = c0[0] || '#2e9c74', ac = c0[1] || c0[0] || '#e8a33d';
+    var fg = lum(bg) > 0.6 ? '#16130b' : '#ffffff';
+    var pb = fg, pf = bg;
+    if (c0[1] && Math.abs(lum(c0[1]) - lum(bg)) > 0.3) { pb = c0[1]; pf = lum(c0[1]) > 0.6 ? '#16130b' : '#ffffff'; }
+    var hl = d.headline || d.brand || '';
+    var logo = /^https:\/\//.test(unamp(d.logo)) ? unamp(d.logo) : '';
+    var photo = /^https:\/\//.test(unamp(d.photo)) ? unamp(d.photo) : '';
+    var hf = fontLink(d.font) ? "'" + d.font + "',\"IBM Plex Sans\",system-ui,sans-serif" : '"IBM Plex Sans",-apple-system,system-ui,sans-serif';
+
+    var post = el('div', 'ts-post');
+    var ph = el('div', 'ts-ph');
+    var av = el('span', 'ts-av');
+    if (logo) { var ai = logoImg(logo); ai.onerror = function () { ai.remove(); av.textContent = (d.brand || '?').charAt(0).toUpperCase(); }; av.appendChild(ai); } else av.textContent = (d.brand || '?').charAt(0).toUpperCase();
+    ph.appendChild(av);
+    var nm = el('span'); nm.appendChild(el('b', '', d.brand || d.source)); nm.appendChild(el('small', '', d.source || '')); ph.appendChild(nm);
+    ph.appendChild(el('span', 'ts-size', '4:5 · 1080×1350'));
+    post.appendChild(ph);
+
+    // 2026-10-11: the sample is drawn by the app's own card engine (logo,
+    // photo or mascot, the brand's colours). The drawn-in-the-browser card
+    // below is only the fallback when that picture didn't come back.
+    var real = /^data:image\/png;base64,/.test(d.card || '') ? d.card : '';
+    if (real) {
+      var fig = el('div', 'ts-real'); var ri = new Image(); ri.alt = 'Sample post for ' + (d.brand || d.source || 'your brand') + ': ' + hl; ri.decoding = 'async'; ri.width = 720; ri.height = 900; ri.src = real; fig.appendChild(ri);
+      post.appendChild(fig);
+    }
+    var card = el('div', 'ts-card');
+    card.style.setProperty('--bg', bg); card.style.setProperty('--fg', fg); card.style.setProperty('--ac', ac);
+    card.style.setProperty('--pb', pb); card.style.setProperty('--pf', pf); card.style.setProperty('--hf', hf);
+    var panel = el('div', 'ts-panel');
+    var mark = el('div', 'ts-mark');
+    if (logo) { var mi = el('i'); var ml = logoImg(logo); ml.onerror = function () { mi.remove(); }; mi.appendChild(ml); mark.appendChild(mi); }
+    mark.appendChild(el('span', '', d.brand || d.source));
+    var h = el('p', 'ts-hl', hl);
+    var pill = d.cta ? el('span', 'ts-pill', d.cta) : null;
+    function sizes(np) { var n = hl.length; card.style.setProperty('--hs', np ? (n < 26 ? '11.6cqw' : n < 44 ? '9.6cqw' : '8cqw') : (n < 26 ? '8.8cqw' : n < 44 ? '7.4cqw' : '6.3cqw')); }
+    function noPhoto() { card.classList.add('np'); var p = card.querySelector('.ts-photo'); if (p) p.remove(); if (!mark.parentNode) panel.insertBefore(mark, panel.firstChild); sizes(true); }
+    if (photo) {
+      var pw = el('div', 'ts-photo'); var pi = new Image(); pi.alt = ''; pi.referrerPolicy = 'no-referrer'; pi.decoding = 'async';
+      pi.onerror = noPhoto; pi.onload = function () { if (pi.naturalWidth < 200) noPhoto(); };
+      pi.src = photo; pw.appendChild(pi);
+      if (logo) { var ch = el('span', 'ts-chip'); var cl = logoImg(logo); cl.onerror = function () { ch.remove(); }; ch.appendChild(cl); pw.appendChild(ch); }
+      card.appendChild(pw); sizes(false);
+    }
+    panel.appendChild(h); if (pill) panel.appendChild(pill);
+    card.appendChild(panel);
+    card.appendChild(el('span', 'ts-foot', d.source || ''));
+    if (!photo) noPhoto();
+    if (!real) post.appendChild(card);
+
+    var body = el('div', 'ts-body');
+    var cap = el('p', 'ts-cap'); cap.appendChild(el('b', '', d.brand || d.source)); cap.appendChild(document.createTextNode(d.caption || '')); body.appendChild(cap);
+    var tags = el('div', 'ts-tags'); (d.hashtags || []).forEach(function (t) { tags.appendChild(el('span', '', t)); }); body.appendChild(tags);
+    if (c0.length) { var sw = el('div', 'ts-sw', 'Colours on your page '); c0.forEach(function (c) { var i = el('i'); i.style.background = c; sw.appendChild(i); }); body.appendChild(sw); }
+    post.appendChild(body);
+    var next = el('div', 'ts-next');
+    next.appendChild(el('p', '', 'A free sample from one page. Start free and the Alchemist learns your whole brand, adds your mascot, photos and QR code, and keeps the posts coming.'));
+    var row = el('div', 'ts-row');
+    var go = el('a', 'ts-go', 'Start free'); go.href = '/dashboard/'; go.setAttribute('data-cta', 'try-start'); row.appendChild(go);
+    var again = el('button', '', 'Try another page'); again.type = 'button'; again.onclick = function () { var i = form.querySelector('input[name=url]'); i.value = ''; i.focus(); }; row.appendChild(again);
+    next.appendChild(row); post.appendChild(next);
+    out.appendChild(post);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.trysec'), function (sec) {
+    var form = sec.querySelector('.ts-form'), out = sec.querySelector('.ts-out'), btn = sec.querySelector('.ts-btn');
+    var err = el('p', 'ts-err'); err.hidden = true; err.setAttribute('role', 'alert'); form.parentNode.insertBefore(err, form.nextSibling);
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var url = form.querySelector('input[name=url]').value.trim(); var hp = form.querySelector('input[name=website]').value;
+      err.hidden = true;
+      if (!url || !/\./.test(url)) { err.textContent = 'Paste your website address, like yourbrand.com'; err.hidden = false; return; }
+      var agree = form.querySelector('input[name=agree]'), agl = agree.closest('.ts-agree');
+      if (!agree.checked) { agl.classList.add('ts-need'); err.textContent = 'Please tick the box to confirm you can use this brand.'; err.hidden = false; agree.focus(); return; }
+      agl.classList.remove('ts-need');
+      btn.disabled = true; btn.textContent = 'Transmuting…'; track('try');
+      out.innerHTML = '<div class="ts-busy ts-frame"><img src="/assets/logo-mark.svg" alt=""><b></b><span>About 20 seconds</span></div>';
+      var stageEl = out.querySelector('b'), si = 0; stageEl.textContent = STAGES[0];
+      var t = setInterval(function () { si = Math.min(si + 1, STAGES.length - 1); stageEl.textContent = STAGES[si]; }, 4500);
+      var done = function () { clearInterval(t); btn.disabled = false; btn.textContent = 'Transmute it'; };
+      fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify({ url: url, website: hp, agree: true, terms: TERMS }) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          done();
+          if (res.ok && res.j && res.j.ok) { render(out, res.j, form); track('try_ok'); return; }
+          out.innerHTML = '<div class="ts-idle ts-frame"><img src="/assets/logo-mark.svg" alt="" width="96" height="96"><span>Your 4:5 post appears here</span></div>';
+          err.textContent = (res.j && res.j.error) || 'That didn’t work. Please try again.'; err.hidden = false;
+        })
+        .catch(function () { done(); err.textContent = 'That didn’t work. Check your connection and try again.'; err.hidden = false; });
+    });
+  });
+})();
+
+</script>
+<script src="/assets/home-reach.js" defer></script><script src="/assets/site-header.js" defer></script></body>
+</html>

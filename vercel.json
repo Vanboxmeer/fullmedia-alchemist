@@ -1,0 +1,116 @@
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), payment=(self)"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/review/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        },
+        {
+          "key": "Content-Type",
+          "value": "text/javascript; charset=utf-8"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/dashboard/classic",
+      "destination": "/dashboard/",
+      "permanent": false
+    },
+    {
+      "source": "/dashboard/classic/",
+      "destination": "/dashboard/",
+      "permanent": false
+    },
+    {
+      "source": "/dashboard/classic/:path*",
+      "destination": "/dashboard/",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/blog",
+      "destination": "/api/journal?list=1"
+    },
+    {
+      "source": "/blog/",
+      "destination": "/api/journal?list=1"
+    },
+    {
+      "source": "/blog/:slug/",
+      "destination": "/api/journal?slug=:slug"
+    },
+    {
+      "source": "/blog/:slug",
+      "destination": "/api/journal?slug=:slug"
+    },
+    {
+      "source": "/sitemap-journal.xml",
+      "destination": "/api/journal?sitemap=1"
+    }
+  ]
+}

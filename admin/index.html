@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Alchemist Admin</title>
+<link rel="icon" href="/assets/logo-mark-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#12160f; --surface:#181d15; --surface-2:#1f251b; --line:#2c3428;
+  --ink:#ece6d6; --ink-2:#c9c5b5; --muted:#949d8d;
+  --gold:#e8a33d; --green:#3aa880; --red:#e06a52; --blue:#6aa7e8;
+  --display:Fraunces,Georgia,serif; --body:"IBM Plex Sans",-apple-system,system-ui,sans-serif;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]){
+    --ground:#f3f0e7; --surface:#fffdf8; --surface-2:#f0ece1; --line:#ddd6c5;
+    --ink:#1c2018; --ink-2:#3a4034; --muted:#666d5e;
+    --gold:#c07f17; --green:#23805f; --red:#b8452f; --blue:#2f6db0; color-scheme:light;
+  }
+}
+:root[data-theme="light"]{
+  --ground:#f3f0e7; --surface:#fffdf8; --surface-2:#f0ece1; --line:#ddd6c5;
+  --ink:#1c2018; --ink-2:#3a4034; --muted:#666d5e;
+  --gold:#c07f17; --green:#23805f; --red:#b8452f; --blue:#2f6db0; color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--ground);color:var(--ink);font:14.5px/1.55 var(--body);-webkit-font-smoothing:antialiased;min-height:100vh}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 64px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:space-between;margin-bottom:18px}
+h1{font:600 26px/1.15 var(--display);margin:0}
+h2{font:600 12px/1.3 var(--body);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+select,button{font:inherit;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 12px;cursor:pointer}
+button:hover,select:hover{border-color:var(--gold)}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:14px}
+.two{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));margin-bottom:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.kpi b{display:block;font:600 28px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.kpi span{color:var(--muted);font-size:12.5px}
+.kpi small{display:block;margin-top:4px;font-size:12px;color:var(--muted)}
+.up{color:var(--green)} .down{color:var(--red)}
+.insights{border-color:var(--gold);margin-bottom:14px}
+.insights ul{margin:0;padding-left:18px;display:grid;gap:6px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{font-weight:500;color:var(--muted);text-align:right;font-size:12px;padding:0 0 8px 8px}
+td{padding:7px 0 7px 8px;text-align:right;border-top:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left;padding-left:0;overflow-wrap:anywhere}
+.scroll{overflow-x:auto}
+.bar{display:grid;grid-template-columns:128px 1fr 118px;gap:10px;align-items:center;padding:5px 0}
+.bar i{display:block;height:20px;border-radius:5px;background:var(--gold);min-width:2px}
+.bar .t{height:20px;background:var(--surface-2);border-radius:5px;overflow:hidden}
+.bar em{font-style:normal;color:var(--muted);font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums}
+.bar.b2 i{background:var(--blue)} .bar.b3 i{background:var(--green)}
+.muted{color:var(--muted)} .note{font-size:12.5px;color:var(--muted);margin-top:10px}
+svg text{fill:var(--muted);font:11px var(--body)}
+.msg{padding:40px 16px;text-align:center;color:var(--ink-2)}
+a{color:var(--gold)}
+.tk{border-top:1px solid var(--line);padding:12px 0;display:grid;gap:8px}
+.tk:first-of-type{border-top:0}
+.tk h3{margin:0;font:600 14.5px/1.35 var(--body)}
+.tk .meta{color:var(--muted);font-size:12.5px}
+.tk .det{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface-2);border-radius:9px;padding:8px 10px;font-size:13.5px}
+.tk .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tk textarea,.tk input{font:inherit;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 10px;width:100%}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line);color:var(--muted)}
+.pill.open{color:var(--red);border-color:var(--red)} .pill.in_progress{color:var(--gold);border-color:var(--gold)} .pill.resolved{color:var(--green);border-color:var(--green)}
+.pill.claude{color:var(--blue);border-color:var(--blue)} .pill.ok{color:var(--green);border-color:var(--green)} .pill.warn{color:var(--gold);border-color:var(--gold)}
+.msgs{display:grid;gap:6px}.msgs div{border-radius:9px;padding:7px 10px;font-size:13.5px;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface-2)}.msgs .u{border-left:3px solid var(--blue)}.msgs .t{border-left:3px solid var(--gold)}.msgs .c{border-left:3px solid var(--green)}.msgs b{display:block;font-size:11px;color:var(--muted);font-weight:600}
+.pp{display:grid;gap:0}.pr{border-top:1px solid var(--line);padding:9px 0}.pr:first-child{border-top:0}
+.prh{display:grid;grid-template-columns:minmax(0,2.2fr) 90px minmax(0,1.2fr) minmax(0,1.3fr) minmax(0,1.6fr) 56px;gap:10px;align-items:center;cursor:pointer;font-size:13.5px}
+.prh>*{min-width:0;overflow-wrap:anywhere}.prh .e b{display:block;font-weight:600}.prh .e span{color:var(--muted);font-size:12px}
+.phd{color:var(--muted);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;cursor:default}
+.pdet{margin-top:10px;padding:12px;border-radius:11px;background:var(--surface-2);display:grid;gap:10px}
+.pdet .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.pdet h4{margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.pdet input[type=number]{width:90px;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:7px 10px}
+.pdet input[type=text]{flex:1 1 180px;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:7px 10px}
+.pf{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.pf input{flex:1 1 220px;font:inherit;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 10px}
+@media (max-width:760px){.prh{grid-template-columns:1fr 1fr}.phd{display:none}}
+.seg2{display:inline-flex;gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden}.seg2 button{border:0;border-radius:0;background:none}.seg2 button[aria-pressed=true]{background:var(--surface-2);color:var(--gold)}
+@media (max-width:560px){.bar{grid-template-columns:96px 1fr 92px}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="msg">Loading…</div></div>
+<script>
+(function () {
+  "use strict";
+  var SB = "https://tpqvvrdglnsdljdpzwfl.supabase.co", KEY = "sb_publishable_TcW5WxZhUPuo2MhKWaBUKQ_EjkNzSJb", SK = "ccb-session";
+  var app = document.getElementById("app");
+  var days = 30;
+  try { days = Number(localStorage.getItem("fma-admin-days")) || 30; } catch (e) {}
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function n(x) { return Number(x || 0).toLocaleString(); }
+  function usd(c) { return "$" + (Number(c || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+  function pct(a, b) { return b > 0 ? (Math.round(a / b * 1000) / 10) + "%" : "—"; }
+  function delta(cur, prev) {
+    if (!prev) return cur ? '<small class="up">new</small>' : "";
+    var p = Math.round((cur - prev) / prev * 100);
+    return '<small class="' + (p >= 0 ? "up" : "down") + '">' + (p >= 0 ? "▲ " : "▼ ") + Math.abs(p) + "% vs previous " + days + " days</small>";
+  }
+  function msg(h) { app.innerHTML = '<div class="msg">' + h + "</div>"; }
+
+  function sessionGet() { try { return JSON.parse(localStorage.getItem(SK) || "null"); } catch (e) { return null; } }
+  async function token() {
+    var s = sessionGet();
+    if (!s || !s.access_token) return null;
+    if (s.expires_at && s.expires_at - Date.now() < 60000 && s.refresh_token) {
+      try {
+        var r = await fetch(SB + "/auth/v1/token?grant_type=refresh_token", { method: "POST", headers: { apikey: KEY, "Content-Type": "application/json" }, body: JSON.stringify({ refresh_token: s.refresh_token }) });
+        if (r.ok) {
+          var b = await r.json();
+          s = { access_token: b.access_token, refresh_token: b.refresh_token || s.refresh_token, expires_at: Date.now() + (b.expires_in || 3600) * 1000, email: (b.user && b.user.email) || s.email };
+          localStorage.setItem(SK, JSON.stringify(s));
+        } else return null;
+      } catch (e) { return s.access_token; }
+    }
+    return s.access_token;
+  }
+
+  async function load() {
+    msg("Loading…");
+    var t = await token();
+    if (!t) { msg('Sign in on the <a href="/dashboard/">dashboard</a> first (as the admin), then reopen this page.'); return; }
+    var r;
+    try { r = await fetch(SB + "/functions/v1/admin-stats", { method: "POST", headers: { "Content-Type": "application/json", apikey: KEY, Authorization: "Bearer " + t }, body: JSON.stringify({ days: days }) }); }
+    catch (e) { msg("Could not reach the server. Check your connection and refresh."); return; }
+    var j = await r.json().catch(function () { return {}; });
+    if (r.status === 403) { msg("This page is for the Alchemist admin account only."); return; }
+    if (r.status === 401) { msg('Your sign-in ended. Open the <a href="/dashboard/">dashboard</a> to sign in again, then refresh.'); return; }
+    if (!r.ok || !j.ok) { msg(esc(j.error || "Something went wrong building the report.") + " Try refreshing."); return; }
+    render(j);
+  }
+
+  function bars(rows, color) {
+    var max = Math.max.apply(null, rows.map(function (r) { return r.v; }).concat([1]));
+    var w = 640, h = 130, bw = w / Math.max(rows.length, 1), out = '<svg viewBox="0 0 ' + w + " " + (h + 20) + '" width="100%" role="img">';
+    out += '<line x1="0" x2="' + w + '" y1="' + h + '" y2="' + h + '" stroke="var(--line)"/>';
+    out += '<line x1="0" x2="' + w + '" y1="' + (h / 2) + '" y2="' + (h / 2) + '" stroke="var(--line)" stroke-dasharray="3 4"/>';
+    rows.forEach(function (r, i) {
+      var bh = Math.round(r.v / max * (h - 6));
+      out += '<rect x="' + (i * bw + bw * 0.14).toFixed(1) + '" y="' + (h - bh) + '" width="' + (bw * 0.72).toFixed(1) + '" height="' + bh + '" rx="2" fill="' + color + '"><title>' + esc(r.l + ": " + n(r.v)) + "</title></rect>";
+    });
+    out += '<text x="0" y="' + (h + 14) + '">' + esc(rows.length ? rows[0].l : "") + '</text><text x="' + w + '" y="' + (h + 14) + '" text-anchor="end">' + esc(rows.length ? rows[rows.length - 1].l : "") + '</text>';
+    out += '<text x="' + w + '" y="12" text-anchor="end">peak ' + n(max === 1 && !rows.some(function (r) { return r.v; }) ? 0 : max) + "</text></svg>";
+    return out;
+  }
+  function short(d) { var p = String(d).split("-"); return p.length === 3 ? p[1] + "/" + p[2] : d; }
+  function table(head, rows) {
+    return '<div class="scroll"><table><thead><tr>' + head.map(function (h) { return "<th>" + esc(h) + "</th>"; }).join("") + "</tr></thead><tbody>" +
+      (rows.length ? rows.map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + c + "</td>"; }).join("") + "</tr>"; }).join("") : '<tr><td colspan="' + head.length + '" class="muted">Nothing yet</td></tr>') + "</tbody></table></div>";
+  }
+  function funnel(steps) {
+    var top = Math.max(steps[0].v, 1);
+    return steps.map(function (s, i) {
+      var prev = i ? steps[i - 1].v : null;
+      return '<div class="bar b' + (i < 3 ? 1 : i < 4 ? 2 : 3) + '"><span>' + esc(s.l) + '</span><div class="t"><i style="width:' + Math.max(s.v / top * 100, s.v ? 1 : 0).toFixed(1) + '%"></i></div><em>' + n(s.v) + " · " + pct(s.v, top) + (prev ? " (" + pct(s.v, prev) + " of prev)" : "") + "</em></div>";
+    }).join("");
+  }
+
+  function insights(j) {
+    var out = [], s = j.site, f = s.funnel, ch = s.channels || [];
+    if (s.visits < 25) out.push("Only " + n(s.visits) + " tracked visits so far — the counter is new, so give it a week or two before reading much into the percentages.");
+    var steps = [["visit", f.visits], ["pricing view", f.pricing], ["demo try", f.tried], ["sign-up click", f.signup_click], ["sign-up", f.signup]];
+    var worst = null;
+    for (var i = 1; i < steps.length; i++) { if (steps[i - 1][1] >= 10) { var r = steps[i][1] / steps[i - 1][1]; if (!worst || r < worst.r) worst = { r: r, a: steps[i - 1][0], b: steps[i][0] }; } }
+    if (worst && s.visits >= 25) out.push("Biggest drop-off: " + worst.a + " → " + worst.b + " (only " + Math.round(worst.r * 100) + "% continue). Fix that step first.");
+    var good = ch.filter(function (c) { return c.visits >= 10; }).sort(function (a, b) { return b.signups / b.visits - a.signups / a.visits; })[0];
+    if (good && good.signups) out.push("Best converting source: " + good.channel + " (" + pct(good.signups, good.visits) + " of " + n(good.visits) + " visits sign up). Do more of that.");
+    ch.filter(function (c) { return c.visits >= 15 && !c.signups; }).slice(0, 2).forEach(function (c) { out.push(c.channel + " sent " + n(c.visits) + " visits and no sign-ups — check the page they land on or stop spending time there."); });
+    var mob = (s.devices || []).filter(function (d) { return d.device === "mobile"; })[0];
+    if (mob && s.visits >= 25 && mob.visits / s.visits > 0.5) out.push(Math.round(mob.visits / s.visits * 100) + "% of visitors are on phones — check the homepage and sign-up on mobile first.");
+    var a = j.activation;
+    if (a.signed_up >= 5) {
+      if (a.brand / a.signed_up < 0.6) out.push("Only " + pct(a.brand, a.signed_up) + " of new accounts add a brand — onboarding is losing people before they see value.");
+      else if (a.brand && a.generated / a.brand < 0.6) out.push("Of accounts that add a brand, only " + pct(a.generated, a.brand) + " generate any content — the first-post step needs to be easier.");
+    }
+    if (j.accounts.new && !a.paying) out.push(n(j.accounts.new) + " new accounts in this period and none paying yet.");
+    var rc = j.reach, rm = j.revenue.reach_mrr_cents;
+    if (rc.est_cost_cents > 0 && rm > 0 && rc.est_cost_cents > rm * 0.3) out.push("Reach AI cost (" + usd(rc.est_cost_cents) + " est.) is over 30% of Reach monthly revenue — watch plan limits.");
+    if (rc.calls && rc.failed / rc.calls > 0.05) out.push(Math.round(rc.failed / rc.calls * 100) + "% of Reach AI calls failed — check the logs.");
+    if (!out.length) out.push("Nothing alarming. Numbers are steady for this period.");
+    return out;
+  }
+
+  function render(j) {
+    var s = j.site, f = s.funnel, a = j.accounts, v = j.revenue, ac = j.activation, c = j.content, rc = j.reach;
+    var mrr = (v.content_mrr_cents || 0) + (v.reach_mrr_cents || 0);
+    var conv = pct(f.signup, f.visits);
+    var h = "";
+    h += '<header><div><h1>Alchemist Admin</h1><div class="muted">Last ' + j.days + ' days · UTC · updated ' + esc(new Date(j.generated_at).toLocaleTimeString()) + '</div></div>' +
+      '<div class="tools"><select id="rng" aria-label="Date range"><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="365">12 months</option></select>' +
+      '<button id="rf">Refresh</button><button id="nt" title="Stops the visit counter in this browser">' + (notrack() ? "Counting me: off" : "Counting me: on") + '</button></div></header>';
+    h += '<div class="grid kpis">' +
+      kpi("Visits", n(s.visits), n(s.pageviews) + " page views") +
+      kpi("Sign-ups", n(a.new), delta(a.new, a.new_prev)) +
+      kpi("Visit → sign-up", conv, n(f.signup) + " from tracked visits") +
+      kpi("Monthly revenue", usd(mrr), n(v.content_paying + v.reach_paying) + " paying · " + n(v.comped) + " comped") +
+      kpi("Active this week", n(a.active_7d), n(a.active_30d) + " in 30 days · " + n(a.total) + " total") +
+      kpi("Bounce", pct(s.bounce, s.visits), "left after 1 page") + "</div>";
+    h += '<section class="card insights"><h2>What to look at</h2><ul>' + insights(j).map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul></section>";
+    h += '<section class="card" id="pp" style="margin-bottom:14px"><h2>People</h2><div id="ppBody" class="muted">Loading\u2026</div></section>';
+    h += '<section class="card" id="tk" style="margin-bottom:14px"><h2>Problem reports</h2><div id="tkBody" class="muted">Loading\u2026</div></section>';
+    h += '<div class="grid two"><section class="card"><h2>Visits per day</h2>' + bars((s.daily || []).map(function (d) { return { l: short(d.d), v: d.visits }; }), "var(--gold)") + "</section>" +
+      '<section class="card"><h2>New accounts per day</h2>' + bars((a.daily || []).map(function (d) { return { l: short(d.d), v: d.n }; }), "var(--green)") + "</section></div>";
+    h += '<div class="grid two"><section class="card"><h2>Visitor journey</h2>' + funnel([
+      { l: "Visited", v: f.visits }, { l: "Saw pricing", v: f.pricing }, { l: "Tried the demo", v: f.tried }, { l: "Clicked sign up", v: f.signup_click }, { l: "Signed up", v: f.signup }]) +
+      '<p class="note">Counted per visit (one browser tab session). A visit can skip steps, so a later step can be larger than an earlier one.</p></section>' +
+      '<section class="card"><h2>After sign-up (accounts made in this period)</h2>' + funnel([
+        { l: "Signed up", v: ac.signed_up }, { l: "Added a brand", v: ac.brand }, { l: "Made content", v: ac.generated }, { l: "Paying", v: ac.paying }]) +
+      '<p class="note">Tells you where new accounts stall: no brand, no first post, or no upgrade.</p></section></div>';
+    h += '<section class="card" style="margin-bottom:14px"><h2>Traffic sources</h2>' + table(["Source", "Visits", "Saw pricing", "Tried demo", "Sign-ups", "Rate"],
+      (s.channels || []).map(function (x) { return [esc(x.channel), n(x.visits), n(x.pricing), n(x.tried), n(x.signups), pct(x.signups, x.visits)]; })) +
+      '<p class="note">Add <b>?utm_source=…&amp;utm_campaign=…</b> to any link you post (bio, newsletter, outreach) and it shows up here by name.</p></section>';
+    h += '<div class="grid two"><section class="card"><h2>Your tagged links</h2>' + table(["Campaign", "Source", "Visits", "Sign-ups"],
+      (s.campaigns || []).map(function (x) { return [esc(x.campaign), esc(x.channel), n(x.visits), n(x.signups)]; })) + "</section>" +
+      '<section class="card"><h2>Websites sending visitors</h2>' + table(["Site", "Visits"], (s.referrers || []).map(function (x) { return [esc(x.host), n(x.visits)]; })) + "</section></div>";
+    h += '<div class="grid two"><section class="card"><h2>Pages people land on</h2>' + table(["Page", "Visits", "Sign-ups"],
+      (s.landing || []).map(function (x) { return [esc(x.path), n(x.visits), n(x.signups)]; })) + "</section>" +
+      '<section class="card"><h2>Most viewed pages</h2>' + table(["Page", "Views", "People"], (s.pages || []).map(function (x) { return [esc(x.path), n(x.views), n(x.visits)]; })) +
+      '<p class="note" style="margin-top:14px">Devices: ' + ((s.devices || []).map(function (d) { return esc(d.device) + " " + pct(d.visits, s.visits); }).join(" · ") || "—") + "</p></section></div>";
+    h += '<div class="grid two"><section class="card"><h2>Revenue</h2>' + table(["", "Monthly", "Paying"], [
+      ["Content", usd(v.content_mrr_cents), n(v.content_paying)], ["Reach", usd(v.reach_mrr_cents), n(v.reach_paying)], ["<b>Total</b>", "<b>" + usd(mrr) + "</b>", "<b>" + n(v.content_paying + v.reach_paying) + "</b>"]]) +
+      '<p class="note">Plan mix, Content: ' + (v.content_by_plan.map(function (p) { return esc(p.plan) + " " + n(p.n); }).join(" · ") || "—") + "<br>Plan mix, Reach: " + (v.reach_by_plan.map(function (p) { return esc(p.plan) + " " + n(p.n); }).join(" · ") || "—") +
+      "<br>Annual plans are counted as one twelfth per month. Comped accounts are not counted as revenue.</p></section>" +
+      '<section class="card"><h2>Content use (credits per day)</h2>' + bars((c.daily || []).map(function (d) { return { l: short(d.d), v: Number(d.credits) }; }), "var(--blue)") +
+      '<p class="note">' + n(c.credits) + " credits used by " + n(c.active_brands) + " active accounts (admin test runs excluded).</p></section></div>";
+    h += '<section class="card"><h2>Reach</h2><div class="grid two" style="margin:0"><div>' + bars((rc.daily || []).map(function (d) { return { l: short(d.d), v: d.n }; }), "var(--gold)") + "</div><div>" +
+      table(["", ""], [["AI calls", n(rc.calls) + (rc.failed ? " (" + n(rc.failed) + " failed)" : "")], ["Active workspaces", n(rc.active_workspaces)], ["Web searches", n(rc.web_searches)],
+        ["Estimated AI cost", usd(rc.est_cost_cents)], ["Workspaces / deals tracked", n(rc.workspaces_total) + " / " + n(rc.deals_total)]]) +
+      '<p class="note">Cost is an estimate from token counts (Haiku 4.5 rates) plus about 1¢ per web search — compare with the bill.</p></div></div></section>';
+    h += '<p class="note" style="margin-top:18px">Visit data is first-party and cookie-free: no IP address, no third-party tool, and browsers sending Do Not Track are skipped. Source: Supabase.</p>';
+    app.innerHTML = h;
+    var sel = document.getElementById("rng"); sel.value = String(days);
+    sel.onchange = function () { days = Number(sel.value) || 30; try { localStorage.setItem("fma-admin-days", String(days)); } catch (e) {} load(); };
+    document.getElementById("rf").onclick = load;
+    loadTickets();
+    loadPeople();
+    document.getElementById("nt").onclick = function () { try { if (notrack()) localStorage.removeItem("fma-no-track"); else localStorage.setItem("fma-no-track", "1"); } catch (e) {} render(j); };
+  }
+  /* Problem reports: status, a reply the reporter sees (and gets by email), and a hand-off to Claude. */
+  var tkFilter = "open";
+  var ST = { open: "Open", in_progress: "Working on it", resolved: "Resolved", wont_fix: "Closed" };
+  var KIND = { bug: "Something broken", billing: "Billing or credits", feature: "Idea or request", question: "Question", content: "Post or content issue", other: "Other" };
+  var CL = { queued: "Waiting for Claude", working: "Claude is on it", done: "Claude finished" };
+  async function sup(body) {
+    var t = await token(); if (!t) throw new Error("Sign in again on the dashboard.");
+    var r = await fetch(SB + "/functions/v1/support", { method: "POST", headers: { "Content-Type": "application/json", apikey: KEY, Authorization: "Bearer " + t }, body: JSON.stringify(body) });
+    var j = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(j.error || "Something went wrong.");
+    return j;
+  }
+  async function loadTickets() {
+    var box = document.getElementById("tkBody"); if (!box) return;
+    var d; try { d = await sup({ action: "admin_list" }); } catch (e) { box.textContent = e.message; return; }
+    var all = d.tickets || [], shown = tkFilter === "open" ? all.filter(function (t) { return t.status === "open" || t.status === "in_progress"; }) : tkFilter === "claude" ? all.filter(function (t) { return t.claude_state === "queued" || t.claude_state === "working"; }) : all;
+    var nClaude = all.filter(function (t) { return t.claude_state === "queued" || t.claude_state === "working"; }).length;
+    box.className = "";
+    box.innerHTML = '<div class="row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><span class="seg2">' +
+      [["open", "Open (" + n(d.open) + ")"], ["claude", "With Claude (" + n(nClaude) + ")"], ["all", "All (" + n(all.length) + ")"]].map(function (x) { return '<button type="button" data-f="' + x[0] + '" aria-pressed="' + (tkFilter === x[0]) + '">' + x[1] + "</button>"; }).join("") +
+      '</span><span class="note" style="margin:0">Replies go to the reporter on their Report a problem screen and by email. New reports are also emailed to the team.</span></div><div id="tkList"></div>';
+    var list = document.getElementById("tkList");
+    if (!shown.length) { list.innerHTML = '<p class="muted">Nothing here.</p>'; }
+    shown.forEach(function (t) {
+      var el = document.createElement("div"); el.className = "tk";
+      var ctx = t.context && typeof t.context === "object" ? Object.keys(t.context).filter(function (k) { return k !== "session"; }).map(function (k) { return k + ": " + t.context[k]; }).join(" \u00b7 ") : "";
+      el.innerHTML = '<div class="row"><h3></h3><span class="pill ' + esc(t.status) + '">' + esc(ST[t.status] || t.status) + '</span><span class="pill">' + esc(KIND[t.kind] || t.kind) + "</span>" + (t.claude_state ? '<span class="pill claude">' + esc(CL[t.claude_state] || t.claude_state) + "</span>" : "") + '</div>' +
+        '<div class="meta"></div>' + (t.details ? '<div class="det"></div>' : "") + (ctx ? '<div class="meta ctx"></div>' : "") + (t.claude_note ? '<div class="det cn"></div>' : "") + ((t.messages || []).length ? '<div class="msgs"></div>' : "") +
+        '<textarea rows="2" maxlength="3000" data-reply placeholder="Reply to the reporter (they see it and get an email)"></textarea>' +
+        '<input data-note maxlength="2000" placeholder="Private note (only you see this)">' +
+        '<div class="row"><select data-st>' + Object.keys(ST).map(function (k) { return '<option value="' + k + '"' + (t.status === k ? " selected" : "") + ">" + ST[k] + "</option>"; }).join("") + '</select>' +
+        '<button type="button" data-save>Save &amp; update them</button>' +
+        (t.claude_state === "queued" || t.claude_state === "working" ? '<button type="button" data-cl="">Take back from Claude</button>' : '<button type="button" data-cl="queued">Hand to Claude</button>') +
+        (t.email ? '<span class="meta"></span>' : "") + '</div><span class="meta msgline"></span>';
+      el.querySelector("h3").textContent = "#" + t.ticket_no + " \u00b7 " + t.summary;
+      el.querySelector(".meta").textContent = (t.email || "") + (t.brand ? " \u00b7 " + t.brand : "") + " \u00b7 " + new Date(t.created_at).toLocaleString() + " \u00b7 " + (t.source === "chat" ? "from the Alchemist chat" : "from the form");
+      var dd = el.querySelector(".det:not(.cn)"); if (dd) dd.textContent = t.details;
+      var cx = el.querySelector(".ctx"); if (cx) cx.textContent = ctx;
+      var cn = el.querySelector(".cn"); if (cn) cn.textContent = "Claude: " + t.claude_note;
+      var mb = el.querySelector(".msgs");
+      if (mb) (t.messages || []).forEach(function (m) { var d1 = document.createElement("div"); d1.className = m.role === "user" ? "u" : m.role === "claude" ? "c" : "t"; var bb = document.createElement("b"); bb.textContent = (m.role === "user" ? "Them" : m.role === "claude" ? "Claude" : "Team") + " \u00b7 " + new Date(m.created_at).toLocaleString(); d1.appendChild(bb); d1.appendChild(document.createTextNode(m.body)); mb.appendChild(d1); });
+      if (t.source === "chat") {
+        var chb = document.createElement("button"); chb.type = "button"; chb.textContent = "Read the Alchemist chat";
+        chb.onclick = async function () { chb.disabled = true; try { var r = await sup({ action: "admin_chats", ticket_id: t.id }); var box = document.createElement("div"); box.className = "msgs"; (r.messages || []).slice().reverse().forEach(function (m) { var d2 = document.createElement("div"); d2.className = m.role === "user" ? "u" : "c"; var b2 = document.createElement("b"); b2.textContent = m.role === "user" ? "User" : "Alchemist"; d2.appendChild(b2); d2.appendChild(document.createTextNode(m.content)); box.appendChild(d2); }); if (!box.childNodes.length) box.textContent = "No saved messages."; chb.replaceWith(box); } catch (e) { chb.disabled = false; } };
+        el.insertBefore(chb, el.querySelector("[data-reply]"));
+      }
+      el.querySelector("[data-reply]").value = t.reply || ""; el.querySelector("[data-note]").value = t.admin_note || "";
+      var line = el.querySelector(".msgline");
+      el.querySelector("[data-save]").onclick = async function (ev) {
+        ev.currentTarget.disabled = true; line.textContent = "Saving\u2026";
+        try { var r = await sup({ action: "admin_update", id: t.id, status: el.querySelector("[data-st]").value, reply: el.querySelector("[data-reply]").value, admin_note: el.querySelector("[data-note]").value }); line.textContent = r.emailed ? "Saved. They were emailed." : "Saved."; setTimeout(loadTickets, 700); }
+        catch (e) { ev.currentTarget.disabled = false; line.textContent = e.message; }
+      };
+      var cb = el.querySelector("[data-cl]");
+      cb.onclick = async function () { cb.disabled = true; try { await sup({ action: "admin_update", id: t.id, claude: cb.getAttribute("data-cl") }); loadTickets(); } catch (e) { cb.disabled = false; line.textContent = e.message; } };
+      list.appendChild(el);
+    });
+    Array.prototype.forEach.call(box.querySelectorAll("[data-f]"), function (b) { b.onclick = function () { tkFilter = b.getAttribute("data-f"); loadTickets(); }; });
+  }
+  /* People: everyone who signed up, how they found us, roughly where, their plans, and the account actions. */
+  var peopleQ = "", peopleF = "all", peopleData = null;
+  var AREA = { America: "Americas", Europe: "Europe", Asia: "Asia", Africa: "Africa", Australia: "Oceania", Pacific: "Oceania", Atlantic: "Atlantic", Indian: "Indian Ocean" };
+  function region(tz) { if (!tz) return "\u2014"; var p = String(tz).split("/"); return (p[p.length - 1] || "").replace(/_/g, " ") + (AREA[p[0]] ? " \u00b7 " + AREA[p[0]] : ""); }
+  function ago(d) { if (!d) return "\u2014"; var m = Math.floor((Date.now() - Date.parse(d)) / 60000); if (m < 60) return Math.max(m, 1) + "m ago"; if (m < 2880) return Math.floor(m / 60) + "h ago"; return Math.floor(m / 1440) + "d ago"; }
+  async function fnPost(name, body) {
+    var t = await token(); if (!t) throw new Error("Sign in again on the dashboard.");
+    var r = await fetch(SB + "/functions/v1/" + name, { method: "POST", headers: { "Content-Type": "application/json", apikey: KEY, Authorization: "Bearer " + t }, body: JSON.stringify(body) });
+    var j = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(j.error || "Something went wrong.");
+    return j;
+  }
+  function planPill(p, kind) {
+    if (!p) return '<span class="muted">\u2014</span>';
+    var cls = p.is_comp ? "warn" : p.pays_by_card ? "ok" : "";
+    var extra = p.is_comp ? " \u00b7 comp" + ((p.comp_ends_at || p.ends_at) ? " to " + new Date(p.comp_ends_at || p.ends_at).toLocaleDateString() : "") : p.pays_by_card ? " \u00b7 card" : "";
+    return '<span class="pill ' + cls + '">' + esc((p.plan_name || p.plan_key || "No plan") + extra) + "</span>";
+  }
+  async function loadPeople() {
+    var box = document.getElementById("ppBody"); if (!box) return;
+    try { if (!peopleData) peopleData = await fnPost("admin-people", { action: "list" }); } catch (e) { box.textContent = e.message; return; }
+    drawPeople();
+  }
+  function drawPeople() {
+    var box = document.getElementById("ppBody"), d = peopleData; box.className = "";
+    var q = peopleQ.toLowerCase();
+    var list = d.people.filter(function (p) {
+      if (q && (p.email + " " + (p.name || "") + " " + p.brands.join(" ") + " " + region(p.tz)).toLowerCase().indexOf(q) < 0) return false;
+      var c = p.content, free = !c || c.plan_key === "free";
+      if (peopleF === "paying") return c && c.pays_by_card;
+      if (peopleF === "comped") return (c && c.is_comp) || (p.reach && p.reach.is_comp);
+      if (peopleF === "free") return free && !(p.reach && p.reach.plan_key && p.reach.plan_key !== "free");
+      if (peopleF === "nobrand") return !p.brands.length;
+      return true;
+    });
+    box.innerHTML = '<div class="pf"><input id="ppQ" placeholder="Search email, name, brand or place" value="' + esc(peopleQ) + '"><span class="seg2">' +
+      [["all", "All"], ["paying", "Paying"], ["comped", "Comped"], ["free", "Free"], ["nobrand", "No brand yet"]].map(function (x) { return '<button type="button" data-pf="' + x[0] + '" aria-pressed="' + (peopleF === x[0]) + '">' + x[1] + "</button>"; }).join("") + '</span></div>' +
+      '<div class="pp"><div class="prh phd"><span>Person</span><span>Signed up</span><span>How they came</span><span>Where</span><span>Plans</span><span>Used 30d</span></div><div id="ppList"></div></div>' +
+      '<p class="note">' + n(list.length) + " of " + n(d.people.length) + ". Region is a guess from the browser timezone (no IP kept), so older accounts fill in as people next open the app. \u201cHow they came\u201d only exists for sign-ups after the visit counter linked them; the rest show how they log in.</p>";
+    var ul = document.getElementById("ppList");
+    list.slice(0, 200).forEach(function (p) {
+      var row = document.createElement("div"); row.className = "pr";
+      var src = p.source ? p.source.channel + (p.source.campaign ? " \u00b7 " + p.source.campaign : "") : ({ google: "Google sign-in", email: "Email sign-up" }[p.provider] || p.provider);
+      row.innerHTML = '<div class="prh"><div class="e"><b></b><span></span></div><span></span><span></span><span></span><span></span><span></span></div><div class="pdet" hidden></div>';
+      var c = row.querySelectorAll(".prh>*");
+      c[0].querySelector("b").textContent = p.name || p.email; c[0].querySelector("span").textContent = (p.name ? p.email + " \u00b7 " : "") + (p.brands.join(", ") || "no brand yet");
+      c[1].textContent = new Date(p.created_at).toLocaleDateString(); c[2].textContent = src; c[3].textContent = region(p.tz);
+      c[4].innerHTML = planPill(p.content) + " " + (p.reach ? "Reach: " + planPill(p.reach) : ""); c[5].textContent = p.content ? String(p.content.used_30d) : "\u2014";
+      row.querySelector(".prh").onclick = function () { var dt = row.querySelector(".pdet"); if (dt.hidden) { dt.hidden = false; fillDetail(dt, p); } else dt.hidden = true; };
+      ul.appendChild(row);
+    });
+    document.getElementById("ppQ").oninput = function (e) { peopleQ = e.target.value; clearTimeout(drawPeople.t); drawPeople.t = setTimeout(function () { drawPeople(); var i = document.getElementById("ppQ"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250); };
+    Array.prototype.forEach.call(box.querySelectorAll("[data-pf]"), function (b) { b.onclick = function () { peopleF = b.getAttribute("data-pf"); drawPeople(); }; });
+  }
+  function fillDetail(dt, p) {
+    var d = peopleData, paid = d.content_plans.filter(function (x) { return x.price_cents > 0; }), rpaid = d.reach_plans.filter(function (x) { return x.price_cents > 0; });
+    var opt = function (arr, cur) { return arr.map(function (x) { return '<option value="' + esc(x.key) + '"' + (cur === x.key ? " selected" : "") + ">" + esc(x.name) + "</option>"; }).join(""); };
+    var dur = '<select data-dur><option value="1">1 month</option><option value="3">3 months</option><option value="12">1 year</option></select>';
+    if (!p.client_id) { dt.innerHTML = '<span class="muted">No brand or account yet, so there is nothing to change. Last seen ' + esc(ago(p.last_sign_in_at)) + ".</span>"; return; }
+    var c = p.content || {};
+    dt.innerHTML = '<div class="meta">Last signed in ' + esc(ago(p.last_sign_in_at)) + " \u00b7 " + esc(p.provider) + (p.confirmed ? "" : " \u00b7 email not confirmed") + (p.lang ? " \u00b7 " + esc(p.lang) : "") + (p.tz ? " \u00b7 " + esc(p.tz) : "") + "</div>" +
+      "<h4>Content \u00b7 " + esc(p.client_name || "") + "</h4>" +
+      '<div class="row"><select data-cp>' + opt(paid, c.plan_key) + "</select>" + dur + '<button type="button" data-comp' + (c.pays_by_card ? ' disabled title="Pays by card. Cancel their card plan first."' : "") + ">Comp / change plan</button>" + (c.is_comp ? '<button type="button" data-end>End comp</button>' : "") + "</div>" +
+      '<div class="row"><span class="meta">Bonus credits: ' + n(c.bonus_credits) + '</span><input type="number" data-amt min="1" max="1000" value="20"><input type="text" data-note maxlength="200" placeholder="Why (private)"><button type="button" data-gift>Give credits</button></div>' +
+      "<h4>Reach</h4>" +
+      '<div class="row"><select data-rp>' + opt(rpaid, p.reach && p.reach.plan_key) + "</select>" + dur.replace("data-dur", "data-rdur") + '<button type="button" data-rcomp' + (p.reach && p.reach.pays_by_card ? ' disabled title="Pays by card"' : "") + ">Comp Reach</button>" + (p.reach && p.reach.is_comp ? '<button type="button" data-rend>End Reach comp</button>' : "") + "</div>" +
+      '<span class="meta" data-m></span>';
+    var m = dt.querySelector("[data-m]");
+    function run(btn, label, fn) { btn.onclick = async function () { if (!confirm(label)) return; btn.disabled = true; m.textContent = "Working\u2026"; try { var r = await fn(); m.textContent = r; peopleData = null; setTimeout(function () { loadPeople(); }, 900); } catch (e) { btn.disabled = false; m.textContent = e.message; } }; }
+    run(dt.querySelector("[data-comp]"), "Comp " + p.email + " on the chosen Content plan? No charge, no card.", async function () { var r = await fnPost("admin-people", { action: "comp_content", clientId: p.client_id, planKey: dt.querySelector("[data-cp]").value, durationMonths: Number(dt.querySelector("[data-dur]").value) }); return "Done: " + r.plan_name + " until " + new Date(r.comp_ends_at).toLocaleDateString() + "."; });
+    var eb = dt.querySelector("[data-end]"); if (eb) run(eb, "End this Content comp now?", async function () { var r = await fnPost("admin-people", { action: "end_content_comp", clientId: p.client_id }); return "Comp ended. Now on " + (r.plan_name || "their previous plan") + "."; });
+    run(dt.querySelector("[data-gift]"), "Give " + p.email + " bonus Content credits?", async function () { var r = await fnPost("admin-people", { action: "gift_credits", clientId: p.client_id, amount: Number(dt.querySelector("[data-amt]").value), note: dt.querySelector("[data-note]").value }); return "Done. Bonus credits are now " + r.bonus_credits + "."; });
+    run(dt.querySelector("[data-rcomp]"), "Comp this Reach workspace on the chosen plan? It stays until you end it or the date passes.", async function () { var r = await fnPost("admin-people", { action: "comp_reach", clientId: p.client_id, planKey: dt.querySelector("[data-rp]").value, durationMonths: Number(dt.querySelector("[data-rdur]").value) }); return "Done: Reach " + r.plan_name + " until " + new Date(r.ends_at).toLocaleDateString() + "."; });
+    var re = dt.querySelector("[data-rend]"); if (re) run(re, "Put this Reach workspace back on Free now?", async function () { await fnPost("admin-people", { action: "end_reach_comp", clientId: p.client_id }); return "Reach comp ended."; });
+  }
+  function kpi(label, val, sub) { return '<div class="card kpi"><span>' + esc(label) + "</span><b>" + esc(val) + "</b>" + (/^</.test(sub) ? sub : "<small>" + esc(sub) + "</small>") + "</div>"; }
+  function notrack() { try { return localStorage.getItem("fma-no-track") === "1"; } catch (e) { return false; } }
+
+  // keep the owner's own browsing out of the counts
+  try { if (!localStorage.getItem("fma-no-track-set")) { localStorage.setItem("fma-no-track", "1"); localStorage.setItem("fma-no-track-set", "1"); } } catch (e) {}
+  load();
+})();
+</script>
+<script src="/assets/fma-security.js" defer></script></body>
+</html>

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+Disallow: /review/
+
+Sitemap: https://www.fullmediaalchemist.com/sitemap.xml
+Sitemap: https://www.fullmediaalchemist.com/sitemap-journal.xml

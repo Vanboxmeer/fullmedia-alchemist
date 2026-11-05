@@ -1,0 +1,135 @@
+/**
+ * Reach Inbox Sync — runs in YOUR Google account, reads YOUR Gmail, and tells Alchemist Reach
+ * only what it found for the contacts you are tracking (who replied, which sends went out, which bounced).
+ * Reach never gets access to your mailbox. Nothing is sent, labelled, drafted or changed in Gmail.
+ *
+ * What leaves your mailbox, per contact: the date, the subject, a short quote (up to 160 characters)
+ * and, for replies only, the reply's own text (up to 1,200 characters, earlier quoted messages removed) plus
+ * the last few messages before it in that thread (up to 500 characters each) so replies can be answered in context.
+ * To stop it at any time: remove the key in Reach → Connections, or delete this script's trigger.
+ *
+ * Setup: paste this whole file into a new project at script.google.com, press Run on "setup",
+ * and approve the Gmail permission once. It then checks every hour.
+ */
+var REACH_URL = "__ENDPOINT__";
+var REACH_KEY = "__KEY__";          // keep private — anyone with it can report to your Reach workspace
+var BUDGET_MS = 4.5 * 60 * 1000;     // stay under Google's 6-minute limit; the next run continues where this one stopped
+
+function setup() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === "syncReach") ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger("syncReach").timeBased().everyHours(1).create();
+  PropertiesService.getScriptProperties().deleteProperty("cursor");
+  syncReach();
+}
+
+function stop() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === "syncReach") ScriptApp.deleteTrigger(t);
+  });
+}
+
+function post_(payload) {
+  var res = UrlFetchApp.fetch(REACH_URL, {
+    method: "post", contentType: "application/json", muteHttpExceptions: true,
+    headers: { "x-reach-key": REACH_KEY }, payload: JSON.stringify(payload)
+  });
+  var code = res.getResponseCode(), out = {};
+  try { out = JSON.parse(res.getContentText()); } catch (e) {}
+  if (code !== 200 || !out.ok) throw new Error("Reach said: " + (out.error || ("HTTP " + code)));
+  return out;
+}
+
+function day_(d) { return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd"); }
+
+function mine_() {
+  var set = {};
+  set[Session.getEffectiveUser().getEmail().toLowerCase()] = 1;
+  try { GmailApp.getAliases().forEach(function (a) { set[a.toLowerCase()] = 1; }); } catch (e) {}
+  return set;
+}
+function addrs_(s) { return (String(s || "").toLowerCase().match(/[a-z0-9._%+\-']+@[a-z0-9.\-]+\.[a-z]{2,}/g)) || []; }
+
+// our own words only: drop quoted earlier messages and signatures-of-quotes
+function ownText_(body) {
+  var t = String(body || "").replace(/\r/g, "");
+  var cut = t.search(/\n\s*(On .{5,200} wrote:|-{2,}\s*Original Message|From:\s.+\n\s*Sent:)/i);
+  if (cut > 0) t = t.slice(0, cut);
+  t = t.split("\n").filter(function (l) { return !/^\s*>/.test(l); }).join("\n");
+  return t.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function findFor_(t, since, me) {
+  var q = "(to:" + t.email + " OR from:" + t.email + ") after:" + since.replace(/-/g, "/");
+  var threads = GmailApp.search(q, 0, 6);
+  var rep = null, bounce = null, sent = null;
+  threads.forEach(function (th) {
+    th.getMessages().forEach(function (m) {
+      var ds = day_(m.getDate());
+      if (ds < since) return;
+      var from = addrs_(m.getFrom());
+      var subj = m.getSubject() || "";
+      var raw = from.join(" ");
+      var fromThem = from.indexOf(t.email) >= 0;
+      var isBounce = /mailer-daemon|postmaster/.test(raw);
+      var fromMe = from.some(function (a) { return me[a]; });
+      if (fromThem && !fromMe) {
+        if (/auto(matic)?[\s\-]?reply|out of office|autoreply|undeliverable/i.test(subj)) return;
+        if (!rep || m.getDate() > rep.dt) rep = { dt: m.getDate(), date: ds, subject: subj, text: ownText_(m.getPlainBody()), thread: th.getId(), th: th, id: m.getId() };
+      } else if (isBounce) {
+        if (String(m.getPlainBody() || "").toLowerCase().indexOf(t.email) >= 0)
+          if (!bounce || m.getDate() > bounce.dt) bounce = { dt: m.getDate(), date: ds, subject: subj, text: ownText_(m.getPlainBody()), thread: th.getId(), th: th, id: m.getId() };
+      } else if (fromMe) {
+        var to = addrs_(m.getTo() + " " + m.getCc());
+        if (to.indexOf(t.email) >= 0)
+          if (!sent || m.getDate() > sent.dt) sent = { dt: m.getDate(), date: ds, subject: subj, text: ownText_(m.getPlainBody()), thread: th.getId(), th: th, id: m.getId() };
+      }
+    });
+  });
+  var pick = null, type = "";
+  if (rep && rep.text.length >= 10) { pick = rep; type = "replied"; }
+  else if (bounce) { pick = bounce; type = "bounced"; }
+  else if (sent && t.phase === "ready") { pick = sent; type = "sent"; }
+  if (!pick) return null;
+  var quote = (type === "bounced" ? "Delivery failed for " + t.email : pick.text).replace(/\s+/g, " ").slice(0, 150);
+  if (quote.length < 10) quote = ("Message " + (type === "sent" ? "sent to " : "from ") + t.email + " on " + pick.date).slice(0, 150);
+  var context = [];
+  if (type === "replied") {
+    try {
+      pick.th.getMessages().forEach(function (mm) {
+        if (mm.getId() === pick.id || mm.getDate() > pick.dt) return;
+        var fm = addrs_(mm.getFrom()).some(function (a) { return me[a]; });
+        var tx = ownText_(mm.getPlainBody()).slice(0, 500);
+        if (tx.length >= 5) context.push({ who: fm ? "us" : "them", date: day_(mm.getDate()), text: tx });
+      });
+    } catch (e) {}
+    context = context.slice(-4);   // the last few messages before their reply, so Reach can answer in context
+  }
+  return { id: t.id, type: type, date: pick.date, subject: pick.subject.slice(0, 120), quote: quote, replyText: type === "replied" ? pick.text.slice(0, 1200) : "", context: context, threadId: String(pick.thread).slice(0, 60) };
+}
+
+function syncReach() {
+  var started = Date.now();
+  var props = PropertiesService.getScriptProperties();
+  var info = post_({ action: "targets" });
+  var targets = info.targets, since = info.since, me = mine_();
+  var i = Number(props.getProperty("cursor") || 0);
+  if (i >= targets.length) i = 0;
+  var findings = [], checked = 0;
+  function flush() {
+    if (!findings.length && !checked) return;
+    post_({ action: "ingest", findings: findings, since: since, checked: checked });
+    findings = []; checked = 0;
+  }
+  for (; i < targets.length; i++) {
+    if (Date.now() - started > BUDGET_MS) { flush(); props.setProperty("cursor", String(i)); return; }
+    var f = null;
+    try { f = findFor_(targets[i], since, me); } catch (e) { /* one bad search never stops the run */ }
+    checked++;
+    if (f) findings.push(f);
+    if (findings.length >= 40) flush();
+  }
+  flush();
+  props.deleteProperty("cursor");
+}

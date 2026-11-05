@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Progress Report · Fullmedia Alchemist</title>
+<style>
+:root{
+  --bg:#f6f5f1; --panel:#ffffff; --ink:#1d1b26; --dim:#6a667a; --line:#e3e0d8;
+  --accent:#5b3fd0; --accent-ink:#ffffff; --good:#12805c; --bad:#b4372b; --warn:#a56a00; --chip:#efecf9;
+  --shadow:0 1px 2px rgba(20,16,40,.06),0 6px 20px rgba(20,16,40,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#14121b; --panel:#1c1a26; --ink:#eeecf6; --dim:#9b97ae; --line:#2c2938;
+    --accent:#9b86ff; --accent-ink:#14121b; --good:#4cc99b; --bad:#ff8a7a; --warn:#e8b35a; --chip:#262236; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14121b; --panel:#1c1a26; --ink:#eeecf6; --dim:#9b97ae; --line:#2c2938;
+  --accent:#9b86ff; --accent-ink:#14121b; --good:#4cc99b; --bad:#ff8a7a; --warn:#e8b35a; --chip:#262236; --shadow:none;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:20px 16px 64px}
+header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:space-between;margin-bottom:18px}
+h1{font:600 24px/1.2 "DM Sans",system-ui,sans-serif;margin:0;letter-spacing:-.01em}
+h2{font:600 17px/1.3 "DM Sans",system-ui,sans-serif;margin:0 0 10px}
+h3{font:600 13px/1.3 "DM Sans",system-ui,sans-serif;margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+a{color:var(--accent)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+select,input[type=number],button{font:inherit;color:inherit}
+select,input[type=number]{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:40px}
+select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:8px 14px;min-height:40px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button:disabled{opacity:.55;cursor:default}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow);margin-bottom:14px}
+.mini{font-size:13px;color:var(--dim)}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.tiles{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+.tile{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg)}
+.tile b{display:block;font-size:22px;line-height:1.2;font-variant-numeric:tabular-nums}
+.tile span{font-size:12px;color:var(--dim)}
+.tbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl th{font-size:12px;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.tbl td.n,.tbl th.n{text-align:right}
+.scroll{overflow-x:auto}
+.up{color:var(--good);font-weight:600}.down{color:var(--bad);font-weight:600}.flat{color:var(--dim)}
+.badge{display:inline-block;font-size:11px;border-radius:99px;padding:1px 8px;background:var(--chip);color:var(--dim);margin-left:6px;white-space:nowrap}
+.note-item{padding:10px 0;border-bottom:1px solid var(--line)}
+.note-item:last-child{border-bottom:0}
+.note-item b{display:block}
+.fgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.fgrid label{display:block;font-size:13px;color:var(--dim)}
+.fgrid input{width:100%;margin-top:4px}
+.banner{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:12px;background:var(--chip)}
+.banner.err{border-color:var(--bad);color:var(--bad);background:transparent}
+.hide{display:none!important}
+.headline{font:600 19px/1.4 "DM Sans",system-ui,sans-serif;margin:0 0 4px}
+.skel{height:14px;border-radius:6px;background:var(--line);margin:8px 0;animation:p 1.2s ease-in-out infinite}
+@keyframes p{50%{opacity:.5}}
+@media (prefers-reduced-motion:reduce){.skel{animation:none}}
+@media print{body{background:#fff;color:#000}.bar,.noprint{display:none!important}.card{box-shadow:none;break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Progress report</h1>
+    <div class="bar noprint">
+      <label class="mini" for="brandSel">Brand</label>
+      <select id="brandSel" aria-label="Brand"></select>
+      <select id="histSel" aria-label="Earlier reports" class="hide"></select>
+    </div>
+  </header>
+
+  <div id="msg" class="banner hide" role="status"></div>
+
+  <section id="makeCard" class="card noprint hide">
+    <h2>New report</h2>
+    <p class="mini" style="margin-top:0">Shows what changed since your last report (or the last 30 days for the first one). Followers on LinkedIn, Facebook, YouTube and Pinterest are read from your saved profile links when the page shows them. Instagram, TikTok and X hide follower counts, so type those in. A number you type always wins.</p>
+    <div id="fgrid" class="fgrid"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="makeBtn" class="primary" type="button">Generate report</button>
+      <span class="mini">Costs 1 credit. Not charged if it fails.</span>
+    </div>
+  </section>
+
+  <div id="loading" class="card hide" aria-live="polite"><div class="skel" style="width:60%"></div><div class="skel" style="width:90%"></div><div class="skel" style="width:75%"></div></div>
+  <div id="report" class="hide"></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var SUPA="https://tpqvvrdglnsdljdpzwfl.supabase.co";
+var ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwcXZ2cmRnbG5zZGxqZHB6d2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0OTEwMTAsImV4cCI6MjA5NzA2NzAxMH0.gxr0vEWFBwPp8ErX41rHNFV0aMU_lhiceFhY64iA7Ko";
+var current=null, prefill=null, refreshing=null;
+var $=function(id){return document.getElementById(id);};
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+function num(n){return typeof n==="number"&&isFinite(n)?n.toLocaleString("en-US"):"–";}
+function delta(n){
+  if(typeof n!=="number") return '<span class="flat">–</span>';
+  if(n>0) return '<span class="up">+'+num(n)+'</span>';
+  if(n<0) return '<span class="down">'+num(n)+'</span>';
+  return '<span class="flat">0</span>';
+}
+function dt(s){try{return new Date(s).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"});}catch(e){return "";}}
+function say(text,isErr){var m=$("msg");m.className="banner"+(isErr?" err":"");m.textContent=text;m.classList.remove("hide");}
+function clearMsg(){$("msg").classList.add("hide");}
+
+/* Session: the dashboard keeps it in localStorage "ccb-session" {access_token, refresh_token, expires_at (ms), email}.
+   Same shape and refresh rule as the Reach page: refresh only when under 60s from expiry, one refresh at a time,
+   write the rotated token back immediately, never discard the session on a network error. */
+function readSession(){try{var s=JSON.parse(localStorage.getItem("ccb-session")||"null");return s&&s.access_token?s:null;}catch(e){return null;}}
+async function token(){
+  var s=readSession(); if(!s) return null;
+  if(s.expires_at && s.expires_at<Date.now()+60000 && s.refresh_token){
+    if(!refreshing) refreshing=(async function(){
+      try{
+        var r=await fetch(SUPA+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"Content-Type":"application/json","apikey":ANON},body:JSON.stringify({refresh_token:s.refresh_token})});
+        if(!r.ok) return null;
+        var j=await r.json();
+        if(!j||!j.access_token) return null;
+        var n=Object.assign({},s,{access_token:j.access_token,refresh_token:j.refresh_token||s.refresh_token,expires_at:Date.now()+(Number(j.expires_in)||3600)*1000});
+        try{localStorage.setItem("ccb-session",JSON.stringify(n));}catch(e){}
+        return n;
+      }catch(e){return null;} finally{setTimeout(function(){refreshing=null;},0);}
+    })();
+    var n=await refreshing; return n?n.access_token:(s.expires_at>Date.now()?s.access_token:null);
+  }
+  return s.access_token;
+}
+async function call(body){
+  var t=await token();
+  if(!t) throw new Error("signin");
+  var res=await fetch(SUPA+"/functions/v1/alchemist-report",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+t,"apikey":ANON},body:JSON.stringify(body)});
+  var j=await res.json().catch(function(){return {};});
+  if(res.status===401) throw new Error("signin");
+  if(!res.ok) { var e=new Error(j.error||"Something went wrong. Try again."); e.status=res.status; throw e; }
+  return j;
+}
+async function rest(path){
+  var t=await token(); if(!t) throw new Error("signin");
+  var r=await fetch(SUPA+"/rest/v1/"+path,{headers:{"apikey":ANON,"Authorization":"Bearer "+t}});
+  if(!r.ok) return [];
+  var j=await r.json().catch(function(){return [];});
+  return Array.isArray(j)?j:[];
+}
+async function loadBrands(){
+  var names=(await rest("cc_brands?select=name&archived_at=is.null&order=name")).map(function(r){return r.name;});
+  if(!names.length) names=(await rest("cc_user_brands?select=brand&order=brand")).map(function(r){return r.brand;});
+  return names.filter(function(n,i){return n&&names.indexOf(n)===i;});
+}
+
+function platformInputs(){
+  var g=$("fgrid"); g.innerHTML="";
+  var list=(prefill&&prefill.platforms)||[];
+  if(!list.length){g.innerHTML='<div class="mini">No social profile links are saved for this brand yet. Add them in the brand settings to track followers.</div>';return;}
+  list.forEach(function(p){
+    var d=document.createElement("div");
+    var lab=document.createElement("label");
+    lab.textContent=p.platform+(p.scannable?" (read automatically if blank)":" (type it in)");
+    var inp=document.createElement("input"); inp.type="number"; inp.min="0"; inp.inputMode="numeric"; inp.dataset.p=p.platform;
+    inp.placeholder=p.last!=null?("Last time: "+num(p.last)):"Followers now";
+    lab.appendChild(inp); d.appendChild(lab); g.appendChild(d);
+  });
+}
+
+function srcBadge(s){return s==="typed"?"typed":s==="scanned"?"read from page":"not found";}
+
+function renderReport(r){
+  var f=r.followers||{}, c=r.content||{}, n=r.notes||{}, re=r.reach;
+  var h='';
+  h+='<section class="card"><p class="headline">'+esc(n.headline||"Report")+'</p><div class="mini">'+esc(r.brand_name||current)+' · '+esc(dt(r.period_start))+' to '+esc(dt(r.period_end))+'</div></section>';
+
+  var fk=Object.keys(f);
+  h+='<section class="card"><h2>Followers</h2>';
+  if(!fk.length) h+='<div class="mini">No profile links saved for this brand.</div>';
+  else {
+    h+='<div class="scroll"><table class="tbl"><thead><tr><th>Platform</th><th class="n">Now</th><th class="n">Change</th><th class="n">Last report</th></tr></thead><tbody>';
+    fk.forEach(function(p){var x=f[p]||{};
+      h+='<tr><td>'+esc(p)+'<span class="badge">'+esc(srcBadge(x.source))+'</span></td><td class="n">'+num(x.count)+'</td><td class="n">'+delta(x.change)+'</td><td class="n">'+num(x.previous)+'</td></tr>';});
+    h+='</tbody></table></div>';
+    if(fk.some(function(p){return (f[p]||{}).source==="missing";})) h+='<div class="mini" style="margin-top:8px">Platforms marked "not found" hide the number from signed-out visitors. Type it in next time to track it.</div>';
+  }
+  h+='</section>';
+
+  h+='<section class="card"><h2>Content</h2><div class="tiles">'
+    +tile(c.made,"posts made")+tile(c.posted_total,"posts marked posted")+tile(c.results_tracked,"posts with results")
+    +tile(c.clicks_total,"shortlink clicks")+tile(c.clicks_change==null?null:c.clicks_change,"clicks since last",true)+tile(c.credits_used,"credits used")+'</div>';
+  var pp=c.posted_by_platform||{}, pk=Object.keys(pp);
+  if(pk.length) h+='<p class="mini" style="margin-bottom:0">Posted: '+pk.map(function(k){return esc(k)+" "+num(pp[k]);}).join(" · ")+'</p>';
+  h+='</section>';
+
+  if((c.top||[]).length){
+    h+='<section class="card"><h2>Top posts</h2>'+postsTable(c.top)+'</section>';
+    if((c.weakest||[]).length) h+='<section class="card"><h2>Weakest posts</h2>'+postsTable(c.weakest)+'</section>';
+  } else {
+    h+='<section class="card"><h2>Top posts</h2><div class="mini">No post results saved yet. Add views and likes under "Live links &amp; results" on a post and they will show here.</div></section>';
+  }
+  if((c.click_movers||[]).length){
+    h+='<section class="card"><h2>Most clicked links</h2><div class="scroll"><table class="tbl"><thead><tr><th>Post</th><th class="n">Clicks</th><th class="n">Since last</th></tr></thead><tbody>'
+      +c.click_movers.map(function(m){return '<tr><td>'+esc(m.post)+'</td><td class="n">'+num(m.clicks)+'</td><td class="n">'+delta(m.change)+'</td></tr>';}).join("")+'</tbody></table></div></section>';
+  }
+
+  h+=notes("Wins",n.wins)+notes("Watch out for",n.concerns)+notes("Suggestions",n.suggestions)+notes("Opportunities",n.opportunities);
+
+  if(re){
+    h+='<section class="card"><h2>Reach</h2><div class="tiles">'
+      +tile(re.sent_total,"contacted")+tile(re.sent_in_period,"sent this period")+tile(re.replied_total,"replied")
+      +tile(re.reply_rate_pct==null?null:re.reply_rate_pct+"%","reply rate")+tile(re.awaiting_reply,"waiting for reply")
+      +tile(re.awaiting_over_14_days,"waiting 14+ days")+tile(re.follow_ups_due,"follow-ups due")+tile(re.ready_to_send,"ready to send")+'</div>';
+    if((re.by_campaign||[]).length) h+='<h3 style="margin-top:14px">By campaign</h3><div class="scroll"><table class="tbl"><thead><tr><th>Campaign</th><th class="n">Sent</th><th class="n">Replied</th></tr></thead><tbody>'
+      +re.by_campaign.map(function(w){return '<tr><td>'+esc(w.name)+'</td><td class="n">'+num(w.sent)+'</td><td class="n">'+num(w.replied)+'</td></tr>';}).join("")+'</tbody></table></div>';
+    var nm=re.names||null;
+    if(nm){
+      [["replied_in_discussion","In discussion"],["follow_ups_due","Follow up now"],["waiting_over_14_days","Quiet for 14+ days"],["quoted","Quoted a rate"]].forEach(function(k){
+        if((nm[k[0]]||[]).length) h+='<p class="mini" style="margin:10px 0 0"><b>'+esc(k[1])+':</b> '+nm[k[0]].map(esc).join(", ")+'</p>';});
+    }
+    h+='</section>';
+    h+=notes("Reach suggestions",n.reach_suggestions);
+  }
+  h+='<div class="bar noprint"><button type="button" id="copyBtn">Copy as text</button><button type="button" id="printBtn">Print or save as PDF</button></div>';
+  var box=$("report"); box.innerHTML=h; box.classList.remove("hide");
+  $("copyBtn").onclick=function(){copyText(r);};
+  $("printBtn").onclick=function(){window.print();};
+}
+function tile(v,label,signed){
+  var val=v==null?"–":(typeof v==="number"?(signed&&v>0?"+":"")+num(v):esc(v));
+  return '<div class="tile"><b>'+val+'</b><span>'+esc(label)+'</span></div>';
+}
+function postsTable(rows){
+  return '<div class="scroll"><table class="tbl"><thead><tr><th>Post</th><th>Where</th><th class="n">Views</th><th class="n">Likes</th><th class="n">Comments</th><th class="n">Shares</th><th class="n">Clicks</th></tr></thead><tbody>'
+    +rows.map(function(x){return '<tr><td>'+esc(x.post)+'</td><td>'+esc(x.platform)+'</td><td class="n">'+num(x.views)+'</td><td class="n">'+num(x.likes)+'</td><td class="n">'+num(x.comments)+'</td><td class="n">'+num(x.shares)+'</td><td class="n">'+num(x.clicks)+'</td></tr>';}).join("")+'</tbody></table></div>';
+}
+function notes(title,list){
+  if(!list||!list.length) return "";
+  return '<section class="card"><h2>'+esc(title)+'</h2>'+list.map(function(x){return '<div class="note-item"><b>'+esc(x.title)+'</b>'+esc(x.why)+'</div>';}).join("")+'</section>';
+}
+function copyText(r){
+  var n=r.notes||{}, f=r.followers||{}, c=r.content||{}, L=[];
+  L.push((r.brand_name||current)+" progress report, "+dt(r.period_start)+" to "+dt(r.period_end));
+  if(n.headline) L.push(n.headline);
+  L.push("","FOLLOWERS");
+  Object.keys(f).forEach(function(p){var x=f[p]||{};L.push("- "+p+": "+(x.count==null?"not found":num(x.count))+(typeof x.change==="number"?" ("+(x.change>0?"+":"")+num(x.change)+")":""));});
+  L.push("","CONTENT: "+num(c.made)+" made, "+num(c.posted_total)+" posted, "+num(c.clicks_total)+" clicks");
+  (c.top||[]).forEach(function(x){L.push("- Top: "+x.post+" ("+x.platform+") "+num(x.views)+" views, "+num(x.likes)+" likes");});
+  [["WINS",n.wins],["WATCH OUT FOR",n.concerns],["SUGGESTIONS",n.suggestions],["OPPORTUNITIES",n.opportunities],["REACH SUGGESTIONS",n.reach_suggestions]].forEach(function(s){
+    if(s[1]&&s[1].length){L.push("",s[0]);s[1].forEach(function(x){L.push("- "+x.title+": "+x.why);});}});
+  var text=L.join("\n");
+  (navigator.clipboard?navigator.clipboard.writeText(text):Promise.reject()).then(function(){say("Copied.");},function(){say("Could not copy. Select the text on the page instead.",true);});
+}
+
+async function loadBrand(){
+  clearMsg(); $("report").classList.add("hide"); $("histSel").classList.add("hide");
+  current=$("brandSel").value; if(!current) return;
+  $("loading").classList.remove("hide"); $("makeCard").classList.add("hide");
+  try{
+    var p=await call({action:"prefill",brand:current}); prefill=p; platformInputs();
+    var l=await call({action:"list",brand:current});
+    $("makeCard").classList.remove("hide");
+    var hs=$("histSel"); hs.innerHTML="";
+    if(l.reports&&l.reports.length){
+      l.reports.forEach(function(r,i){var o=document.createElement("option");o.value=r.id;o.textContent=(i===0?"Latest: ":"")+dt(r.created_at);hs.appendChild(o);});
+      hs.classList.remove("hide");
+      var g=await call({action:"get",brand:current,id:l.reports[0].id});
+      if(g.report) renderReport(withName(g.report));
+    } else say("No report yet for "+current+". Add today's follower numbers below and press Generate report.");
+  }catch(e){fail(e);} finally{$("loading").classList.add("hide");}
+}
+function withName(r){r.brand_name=current;return r;}
+function signinMsg(){
+  var m=$("msg"); m.className="banner err"; m.innerHTML='Please <a href="/login/?next=/report/">sign in</a> first, then you will come back to this page.'; m.classList.remove("hide");
+}
+function fail(e){
+  if(e&&e.message==="signin") signinMsg();
+  else say((e&&e.message)||"Something went wrong. Try again.",true);
+}
+async function make(){
+  var typed={};
+  document.querySelectorAll("#fgrid input").forEach(function(i){if(i.value!=="") typed[i.dataset.p]=Number(i.value);});
+  var b=$("makeBtn"); b.disabled=true; b.textContent="Working…"; clearMsg(); $("loading").classList.remove("hide");
+  try{
+    var j=await call({action:"make",brand:current,typed:typed});
+    renderReport(withName(j.report)); say("Report ready."+(j.charged?" 1 credit used.":""));
+    var l=await call({action:"list",brand:current}), hs=$("histSel"); hs.innerHTML="";
+    (l.reports||[]).forEach(function(r,i){var o=document.createElement("option");o.value=r.id;o.textContent=(i===0?"Latest: ":"")+dt(r.created_at);hs.appendChild(o);});
+    if((l.reports||[]).length) hs.classList.remove("hide");
+    var pf=await call({action:"prefill",brand:current}); prefill=pf; platformInputs();
+    window.scrollTo({top:0,behavior:"smooth"});
+  }catch(e){fail(e);} finally{b.disabled=false;b.textContent="Generate report";$("loading").classList.add("hide");}
+}
+
+async function init(){
+  if(!readSession()){signinMsg();return;}
+  var names=await loadBrands();
+  if(!names.length){say("No brands found for this account.",true);return;}
+  var sel=$("brandSel"); names.forEach(function(n){var o=document.createElement("option");o.value=n;o.textContent=n;sel.appendChild(o);});
+  var want=new URLSearchParams(location.search).get("brand"); if(want&&names.indexOf(want)>=0) sel.value=want;
+  sel.addEventListener("change",loadBrand);
+  $("histSel").addEventListener("change",async function(){
+    clearMsg(); $("loading").classList.remove("hide");
+    try{var g=await call({action:"get",brand:current,id:$("histSel").value}); if(g.report) renderReport(withName(g.report));}catch(e){fail(e);} finally{$("loading").classList.add("hide");}
+  });
+  $("makeBtn").addEventListener("click",make);
+  loadBrand();
+}
+init();
+})();
+</script>
+<script src="/assets/fma-security.js" defer></script></body>
+</html>

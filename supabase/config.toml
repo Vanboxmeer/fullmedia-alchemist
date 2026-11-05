@@ -1,0 +1,65 @@
+# Minimal Supabase CLI config so "supabase functions deploy" works from this folder.
+project_id = "tpqvvrdglnsdljdpzwfl"
+
+[functions.generate-campaign-content]
+verify_jwt = false
+
+[functions.submit-client-feedback]
+verify_jwt = false
+
+[functions.account-export]
+verify_jwt = false
+
+[functions.admin-people]
+verify_jwt = false
+
+[functions.admin-stats]
+verify_jwt = false
+
+[functions.alchemist-post-format]
+verify_jwt = false
+
+[functions.alchemist-stripe-webhook]
+verify_jwt = false
+
+[functions.billing-manage]
+verify_jwt = false
+
+[functions.brand-bridge]
+verify_jwt = false
+
+[functions.brand-mascot]
+verify_jwt = false
+
+[functions.journal-writer]
+verify_jwt = false
+
+[functions.manage-ccb-subscription]
+verify_jwt = false
+
+[functions.reach-agent]
+verify_jwt = false
+
+[functions.reach-billing]
+verify_jwt = false
+
+[functions.reach-inbox]
+verify_jwt = false
+
+[functions.read-event-link]
+verify_jwt = false
+
+[functions.render-card-v2]
+verify_jwt = false
+
+[functions.render-content-card]
+verify_jwt = false
+
+[functions.support]
+verify_jwt = false
+
+[functions.update-brand-settings]
+verify_jwt = false
+
+[functions.create-stripe-checkout]
+verify_jwt = true

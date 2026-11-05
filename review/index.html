@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Review posts</title>
+<link rel="icon" href="/assets/logo-mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;1,9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{--ground:#0f130c;--g2:#161c13;--g3:#1c2318;--line:#2a3126;--line2:#39432f;--paper:#ece6d6;--p2:#cfc8b6;--muted:#9aa394;--gold:#e8a33d;--gold2:#ffcf7a;--green:#2e9c74;--red:#e4785e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--paper);font:16px/1.6 "IBM Plex Sans",-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}
+header{border-bottom:1px solid var(--line);padding:18px 0}
+.brand{display:flex;align-items:center;gap:12px}
+.brand img{width:44px;height:44px;border-radius:10px;object-fit:contain;background:#fff;padding:4px}
+.brand b{font:600 20px/1.2 Fraunces,Georgia,serif}
+.brand span{display:block;font-size:13px;color:var(--muted)}
+h1{font:600 clamp(26px,5vw,36px)/1.15 Fraunces,Georgia,serif;margin:26px 0 6px;text-wrap:balance}
+.lede{color:var(--p2);margin:0 0 6px}
+.tally{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 22px}
+.tally span{font-size:13px;border:1px solid var(--line2);border-radius:99px;padding:4px 11px;color:var(--p2)}
+.post{border:1px solid var(--line);border-radius:16px;background:var(--g2);overflow:hidden;margin-bottom:22px}
+.media{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;background:var(--g3)}
+.media img{flex:0 0 100%;width:100%;max-height:560px;object-fit:contain;scroll-snap-align:start;display:block}
+.body{padding:16px 18px 18px}
+.top{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.idea{font:600 18px/1.3 Fraunces,Georgia,serif;margin:6px 0 8px}
+.date{font-size:13px;color:var(--muted)}
+.pill{font-size:12px;font-weight:600;border-radius:99px;padding:3px 10px;border:1px solid var(--line2);color:var(--p2)}
+.pill.approve{color:var(--green);border-color:var(--green)}
+.pill.changes{color:var(--gold2);border-color:var(--gold)}
+.pill.posted{color:var(--muted)}
+.cap{white-space:pre-wrap;margin:0;color:var(--paper);font-size:15.5px}
+.tags{color:var(--gold2);font-size:14px;margin-top:8px}
+.acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+button{font:600 14.5px/1.2 inherit;border-radius:10px;padding:11px 16px;cursor:pointer;border:1px solid var(--line2);background:transparent;color:var(--paper)}
+button.go{border:0;color:#241a06;background:linear-gradient(180deg,#f0b452,#e19a2c)}
+button:disabled{opacity:.55;cursor:wait}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+textarea{width:100%;min-height:88px;margin-top:12px;border:1px solid var(--line2);border-radius:10px;background:var(--ground);color:var(--paper);font:15px/1.5 inherit;padding:10px 12px}
+.note{margin-top:10px;font-size:14px;color:var(--p2);border-left:3px solid var(--gold);padding-left:10px}
+.msg{font-size:14px;margin-top:10px}
+.msg.err{color:var(--red)}
+.state{padding:80px 0;text-align:center;color:var(--p2)}
+footer{border-top:1px solid var(--line);margin-top:30px;padding:20px 0 40px;font-size:13px;color:var(--muted)}
+footer a{color:var(--p2)}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<header><div class="wrap brand" id="brand"><span style="color:var(--muted)">Loading…</span></div></header>
+<main class="wrap" id="main"><div class="state">Opening the posts…</div></main>
+<footer><div class="wrap">Shared for your approval. Nothing is posted until it's approved. · Made with <a href="https://www.fullmediaalchemist.com/" rel="noopener">Fullmedia Alchemist</a></div></footer>
+<script>
+(function () {
+  'use strict';
+  var FN = 'https://tpqvvrdglnsdljdpzwfl.supabase.co/functions/v1/client-review';
+  var KEY = 'sb_publishable_TcW5WxZhUPuo2MhKWaBUKQ_EjkNzSJb';
+  var token = new URLSearchParams(location.search).get('t') || '';
+  var main = document.getElementById('main');
+  function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  function call(body) {
+    return fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify(Object.assign({ token: token }, body)) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); });
+  }
+  function fmt(d) { if (!d) return ''; var x = new Date(String(d).slice(0, 10) + 'T12:00:00Z'); return x.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
+  function state(msg) { main.innerHTML = ''; main.appendChild(el('div', 'state', msg)); }
+  var data;
+  function pillFor(p) {
+    if (p.status === 'posted') return ['posted', 'Posted'];
+    if (p.client && p.client.decision === 'approve') return ['approve', 'You approved'];
+    if (p.client && p.client.decision === 'changes') return ['changes', 'Changes asked'];
+    return ['', 'Waiting for you'];
+  }
+  function render() {
+    main.innerHTML = '';
+    main.appendChild(el('h1', '', data.campaign.name));
+    main.appendChild(el('p', 'lede', 'Approve each post, or ask for changes and say what to fix. ' + (data.campaign.start ? fmt(data.campaign.start) + ' to ' + fmt(data.campaign.end) + '.' : '')));
+    var t = el('div', 'tally');
+    var n = { a: 0, c: 0, w: 0 };
+    data.posts.forEach(function (p) { var k = pillFor(p)[0]; if (k === 'approve') n.a++; else if (k === 'changes') n.c++; else if (k !== 'posted') n.w++; });
+    t.appendChild(el('span', '', n.w + ' waiting')); t.appendChild(el('span', '', n.a + ' approved')); t.appendChild(el('span', '', n.c + ' with changes asked'));
+    main.appendChild(t);
+    if (!data.posts.length) { main.appendChild(el('div', 'state', 'There are no posts in this campaign yet.')); return; }
+    data.posts.forEach(function (p) { main.appendChild(card(p)); });
+  }
+  function card(p) {
+    var c = el('article', 'post');
+    if (p.media && p.media.length) { var m = el('div', 'media'); p.media.forEach(function (u, i) { var im = new Image(); im.loading = i ? 'lazy' : 'eager'; im.alt = 'Slide ' + (i + 1) + ' of ' + p.media.length; im.src = u; m.appendChild(im); }); c.appendChild(m); }
+    var b = el('div', 'body');
+    var top = el('div', 'top'); top.appendChild(el('span', 'date', fmt(p.date))); var pl = pillFor(p); top.appendChild(el('span', 'pill ' + pl[0], pl[1])); b.appendChild(top);
+    if (p.idea) b.appendChild(el('div', 'idea', p.idea));
+    b.appendChild(el('p', 'cap', p.caption));
+    if (p.hashtags) b.appendChild(el('div', 'tags', p.hashtags));
+    if (p.client && p.client.note) b.appendChild(el('div', 'note', 'Your note: ' + p.client.note));
+    if (p.status !== 'posted') {
+      var acts = el('div', 'acts');
+      var ok = el('button', 'go', p.client && p.client.decision === 'approve' ? 'Approved ✓' : 'Approve'); ok.type = 'button';
+      var ch = el('button', '', 'Ask for changes'); ch.type = 'button';
+      acts.appendChild(ok); acts.appendChild(ch); b.appendChild(acts);
+      var msg = el('div', 'msg'); msg.setAttribute('role', 'status'); b.appendChild(msg);
+      var send = function (decision, note, btn) {
+        btn.disabled = true; msg.className = 'msg'; msg.textContent = 'Saving…';
+        call({ action: 'decide', sku: p.sku, decision: decision, note: note || '' }).then(function (r) {
+          btn.disabled = false;
+          if (!r.ok) { msg.className = 'msg err'; msg.textContent = (r.j && r.j.error) || 'That didn’t save. Please try again.'; return; }
+          p.client = { decision: decision, note: note || null };
+          var fresh = card(p); c.replaceWith(fresh); var tl = main.querySelector('.tally'); if (tl) { render(); }
+        }).catch(function () { btn.disabled = false; msg.className = 'msg err'; msg.textContent = 'That didn’t save. Check your connection and try again.'; });
+      };
+      ok.onclick = function () { send('approve', '', ok); };
+      ch.onclick = function () {
+        if (b.querySelector('textarea')) return;
+        var ta = el('textarea'); ta.maxLength = 600; ta.placeholder = 'What should change? For example: use the spring photo, and mention the 10% offer.';
+        ta.setAttribute('aria-label', 'What should change');
+        var sendBtn = el('button', 'go', 'Send to the team'); sendBtn.type = 'button';
+        var row = el('div', 'acts'); row.appendChild(sendBtn);
+        acts.after(ta); ta.after(row); ta.focus();
+        sendBtn.onclick = function () { var v = ta.value.trim(); if (v.length < 3) { msg.className = 'msg err'; msg.textContent = 'Say what should change, so it can be fixed.'; return; } send('changes', v, sendBtn); };
+      };
+    }
+    c.appendChild(b);
+    return c;
+  }
+  if (!/^[A-Za-z0-9_-]{40,60}$/.test(token)) { state('This review link isn’t complete. Ask for the link again.'); document.getElementById('brand').textContent = ''; return; }
+  call({ action: 'view' }).then(function (r) {
+    if (!r.ok || !r.j || !r.j.ok) { state((r.j && r.j.error) || 'This review link didn’t open. Ask for a new one.'); document.getElementById('brand').textContent = ''; return; }
+    data = r.j;
+    var bh = document.getElementById('brand'); bh.innerHTML = '';
+    if (data.brand.logo) { var lg = new Image(); lg.alt = ''; lg.src = data.brand.logo; lg.onerror = function () { lg.remove(); }; bh.appendChild(lg); }
+    var nm = el('div'); nm.appendChild(el('b', '', data.brand.name)); nm.appendChild(el('span', '', 'Posts for your approval')); bh.appendChild(nm);
+    document.title = 'Review: ' + data.campaign.name + ' · ' + data.brand.name;
+    render();
+  }).catch(function () { state('This review link didn’t open. Check your connection and try again.'); });
+})();
+</script>
+<script src="/assets/site-header.js" defer></script></body>
+</html>

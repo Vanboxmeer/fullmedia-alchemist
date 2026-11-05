@@ -1,0 +1,73 @@
+# Fullmedia Alchemist
+
+> Fullmedia Alchemist turns a website into finished social media posts. Paste your site once; it learns the brand (what you do, who it's for, tone, true facts, colours, logo), then writes and designs each post: caption, 4-5 hashtags and a branded image or carousel with a QR code to your link. It only uses facts your site or you provide and never invents details. Made by United Press Media (https://unitedpress.media).
+
+## How it works
+- Try it free on the homepage: paste a website and get one draft post (headline, caption, hashtags) written only from that page. No sign-up; 3 previews a day.
+- Brand setup: paste a website, one click. Every detail stays editable.
+- Campaigns: describe what to post about in a sentence; choose single images, carousels or a mix. New posts arrive sealed and you reveal them.
+- Review: approve, edit, redo with a note, change a link (QR codes redraw). Each post shows checks before you approve: platform length limits (X 280 characters, Instagram 2,200 characters and 5 hashtags, LinkedIn 3,000), missing image or caption, and whether its link opens.
+- Posting: you post it yourself (copy caption, download images), then tick the platforms it went out on and add live links and results. No direct scheduler connection yet. Posts can be added to any calendar (.ics), and reminder emails arrive the day before and the day a post is due.
+- Learning: a Knowledge Base per brand learns from approvals, redo notes and results; "Review my top posts" suggests campaigns built on what worked.
+- Characters: optional new scenes or poses of the brand's own mascot in each post.
+- Client approval links (Agency plan): share a campaign with a client, who approves each post or asks for changes without an account.
+- Progress: ranks, badges, weekly quests and a posting streak, all counted from real activity (only posts with a live link count toward quests and streaks).
+- The Alchemist assistant suggests campaign ideas and sharpens captions.
+
+## Credits (equivalent exchange)
+- 1 credit = 1 slide on the Fast model (Pro 2, Max 4). A single-image post on Fast costs 1 credit; a 3-slide carousel costs 3. A new character picture adds 2.
+- Credits for images or character pictures that fail are returned automatically.
+- Video is coming soon and will cost more credits.
+
+## Plans (USD per month)
+- Free: $0, 1 brand, 30 credits/month (up to 10 every 6 hours)
+- Starter: $25 ($250/year), 1 brand, 300 credits/month (up to 60 every 6 hours)
+- Growth: $99 ($990/year), up to 3 brands, 1,500 credits/month (up to 200 every 6 hours)
+- Agency: $599 ($5,990/year), up to 10 brands, 10,000 credits/month (up to 1,000 every 6 hours), client approval links
+- Annual billing: 2 months free. Free redos per post: 1 / 2 / 3 / 5 (Free / Starter / Growth / Agency), then a redo costs credits like a new post.
+- Review & Improve (the Alchemist reviews posts that went out on a platform): not on Free; Starter 1 platform a month, Growth 3, Agency unlimited.
+- Video: coming soon, not available on any plan yet.
+
+## Links
+- Home: https://www.fullmediaalchemist.com/
+- Sign in / start free: https://www.fullmediaalchemist.com/dashboard/
+- Brand assets: https://www.fullmediaalchemist.com/brand-assets.html
+- Journal (blog): https://www.fullmediaalchemist.com/blog/
+- Fullmedia Alchemist vs Canva: https://www.fullmediaalchemist.com/compare/canva/
+- Fullmedia Alchemist vs Predis.ai: https://www.fullmediaalchemist.com/compare/predis/
+- Fullmedia Alchemist and Buffer: https://www.fullmediaalchemist.com/compare/buffer/
+- Social posts for cafés and restaurants: https://www.fullmediaalchemist.com/for/cafes/
+- Social posts for real estate agents: https://www.fullmediaalchemist.com/for/real-estate/
+- Social posts for agencies managing many brands: https://www.fullmediaalchemist.com/for/agencies/
+- Contact (more than 10 brands, questions): brad@unitedpress.media
+
+## Journal posts
+- Turn one blog post into a week of social posts: https://www.fullmediaalchemist.com/blog/blog-post-to-a-week-of-social-posts/ (Five angles from one article, fitted to each network. Plus the shortcut: ask the Alchemist for posts from your latest blog posts.)
+- How to follow up on outreach without being annoying: https://www.fullmediaalchemist.com/blog/follow-up-on-outreach-without-being-annoying/ (Most replies come after the first nudge, and most people never send one. A simple schedule, what to say, and when to stop.)
+- Nothing to post? 25 post ideas a small business can use this week: https://www.fullmediaalchemist.com/blog/social-media-post-ideas-small-business/ (Five kinds of post that always have something to say, with five prompts each. Pick one, add a real detail, and you have a post.)
+- How often should a small brand post? The honest answer: https://www.fullmediaalchemist.com/blog/how-often-should-a-small-brand-post/ (There is no magic number. Here is a way to pick one you can keep, and the signals that tell you to change it.)
+- A one-page content brief for social posts (copy this template): https://www.fullmediaalchemist.com/blog/social-media-content-brief-template/ (Eight short answers that turn "we should post something" into posts that sound like you. Use it with a team, a freelancer or an AI writer.)
+- Verify before you pay or share: do your own research: https://www.fullmediaalchemist.com/blog/verify-before-you-pay-or-share/ (Reach helps you find and contact partners. It does not vouch for them. Here are the checks to make before you send money, assets or sensitive details.)
+- Keep your accounts safe: posts checked against each platform's rules: https://www.fullmediaalchemist.com/blog/protect-your-accounts-platform-rules/ (For cannabis, vaping, alcohol, gambling, crypto, supplements and more, the Alchemist writes with the platform rules in mind and checks the result before you see it.)
+- Posting about cannabis or CBD without getting flagged: https://www.fullmediaalchemist.com/blog/cannabis-cbd-posts-without-getting-flagged/ (The one rule that works across every platform: act like a publisher or teacher, not a shop.)
+- Alcohol, gambling, crypto, supplements: the posting rules that matter: https://www.fullmediaalchemist.com/blog/sensitive-topics-alcohol-gambling-crypto-supplements/ (Each topic has one or two mistakes that cause most of the trouble. Here is what to avoid and what to say instead.)
+- Talk to the Alchemist: voice and hands-free posts and outreach: https://www.fullmediaalchemist.com/blog/voice-and-hands-free/ (Tap the mic to dictate a note, fix a picture or draft a message. Or go hands-free and run a whole review by voice.)
+- Who to pitch first: Reach now ranks every prospect: https://www.fullmediaalchemist.com/blog/reach-priority-score/ (A 0 to 100 priority score on every row, a sortable column, and a Top 10 tick box. No AI calls, nothing sent.)
+- A 20-minute weekly social media routine that actually survives a busy week: https://www.fullmediaalchemist.com/blog/social-media-routine-20-minutes/ (One sitting, four jobs, one week of posts. A routine for small teams, with the Alchemist doing the heavy part.)
+- Not every post is a picture: text, thread and poll versions: https://www.fullmediaalchemist.com/blog/text-thread-and-poll-posts/ (From any post, the Alchemist can write a text post, an X thread or a poll, fitted to each network's limits.)
+- Free places to be seen: communities and guest posts in Reach: https://www.fullmediaalchemist.com/blog/free-communities-and-guest-posts/ (Find now has a "Free communities" mode. It reads each place's rules first and drops anywhere that bans promotion.)
+- Carousel or single image? How to choose for each network: https://www.fullmediaalchemist.com/blog/carousel-or-single-image/ (A short guide to picking the format, with a source, and a way to test it on your own posts.)
+- What worked where: single image or carousel, per account: https://www.fullmediaalchemist.com/blog/what-worked-where/ (Review my top posts now opens with a plain table from your own saved results. No AI, no guessing.)
+- Close the tab, keep the posts: background generation: https://www.fullmediaalchemist.com/blog/close-the-tab-keep-the-posts/ (Your phone sleeps, the connection drops, the batch carries on. And if it fails, your credits come back.)
+- A cold message to a creator that gets a reply: https://www.fullmediaalchemist.com/blog/cold-message-to-a-creator/ (Five parts, under 120 words, and one easy way out. Plus how Reach drafts it from your brand facts.)
+- One idea, many networks: reshape it, don't copy-paste it: https://www.fullmediaalchemist.com/blog/one-idea-many-networks/ (Why the same caption on every network underperforms, and how to adapt one idea in five minutes.)
+- Your account, locked down: two-step sign-in, passwords and your data: https://www.fullmediaalchemist.com/blog/account-security/ (Reset a password, add an authenticator app, download everything we hold, or ask us to delete your account.)
+- The creative engine, rewritten: posts that stop the scroll: https://www.fullmediaalchemist.com/blog/creative-engine-upgrade/ (New creative mission, emotional hooks, an explicit anti-patterns blacklist, and a smarter model. The Alchemist's writing just got sharper.)
+- Every network gets its own caption now: https://www.fullmediaalchemist.com/blog/per-network-captions/ (X has 280 characters. LinkedIn has 3,000. The Alchemist writes a fitted caption for each one, with the right hashtags and length.)
+- A picture for every post, and an editor to perfect it: https://www.fullmediaalchemist.com/blog/pictures-and-editor/ (Every post now gets its own AI-generated scene image — and you can tweak logos, headlines and layouts without starting over.)
+- Quick post, export tracking, and a smoother week: https://www.fullmediaalchemist.com/blog/quick-post-and-tracking/ (One-click posting shortcuts, scheduler check-ins, smart posting status, and a real free preview on the homepage.)
+- Meet the Alchemist: your website in, finished posts out: https://www.fullmediaalchemist.com/blog/meet-the-alchemist/ (What Fullmedia Alchemist actually does, from the moment you paste your site to the moment a post goes out.)
+- Familiars: give your mascot a new scene in every post: https://www.fullmediaalchemist.com/blog/familiars-character-scenes/ (Character variations put your own mascot into each post, doing what the post is about, without ever redrawing who it is.)
+- Grounded by design: why the Alchemist won't make things up about you: https://www.fullmediaalchemist.com/blog/grounded-by-design/ (An invented detail in one post becomes the grounding for every post after it. So the rules are checked in code, not just asked for.)
+- The Knowledge Base: he learns from what actually worked: https://www.fullmediaalchemist.com/blog/knowledge-base-and-results/ (Approvals, redo notes and live results all feed one knowledge base per brand, which the Alchemist reads before every new batch.)
+- Equivalent exchange: credits, models and the six-hour window: https://www.fullmediaalchemist.com/blog/equivalent-exchange-credits/ (How credits work, what the Fast, Pro and Max models cost, and why every plan has an allowance per six hours.)

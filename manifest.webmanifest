@@ -1,0 +1,16 @@
+{
+  "name": "Fullmedia Alchemist",
+  "short_name": "Fullmedia Alchemist",
+  "description": "Turn your website into finished social posts.",
+  "start_url": "/dashboard/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#12160f",
+  "theme_color": "#12160f",
+  "icons": [
+    { "src": "/assets/app-icon-dark-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/assets/app-icon-dark-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/app-icon-dark-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/app-icon-dark-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

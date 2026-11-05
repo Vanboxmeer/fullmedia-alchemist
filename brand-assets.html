@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brand Assets — Fullmedia Alchemist</title>
+<meta name="description" content="Official logo, wordmark, color palette, and downloadable brand assets for Fullmedia Alchemist.">
+<link rel="icon" type="image/svg+xml" href="/assets/logo-mark.svg">
+<link rel="icon" type="image/png" href="/assets/logo-mark-32.png">
+<link rel="apple-touch-icon" href="/assets/logo-mark-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #10160f;
+    --navy-raised: #1a2318;
+    --navy-line: #2e3b2a;
+    --paper: #f8f3e6;
+    --paper-raised: #fffcf5;
+    --ink: #1c170f;
+    --ink-soft: #5c5340;
+    --ink-faint: #8c8368;
+    --line: #e3d9c2;
+    --cyan: #2e9c74;
+    --cyan-dim: #1f6f52;
+    --amber: #e8a33d;
+    --amber-ink: #4a2e05;
+    --green: #4caf6b;
+    --violet: #8a5aa6;
+    --shadow: 0 24px 60px -28px rgba(16, 22, 15, 0.45);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #12160f;
+      --paper-raised: #1b2117;
+      --ink: #ece6d6;
+      --ink-soft: #b4ac94;
+      --ink-faint: #7c7561;
+      --line: #333b2c;
+      --navy: #0a0d08;
+      --navy-raised: #131810;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #12160f;
+    --paper-raised: #1b2117;
+    --ink: #ece6d6;
+    --ink-soft: #b4ac94;
+    --ink-faint: #7c7561;
+    --line: #333b2c;
+    --navy: #0a0d08;
+    --navy-raised: #131810;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, .display { font-family: "Fraunces", Georgia, serif; font-weight: 600; letter-spacing: -.01em; text-wrap: balance; margin: 0; }
+  p { margin: 0; }
+  a { color: inherit; }
+  img, svg { display: block; max-width: 100%; }
+  code, .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: "IBM Plex Sans", sans-serif; font-weight: 600; font-size: 15px;
+    padding: 13px 22px; border-radius: 8px; text-decoration: none; cursor: pointer;
+    border: 1.5px solid transparent; transition: transform .12s ease, opacity .12s ease;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-amber { background: var(--amber); color: #1b0f00; box-shadow: var(--shadow); }
+  .btn-amber:hover { opacity: .9; }
+  .btn-outline { background: transparent; color: var(--paper-inv, #fff); border-color: rgba(255,255,255,.35); }
+  .btn-outline:hover { border-color: #fff; }
+  .btn-ghost { background: var(--paper-raised); color: var(--ink); border-color: var(--line); }
+  .btn-ghost:hover { border-color: var(--violet); }
+
+  /* --- Logo mark --- */
+  .logo-group { display: inline-flex; align-items: center; gap: 10px; }
+  .logo { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
+  .logo-mark { width: 32px; height: 32px; border-radius: 8px; flex: none; }
+  .logo-word { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 17px; letter-spacing: -.01em; white-space: nowrap; }
+  .logo-word em { font-style: italic; color: var(--cyan); font-weight: 600; }
+  .by-upm {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--amber); border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+    border-radius: 99px; padding: 3px 8px; text-decoration: none; white-space: nowrap; flex: none;
+  }
+  .by-upm:hover { background: color-mix(in srgb, var(--amber) 14%, transparent); }
+  @media (max-width: 640px) { .by-upm { display: none; } }
+
+  /* --- Header / nav --- */
+  header.site {
+    position: sticky; top: 0; z-index: 40; background: color-mix(in srgb, var(--navy) 90%, transparent);
+    backdrop-filter: blur(10px); border-bottom: 1px solid var(--navy-line); color: #f3efdf;
+  }
+  .nav-row { display: flex; align-items: center; gap: 32px; height: 68px; }
+  .nav-links { display: flex; gap: 26px; flex: 1; font-weight: 500; font-size: 14px; color: #b9ae8e; }
+  .nav-links a { text-decoration: none; }
+  .nav-links a:hover { color: #fff; }
+  .nav-cta { display: flex; align-items: center; gap: 10px; }
+  .nav-cta .btn { white-space: nowrap; }
+  .nav-signin-mobile { display: none; }
+  .nav-burger {
+    display: none; background: transparent; border: 1px solid rgba(255,255,255,.3); color: #f3efdf;
+    font-size: 19px; line-height: 1; border-radius: 6px; padding: 8px 11px; cursor: pointer; margin-left: 4px;
+    white-space: nowrap;
+  }
+  @media (max-width: 860px) {
+    .nav-links { display: none; }
+    .nav-burger { display: inline-flex; align-items: center; justify-content: center; }
+    .nav-cta .btn-outline { display: none; }
+    .nav-links.open {
+      display: flex; flex-direction: column; gap: 4px; position: absolute; top: 68px; left: 0; right: 0;
+      background: var(--navy); border-bottom: 1px solid var(--navy-line); padding: 10px 28px 18px; z-index: 39;
+    }
+    .nav-links.open a { padding: 11px 0; border-bottom: 1px solid var(--navy-line); font-size: 15px; }
+    .nav-links.open a:last-child { border-bottom: none; }
+    .nav-links.open .nav-signin-mobile { display: block; color: var(--amber); font-weight: 700; }
+  }
+  @media (max-width: 480px) {
+    .wrap { padding: 0 18px; }
+    .hero-ctas { flex-direction: column; align-items: stretch; }
+    .hero-ctas .btn { width: 100%; }
+    .nav-row { gap: 14px; }
+    .nav-cta .btn { padding: 10px 14px; font-size: 13.5px; }
+    .nav-burger { padding: 7px 10px; font-size: 17px; }
+  }
+  /* Below ~400px the header itself started overflowing the viewport
+     (logo wordmark + Get started button + burger no longer fit) --
+     found while checking the hero fix at phone widths, tightened here. */
+  @media (max-width: 400px) {
+    .nav-row { gap: 8px; }
+    .logo-word { font-size: 14px; }
+    .nav-cta .btn { padding: 8px 10px; font-size: 12px; }
+    .nav-burger { padding: 6px 8px; font-size: 15px; }
+  }
+
+  /* --- Hero --- */
+  .hero { background: var(--navy); color: #f3efdf; padding: 76px 0 84px; position: relative; overflow: hidden; }
+  .hero::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(640px 420px at 88% -8%, rgba(232,163,61,.16), transparent 60%),
+      radial-gradient(520px 360px at 6% 105%, rgba(46,156,116,.20), transparent 62%);
+    pointer-events: none;
+  }
+  .hero-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px; align-items: center; position: relative; }
+  .hero-inner { position: relative; max-width: 700px; }
+  .hero-visual { position: relative; display: flex; justify-content: center; align-items: center; }
+  .hero-visual-img { max-width: 100%; width: 340px; height: auto; filter: drop-shadow(0 26px 40px rgba(0,0,0,.4)); position: relative; z-index: 2; }
+  .alchemy-glow {
+    position: absolute; width: 220px; height: 220px; border-radius: 50%; z-index: 0;
+    background: radial-gradient(circle, rgba(232,163,61,.32), transparent 70%);
+    animation: alchemy-pulse 4s ease-in-out infinite;
+  }
+  .alchemy-ring { position: absolute; border-radius: 50%; pointer-events: none; z-index: 1; }
+  .alchemy-ring--outer {
+    width: 400px; height: 400px;
+    background: conic-gradient(from 0deg, transparent 0deg, rgba(232,163,61,.55) 40deg, transparent 100deg, transparent 180deg, rgba(46,156,116,.5) 220deg, transparent 280deg, transparent 360deg);
+    -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%, #000 67%, transparent 69%);
+            mask: radial-gradient(circle, transparent 62%, #000 64%, #000 67%, transparent 69%);
+    animation: alchemy-spin 26s linear infinite;
+  }
+  .alchemy-ring--inner {
+    width: 300px; height: 300px;
+    background: conic-gradient(from 90deg, transparent 0deg, rgba(46,156,116,.45) 50deg, transparent 120deg, transparent 220deg, rgba(232,163,61,.45) 260deg, transparent 320deg, transparent 360deg);
+    -webkit-mask: radial-gradient(circle, transparent 68%, #000 70%, #000 74%, transparent 76%);
+            mask: radial-gradient(circle, transparent 68%, #000 70%, #000 74%, transparent 76%);
+    animation: alchemy-spin-reverse 18s linear infinite;
+  }
+  @keyframes alchemy-spin { to { transform: rotate(360deg); } }
+  @keyframes alchemy-spin-reverse { to { transform: rotate(-360deg); } }
+  @keyframes alchemy-pulse { 0%, 100% { opacity: .55; transform: scale(.96); } 50% { opacity: 1; transform: scale(1.04); } }
+  @media (prefers-reduced-motion: reduce) { .alchemy-ring, .alchemy-glow { animation: none; } }
+  /* Character used to be hidden below 900px entirely -- Brad flagged it not
+     showing on mobile at all. Now it stays visible at every width: it moves
+     above the headline (via `order`, so the DOM/reading order for screen
+     readers is unchanged) and shrinks along with its glow/rings so nothing
+     overflows a narrow viewport. */
+  @media (max-width: 900px) {
+    .hero-grid { grid-template-columns: 1fr; }
+    .hero-visual { order: -1; margin-bottom: 6px; }
+    .hero-visual-img { width: 240px; }
+    .alchemy-glow { width: 150px; height: 150px; }
+    .alchemy-ring--outer { width: 280px; height: 280px; }
+    .alchemy-ring--inner { width: 210px; height: 210px; }
+  }
+  @media (max-width: 480px) {
+    .hero-visual-img { width: 190px; }
+    .alchemy-glow { width: 120px; height: 120px; }
+    .alchemy-ring--outer { width: 225px; height: 225px; }
+    .alchemy-ring--inner { width: 170px; height: 170px; }
+  }
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px; color: #c7bea0; margin-bottom: 22px;
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
+    border: 1px solid var(--navy-line); border-radius: 99px; padding: 6px 14px;
+  }
+  .hero-eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex: none; }
+  .hero h1 { font-size: clamp(2.3rem, 5.2vw, 3.6rem); line-height: 1.06; }
+  .hero h1 em { font-style: italic; color: var(--amber); }
+  .hero .sub { margin-top: 24px; font-size: 18px; color: #c7bea0; max-width: 56ch; }
+  .hero-ctas { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
+  .hero-note { margin-top: 16px; font-size: 12.5px; color: #857957; font-family: "IBM Plex Mono", monospace; }
+
+  .hero-stats { display: flex; gap: 40px; margin-top: 48px; flex-wrap: wrap; padding-top: 32px; border-top: 1px solid var(--navy-line); }
+  .hero-stat .num { font-family: "Fraunces", serif; font-weight: 600; font-size: 2rem; color: #fff; line-height: 1; }
+  .hero-stat .lbl { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: #948868; text-transform: uppercase; letter-spacing: .06em; margin-top: 6px; max-width: 15ch; }
+
+  .audience-row { display: flex; gap: 10px; margin-top: 26px; flex-wrap: wrap; }
+  .audience-chip {
+    display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: #dcd4b8;
+    background: rgba(255,255,255,.06); border: 1px solid var(--navy-line); border-radius: 99px; padding: 7px 14px 7px 12px;
+  }
+  .audience-chip .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--amber); flex: none; }
+
+  section { padding: 84px 0; }
+  .section-head { max-width: 640px; margin: 0 auto 46px; text-align: center; }
+  .section-head .kicker { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; font-weight: 500; text-transform: uppercase; letter-spacing: .09em; color: var(--cyan-dim); margin-bottom: 10px; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .section-head .kicker { color: var(--cyan); } }
+  :root[data-theme="dark"] .section-head .kicker { color: var(--cyan); }
+  .section-head h2 { font-size: clamp(1.65rem, 3.2vw, 2.3rem); }
+  .section-head p { margin-top: 14px; color: var(--ink-soft); font-size: 16px; }
+  .section-badge-img {
+    width: 84px; height: 84px; object-fit: cover; object-position: top center;
+    border-radius: 50%; margin: 0 auto 16px; display: block;
+    box-shadow: 0 12px 26px -10px rgba(16, 22, 15, 0.4);
+    background: linear-gradient(135deg, #2e9c74, #e8a33d);
+  }
+
+  /* --- Numbered step cards (a real sequence, so numbers earn their keep) --- */
+  .step-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  @media (max-width: 940px) { .step-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) { .step-grid { grid-template-columns: 1fr; } }
+  .step {
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: 12px;
+    padding: 24px 22px 22px;
+  }
+  .step .num {
+    width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--violet) 14%, transparent); color: var(--violet);
+    font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 13px; margin-bottom: 14px;
+  }
+  .step h3 { font-family: "IBM Plex Sans"; font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+  .step p { font-size: 13.6px; color: var(--ink-soft); }
+
+  .plate { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 12px; padding: 22px 20px 20px; }
+  .plate .tagno { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 600; letter-spacing: .06em; color: var(--cyan-dim); margin-bottom: 12px; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .plate .tagno { color: var(--cyan); } }
+  :root[data-theme="dark"] .plate .tagno { color: var(--cyan); }
+  .plate h3 { font-family: "IBM Plex Sans"; font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+  .plate p { font-size: 13.6px; color: var(--ink-soft); }
+
+  /* --- FAQ + the Alchemist assistant --- */
+  .faq-layout { display: grid; grid-template-columns: 1fr 1.1fr; gap: 40px; align-items: start; }
+  @media (max-width: 900px) { .faq-layout { grid-template-columns: 1fr; } }
+  .faq-item { border-bottom: 1px solid var(--line); padding: 16px 2px; }
+  .faq-item summary {
+    cursor: pointer; font-weight: 600; font-size: 15px; list-style: none;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after { content: "+"; font-size: 20px; color: var(--ink-faint); font-weight: 400; flex: none; }
+  .faq-item[open] summary::after { content: "–"; }
+  .faq-item p { margin-top: 10px; font-size: 14px; color: var(--ink-soft); line-height: 1.6; }
+
+  .alchemist-card {
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: 16px;
+    padding: 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px;
+    color: var(--ink); /* #faq sets a light cream `color` for its dark backdrop; without
+      this override, this light-background card would inherit that and go nearly
+      unreadable (confirmed via screenshot -- the name/chat-bubble text, which had no
+      color of their own, rendered almost invisible on the card's light background). */
+  }
+  .alchemist-head { display: flex; align-items: center; gap: 12px; }
+  .alchemist-avatar { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #2e9c74, #e8a33d); flex: none; object-fit: cover; object-position: top center; }
+  .alchemist-head .name { font-weight: 700; font-size: 15px; }
+  .alchemist-head .status { font-size: 12px; color: var(--ink-faint); }
+  .chat-log {
+    display: flex; flex-direction: column; gap: 10px; min-height: 160px; max-height: 340px;
+    overflow-y: auto; padding-right: 2px;
+  }
+  .chat-bubble { font-size: 13.5px; line-height: 1.55; padding: 10px 13px; border-radius: 12px; max-width: 92%; white-space: pre-wrap; }
+  .chat-bubble.assistant { background: var(--paper); border: 1px solid var(--line); align-self: flex-start; border-bottom-left-radius: 3px; }
+  .chat-bubble.user { background: var(--violet); color: #fff; align-self: flex-end; border-bottom-right-radius: 3px; }
+  .chat-bubble.pending { color: var(--ink-faint); font-style: italic; }
+  .chat-input-row { display: flex; gap: 8px; }
+  .chat-input-row input {
+    flex: 1; padding: 11px 13px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--paper); color: var(--ink); font-size: 14px; font-family: inherit;
+  }
+  .chat-input-row input:focus { outline: none; border-color: var(--violet); }
+  .chat-input-row button {
+    background: var(--violet); color: #fff; border: none; border-radius: 8px; padding: 0 16px;
+    font-weight: 600; font-size: 14px; cursor: pointer; flex: none;
+  }
+  .chat-input-row button:disabled { opacity: .6; cursor: default; }
+  .chat-suggestions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chat-suggestion {
+    font-size: 12px; padding: 5px 10px; border-radius: 99px; border: 1px solid var(--line);
+    background: var(--paper); color: var(--ink-soft); cursor: pointer;
+  }
+  .chat-suggestion:hover { border-color: var(--violet); color: var(--ink); }
+
+  /* --- FAQ section: dark alchemist-workshop backdrop --- */
+  #faq {
+    position: relative; background: var(--navy); color: #f3efdf; overflow: hidden;
+    background-image:
+      linear-gradient(180deg, rgba(16,22,15,.94), rgba(16,22,15,.9) 55%, var(--navy) 100%),
+      url('https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/object/public/wheel-assets/content-calendar/platform-brand/hero-illustration.png');
+    background-size: cover; background-position: center;
+  }
+  #faq .section-head .kicker { color: var(--cyan); }
+  #faq .section-head h2 { color: #fff; }
+  #faq .section-head p { color: #b9ae8e; }
+  #faq .faq-item { border-bottom-color: var(--navy-line); position: relative; z-index: 1; }
+  #faq .faq-item summary { color: #f3efdf; }
+  #faq .faq-item summary::after { color: #857957; }
+  #faq .faq-item p { color: #b9ae8e; }
+  #faq .faq-layout { position: relative; z-index: 1; }
+  .faq-illustration-accent {
+    position: absolute; right: 18px; bottom: 18px; width: 140px; height: auto; opacity: .32;
+    filter: drop-shadow(0 12px 22px rgba(0,0,0,.5)); pointer-events: none; z-index: 0;
+  }
+  @media (max-width: 900px) { .faq-illustration-accent { display: none; } }
+
+  /* --- Review & Improve: the learning-loop section --- */
+  .improve { background: var(--navy); color: #f3efdf; position: relative; overflow: hidden; }
+  .improve .section-head .kicker { color: var(--cyan); }
+  .improve .section-head h2 { color: #fff; }
+  .improve .section-head p { color: #b9ae8e; }
+  .badge-portrait {
+    width: 84px; height: 84px; object-fit: cover; object-position: top center;
+    border-radius: 50%; margin: 0 0 18px; display: block;
+    box-shadow: 0 12px 26px -10px rgba(16, 22, 15, 0.4);
+    background: linear-gradient(135deg, #2e9c74, #e8a33d);
+  }
+  .improve-layout { display: grid; grid-template-columns: 1.05fr 1fr; gap: 44px; align-items: start; position: relative; z-index: 1; }
+  @media (max-width: 900px) { .improve-layout { grid-template-columns: 1fr; } }
+  .improve-copy h3 { color: #fff; font-size: 1.4rem; margin-bottom: 14px; }
+  .improve-copy p { color: #b9ae8e; font-size: 15.5px; margin-bottom: 16px; }
+  .improve-loop { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+  .improve-loop-step { display: flex; align-items: baseline; gap: 10px; font-size: 14px; color: #dcd4b8; }
+  .improve-loop-step .arrow { color: var(--cyan); font-family: "IBM Plex Mono", monospace; }
+  .improve-card {
+    background: var(--navy-raised); border: 1px solid var(--navy-line); border-radius: 14px; padding: 26px 26px 22px;
+  }
+  .improve-card .label {
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--green); display: flex; align-items: center; gap: 7px; margin-bottom: 16px;
+  }
+  .improve-card .label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .improve-card .obs { font-size: 14px; color: #f3efdf; line-height: 1.6; margin-bottom: 14px; padding-left: 16px; position: relative; }
+  .improve-card .obs::before { content: "—"; position: absolute; left: 0; color: #665c40; }
+  .improve-card .caveat {
+    margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--navy-line);
+    font-size: 12.5px; font-style: italic; color: #948868;
+  }
+  .improve-card .source { margin-top: 10px; font-family: "IBM Plex Mono", monospace; font-size: 11px; color: #756a4c; }
+  .demo-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .demo-tab {
+    flex: 1; font-family: "IBM Plex Mono", monospace; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+    padding: 9px 10px; border-radius: 8px; border: 1px solid var(--navy-line); background: transparent; color: #948868; cursor: pointer;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .demo-tab:hover { color: #dcd4b8; }
+  .demo-tab.is-active { background: var(--cyan-dim); border-color: var(--cyan-dim); color: #fff; }
+  .demo-panel { margin-bottom: 14px; }
+  .demo-copy { font-size: 14.5px; color: #f3efdf; line-height: 1.6; font-style: italic; padding: 12px 14px; background: var(--navy); border-radius: 10px; border: 1px solid var(--navy-line); border-left: 3px solid #8a6a3a; }
+  .demo-panel[data-panel="after"] .demo-copy { border-left-color: var(--cyan); }
+  .demo-note { font-size: 12px; color: #948868; margin-top: 8px; padding-left: 2px; }
+
+  .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  @media (max-width: 940px) { .features-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 620px) { .features-grid { grid-template-columns: 1fr; } }
+
+  /* --- Real output: genuine drafted posts, not mockups --- */
+  .showcase { background: var(--paper-raised); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .post-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+  @media (max-width: 780px) { .post-grid { grid-template-columns: 1fr; } }
+  .post-card {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .post-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .post-head .plats { display: flex; gap: 6px; }
+  .post-head .plat-chip {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; font-weight: 600; text-transform: uppercase;
+    background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--violet); padding: 3px 8px; border-radius: 99px; letter-spacing: .03em;
+  }
+  .post-head .status-chip {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .04em; padding: 3px 9px; border-radius: 99px;
+  }
+  .status-ready { background: color-mix(in srgb, var(--green) 16%, transparent); color: #1f6f52; }
+  .status-draft { background: color-mix(in srgb, var(--ink-faint) 20%, transparent); color: var(--ink-soft); }
+  .post-body { padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+  .post-brand { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--cyan-dim); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .post-brand { color: var(--cyan); } }
+  :root[data-theme="dark"] .post-brand { color: var(--cyan); }
+  .post-body h3 { font-size: 1.05rem; line-height: 1.3; }
+  .post-body .copy { font-size: 13.8px; color: var(--ink-soft); line-height: 1.6; }
+  .post-hashtags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .post-hashtags span {
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--cyan-dim); background: color-mix(in srgb, var(--cyan) 10%, transparent);
+    padding: 3px 8px; border-radius: 99px;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .post-hashtags span { color: var(--cyan); } }
+  :root[data-theme="dark"] .post-hashtags span { color: var(--cyan); }
+  .post-foot { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--ink-faint); font-family: "IBM Plex Mono", monospace; padding-top: 6px; border-top: 1px dashed var(--line); margin-top: auto; }
+
+  .showcase-foot { text-align: center; margin-top: 34px; font-size: 13px; color: var(--ink-soft); }
+  .showcase-foot a { color: var(--cyan-dim); text-decoration: none; font-weight: 600; }
+  .showcase-foot a:hover { text-decoration: underline; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .showcase-foot a { color: var(--cyan); } }
+  :root[data-theme="dark"] .showcase-foot a { color: var(--cyan); }
+
+  /* --- Pricing --- */
+  .billing-toggle {
+    display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 40px;
+    font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .05em;
+  }
+  .toggle-pill { position: relative; width: 44px; height: 24px; border-radius: 99px; background: var(--line); cursor: pointer; border: 1px solid var(--line); }
+  .toggle-pill .knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--paper-raised); box-shadow: var(--shadow); transition: transform .16s ease; }
+  .toggle-pill.on { background: var(--cyan-dim); }
+  .toggle-pill.on .knob { transform: translateX(20px); background: var(--cyan); }
+  .save-tag { color: var(--amber-ink); font-weight: 700; }
+
+  .pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; align-items: stretch; }
+  @media (max-width: 1100px) { .pricing-grid { grid-template-columns: repeat(2, 1fr); max-width: 640px; margin: 0 auto; } }
+  @media (max-width: 640px) { .pricing-grid { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; } }
+  .plan {
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: 14px; padding: 0;
+    display: flex; flex-direction: column; position: relative; overflow: hidden;
+  }
+  .plan.featured { border-color: var(--violet); box-shadow: var(--shadow); }
+  .plan-head { padding: 22px 24px 18px; border-bottom: 1px solid var(--line); }
+  .plan-tag {
+    position: absolute; top: 0; right: 0; background: var(--violet); color: #fff;
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 600; padding: 5px 10px 5px 14px;
+    letter-spacing: .04em; border-bottom-left-radius: 10px;
+  }
+  .plan-name { font-family: "IBM Plex Sans"; font-weight: 700; font-size: 18px; }
+  .plan-desc { font-size: 13px; color: var(--ink-soft); margin-top: 6px; min-height: 34px; }
+  .plan-price { margin-top: 14px; display: flex; align-items: baseline; gap: 6px; font-family: "IBM Plex Mono", monospace; }
+  .plan-price .amt { font-size: 2rem; font-weight: 600; }
+  .plan-price .per { color: var(--ink-faint); font-size: 13px; }
+  .plan-annual-note { font-size: 11.5px; color: var(--ink-faint); margin-top: 4px; height: 15px; font-family: "IBM Plex Mono", monospace; }
+  .plan-body { padding: 20px 24px 24px; display: flex; flex-direction: column; flex: 1; }
+  .plan-cta { margin-bottom: 20px; }
+  .plan-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .plan-list li { display: flex; gap: 9px; font-size: 13.4px; color: var(--ink); }
+  .plan-list li .check { flex: none; width: 16px; height: 16px; border-radius: 5px; background: var(--cyan-dim); color: var(--cyan); font-size: 10.5px; display: flex; align-items: center; justify-content: center; margin-top: 1px; font-family: "IBM Plex Mono"; }
+  .plan-list li.muted { color: var(--ink-faint); }
+  .plan-list li.muted .check { background: var(--line); color: var(--ink-faint); }
+
+  .pricing-foot { text-align: center; margin-top: 28px; font-size: 12.5px; color: var(--ink-faint); font-family: "IBM Plex Mono", monospace; }
+
+  /* --- CTA band --- */
+  .cta-band {
+    border-radius: 16px; padding: 56px 40px; text-align: center; background: var(--navy); color: #f3efdf; position: relative; overflow: hidden;
+  }
+  .cta-band::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(500px 260px at 50% -20%, rgba(232,163,61,.20), transparent 65%);
+    pointer-events: none;
+  }
+  .cta-band > * { position: relative; }
+  .cta-band h2 { color: #fff; font-size: clamp(1.5rem, 3vw, 2.1rem); }
+  .cta-band p { color: #b9ae8e; margin-top: 12px; font-size: 15px; }
+  .cta-form { display: flex; gap: 10px; justify-content: center; margin-top: 26px; flex-wrap: wrap; }
+  .cta-form input {
+    width: 280px; max-width: 100%; padding: 12px 15px; border-radius: 8px; border: 1px solid #3a4531;
+    background: #171d13; color: #fff; font-size: 14px; font-family: "IBM Plex Mono", monospace;
+  }
+  .cta-form input::placeholder { color: #756a4c; }
+  .cta-form input:focus { outline: none; border-color: var(--cyan); }
+  .cta-form button {
+    background: var(--amber); color: #1b0f00; border: none; border-radius: 8px; padding: 12px 22px;
+    font-weight: 700; font-size: 14px; cursor: pointer; font-family: "IBM Plex Sans", sans-serif;
+  }
+  .cta-form button:hover { opacity: .9; }
+  .cta-msg { margin-top: 14px; font-size: 12.5px; color: #a99c7c; min-height: 18px; font-family: "IBM Plex Mono", monospace; }
+
+  footer.site { border-top: 1px solid var(--line); padding: 36px 0 42px; margin-top: 10px; }
+  .foot-row { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .foot-links { display: flex; gap: 22px; font-size: 13px; color: var(--ink-soft); flex-wrap: wrap; }
+  .foot-links a { text-decoration: none; }
+  .foot-links a:hover { color: var(--ink); }
+  .foot-copy { font-size: 11.5px; color: var(--ink-faint); margin-top: 18px; font-family: "IBM Plex Mono", monospace; }
+
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+  /* --- Scroll reveal + hover life ---
+     Reveal-in and hover-lift share these same elements, so both live in ONE
+     transition declaration per element (a second `transition:` shorthand on
+     the same selector would silently replace this one property-for-property,
+     not merge with it -- that's the bug being avoided here). */
+  .reveal {
+    opacity: 0; transform: translateY(18px);
+    transition: opacity .6s ease, transform .4s ease, box-shadow .25s ease;
+  }
+  .reveal.is-visible { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: box-shadow .25s ease; } }
+  .step:nth-child(1), .plate:nth-child(1), .post-card:nth-child(1), .plan:nth-child(1) { transition-delay: 0s; }
+  .step:nth-child(2), .plate:nth-child(2), .post-card:nth-child(2), .plan:nth-child(2) { transition-delay: .08s; }
+  .step:nth-child(3), .plate:nth-child(3), .post-card:nth-child(3), .plan:nth-child(3) { transition-delay: .16s; }
+  .step:nth-child(4), .plate:nth-child(4), .post-card:nth-child(4), .plan:nth-child(4) { transition-delay: .24s; }
+  .plate:nth-child(5) { transition-delay: .32s; }
+  .plate:nth-child(6) { transition-delay: .4s; }
+  .plate:nth-child(7) { transition-delay: .48s; }
+  .step:hover, .plate:hover, .post-card:hover, .plan:hover { transform: translateY(-5px); box-shadow: var(--shadow); }
+
+  /* --- Brand assets page --- */
+  .assets-hero { background: var(--navy); color: #f3efdf; padding: 56px 0 48px; }
+  .assets-hero h1 { font-size: clamp(30px,4.4vw,44px); color: #fff; }
+  .assets-hero p { color: #cfc6a8; max-width: 640px; margin-top: 12px; font-size: 16px; line-height: 1.6; }
+  .assets-section { padding: 52px 0; border-bottom: 1px solid var(--line); }
+  .assets-section:last-of-type { border-bottom: none; }
+  .assets-section h2 { font-size: 24px; margin-bottom: 8px; }
+  .assets-section > .wrap > p.lede { color: var(--ink-soft); max-width: 620px; margin: 0 0 28px; line-height: 1.6; }
+  .swatch-row { display: flex; gap: 20px; flex-wrap: wrap; }
+  .icon-swatch {
+    display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 28px;
+    border-radius: 16px; border: 1px solid var(--line); flex: 1 1 220px; min-width: 200px;
+  }
+  .icon-swatch.on-paper { background: var(--paper-raised); }
+  .icon-swatch.on-navy { background: var(--navy); }
+  .icon-swatch img { width: 96px; height: 96px; }
+  .icon-swatch .dl { display: flex; gap: 10px; }
+  .btn-sm {
+    font-family: "IBM Plex Sans", sans-serif; font-size: 13px; font-weight: 600; padding: 8px 14px;
+    border-radius: 8px; border: 1px solid var(--line); text-decoration: none; color: var(--ink); background: var(--paper-raised);
+  }
+  .icon-swatch.on-navy .btn-sm { color: #f3efdf; border-color: rgba(255,255,255,.25); background: transparent; }
+  .icon-swatch.on-navy .cap { color: #cfc6a8; }
+  .cap { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-faint); }
+  .wm-showcase { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+  .wm-row { display: flex; align-items: center; gap: 14px; padding: 22px 26px; border-radius: 14px; }
+  .wm-row.on-paper { background: var(--paper-raised); border: 1px solid var(--line); }
+  .wm-row.on-navy { background: var(--navy); }
+  .wm-row img { width: 34px; height: 34px; }
+  .wm-row .word { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 26px; color: var(--ink); }
+  .wm-row.on-navy .word { color: #f3efdf; }
+  .wm-row .word em { font-style: italic; color: var(--cyan); }
+  .spec-list { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--ink-soft); line-height: 2; }
+  .palette-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(150px,1fr)); gap: 16px; }
+  .swatch { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+  .swatch .fill { height: 70px; }
+  .swatch .label { padding: 10px 12px; font-family: "IBM Plex Mono", monospace; font-size: 12px; background: var(--paper-raised); }
+  .swatch .label b { display: block; font-family: "IBM Plex Sans", sans-serif; font-size: 13px; margin-bottom: 2px; }
+  @media (max-width: 700px) { .swatch-row { flex-direction: column; } .wm-row .word { font-size: 20px; } }
+</style>
+</head>
+<body>
+
+<a id="top"></a>
+<header class="site">
+  <div class="wrap nav-row">
+    <div class="logo-group">
+      <a class="logo" href="index.html">
+        <img class="logo-mark" src="/assets/logo-mark.svg" alt="">
+        <span class="logo-word">Fullmedia <em>Alchemist</em></span>
+      </a>
+      <a class="by-upm" href="https://unitedpress.media" target="_blank" rel="noopener">by UPM</a>
+    </div>
+    <nav class="nav-links" id="navLinks">
+      <a href="/dashboard" class="nav-signin-mobile">Sign in</a>
+      <a href="index.html#how-it-works">How it works</a>
+      <a href="index.html#improve">Review &amp; Improve</a>
+      <a href="index.html#showcase">Real output</a>
+      <a href="index.html#features">Features</a>
+      <a href="index.html#pricing">Pricing</a>
+      <a href="index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn btn-outline" href="/dashboard" style="--paper-inv:#fff">Sign in</a>
+      <a class="btn btn-amber" href="index.html#pricing">Get started</a>
+    </div>
+    <button class="nav-burger" id="navBurger" aria-label="Open menu" aria-expanded="false">☰</button>
+  </div>
+</header>
+
+<section class="assets-hero">
+  <div class="wrap">
+    <span class="cap" style="color:#e8a33d">Fullmedia Alchemist</span>
+    <h1>Brand assets</h1>
+    <p>The current icon, wordmark, and color palette — for anyone who needs to drop the mark somewhere the live site's HTML can't reach: a slide deck, a partner's press kit, a social profile.</p>
+  </div>
+</section>
+
+<section class="assets-section">
+  <div class="wrap">
+    <h2>Icon — the transmutation circle</h2>
+    <p class="lede">One mark, used everywhere: the nav, the footer, the favicon, and both apps. Transparent background, so it drops onto anything.</p>
+    <div class="swatch-row">
+      <div class="icon-swatch on-paper">
+        <img src="/assets/logo-mark.svg" alt="Fullmedia Alchemist icon">
+        <span class="cap">On light</span>
+        <div class="dl">
+          <a class="btn-sm" href="/assets/logo-mark-512.png" download>PNG</a>
+          <a class="btn-sm" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkZ1bGxtZWRpYSBBbGNoZW1pc3QgdHJhbnNtdXRhdGlvbiBjaXJjbGUiPgogIDwhLS0gb3V0ZXIgZG91YmxlIHJpbmcgLS0+CiAgPGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNDYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFmNmY1MiIgc3Ryb2tlLXdpZHRoPSIwLjkiLz4KICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMWY2ZjUyIiBzdHJva2Utd2lkdGg9IjIuNCIvPgoKICA8IS0tIHN0YXIgbGF0dGljZTogdHJpYW5nbGUgKyBjcm9zc2luZyBkaWFnb25hbHMgdG8gdGhlIHR3byBzaWRlIHBvaW50cyAtLT4KICA8ZyBmaWxsPSJub25lIiBzdHJva2U9IiMxZjZmNTIiIHN0cm9rZS13aWR0aD0iMS40IiBzdHJva2UtbGluZWpvaW49InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik01MCAxMiBMODIuOSA2OSBMMTcuMSA2OSBaIi8+CiAgICA8bGluZSB4MT0iODIuOSIgeTE9IjY5IiB4Mj0iMTEuOSIgeTI9IjI4Ii8+CiAgICA8bGluZSB4MT0iMTcuMSIgeTE9IjY5IiB4Mj0iODguMSIgeTI9IjI4Ii8+CiAgICA8bGluZSB4MT0iMTEuOSIgeTE9IjI4IiB4Mj0iODguMSIgeTI9IjI4Ii8+CiAgPC9nPgoKICA8IS0tIG91dHdhcmQgc2hpZWxkIGFyY3MgYWxvbmcgZWFjaCB0cmlhbmdsZSBlZGdlIC0tPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFmNmY1MiIgc3Ryb2tlLXdpZHRoPSIxLjkiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCI+CiAgICA8cGF0aCBkPSJNNTAgMTIgUTczLjQgMzYuNSA4Mi45IDY5Ii8+CiAgICA8cGF0aCBkPSJNODIuOSA2OSBRNTAgNzcgMTcuMSA2OSIvPgogICAgPHBhdGggZD0iTTE3LjEgNjkgUTI2LjYgMzYuNSA1MCAxMiIvPgogIDwvZz4KCiAgPCEtLSBpbm5lciBjaXJjbGUgLS0+CiAgPGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iMTUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFmNmY1MiIgc3Ryb2tlLXdpZHRoPSIxLjQiLz4KCiAgPCEtLSB0aHJlZSBtYWluIG1lZGFsbGlvbnMgKGVtcHR5KSAtLT4KICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjEyIiByPSI5IiBmaWxsPSJub25lIiBzdHJva2U9IiMxZjZmNTIiIHN0cm9rZS13aWR0aD0iMiIvPgogIDxjaXJjbGUgY3g9IjgyLjkiIGN5PSI2OSIgcj0iOSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMWY2ZjUyIiBzdHJva2Utd2lkdGg9IjIiLz4KICA8Y2lyY2xlIGN4PSIxNy4xIiBjeT0iNjkiIHI9IjkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFmNmY1MiIgc3Ryb2tlLXdpZHRoPSIyIi8+CgogIDwhLS0gdHdvIHNpZGUgYWNjZW50IHBvaW50cyAtLT4KICA8Y2lyY2xlIGN4PSIxMS45IiBjeT0iMjgiIHI9IjMuNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMWY2ZjUyIiBzdHJva2Utd2lkdGg9IjEuNiIvPgogIDxjaXJjbGUgY3g9Ijg4LjEiIGN5PSIyOCIgcj0iMy42IiBmaWxsPSJub25lIiBzdHJva2U9IiMxZjZmNTIiIHN0cm9rZS13aWR0aD0iMS42Ii8+Cjwvc3ZnPgo=" download="fullmedia-alchemist-icon.svg">SVG</a>
+        </div>
+      </div>
+      <div class="icon-swatch on-navy">
+        <img src="/assets/logo-mark.svg" alt="Fullmedia Alchemist icon">
+        <span class="cap">On dark</span>
+        <div class="dl">
+          <a class="btn-sm" href="/assets/logo-mark-512.png" download>PNG</a>
+          <a class="btn-sm" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkZ1bGxtZWRpYSBBbGNoZW1pc3QgdHJhbnNtdXRhdGlvbiBjaXJjbGUiPgogIDwhLS0gb3V0ZXIgZG91YmxlIHJpbmcgLS0+CiAgPGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNDYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFmNmY1MiIgc3Ryb2tlLXdpZHRoPSIwLjkiLz4KICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMWY2ZjUyIiBzdHJva2Utd2lkdGg9IjIuNCIvPgoKICA8IS0tIHN0YXIgbGF0dGljZTogdHJpYW5nbGUgKyBjcm9zc2luZyBkaWFnb25hbHMgdG8gdGhlIHR3byBzaWRlIHBvaW50cyAtLT4KICA8ZyBmaWxsPSJub25lIiBzdHJva2U9IiMxZjZmNTIiIHN0cm9rZS13aWR0aD0iMS40IiBzdHJva2UtbGluZWpvaW49InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik01MCAxMiBMODIuOSA2OSBMMTcuMSA2OSBaIi8+CiAgICA8bGluZSB4MT0iODIuOSIgeTE9IjY5IiB4Mj0iMTEuOSIgeTI9IjI4Ii8+CiAgICA8bGluZSB4MT0iMTcuMSIgeTE9IjY5IiB4Mj0iODguMSIgeTI9IjI4Ii8+CiAgICA8bGluZSB4MT0iMTEuOSIgeTE9IjI4IiB4Mj0iODguMSIgeTI9IjI4Ii8+CiAgPC9nPgoKICA8IS0tIG91dHdhcmQgc2hpZWxkIGFyY3MgYWxvbmcgZWFjaCB0cmlhbmdsZSBlZGdlIC0tPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFmNmY1MiIgc3Ryb2tlLXdpZHRoPSIxLjkiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCI+CiAgICA8cGF0aCBkPSJNNTAgMTIgUTczLjQgMzYuNSA4Mi45IDY5Ii8+CiAgICA8cGF0aCBkPSJNODIuOSA2OSBRNTAgNzcgMTcuMSA2OSIvPgogICAgPHBhdGggZD0iTTE3LjEgNjkgUTI2LjYgMzYuNSA1MCAxMiIvPgogIDwvZz4KCiAgPCEtLSBpbm5lciBjaXJjbGUgLS0+CiAgPGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iMTUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFmNmY1MiIgc3Ryb2tlLXdpZHRoPSIxLjQiLz4KCiAgPCEtLSB0aHJlZSBtYWluIG1lZGFsbGlvbnMgKGVtcHR5KSAtLT4KICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjEyIiByPSI5IiBmaWxsPSJub25lIiBzdHJva2U9IiMxZjZmNTIiIHN0cm9rZS13aWR0aD0iMiIvPgogIDxjaXJjbGUgY3g9IjgyLjkiIGN5PSI2OSIgcj0iOSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMWY2ZjUyIiBzdHJva2Utd2lkdGg9IjIiLz4KICA8Y2lyY2xlIGN4PSIxNy4xIiBjeT0iNjkiIHI9IjkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFmNmY1MiIgc3Ryb2tlLXdpZHRoPSIyIi8+CgogIDwhLS0gdHdvIHNpZGUgYWNjZW50IHBvaW50cyAtLT4KICA8Y2lyY2xlIGN4PSIxMS45IiBjeT0iMjgiIHI9IjMuNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMWY2ZjUyIiBzdHJva2Utd2lkdGg9IjEuNiIvPgogIDxjaXJjbGUgY3g9Ijg4LjEiIGN5PSIyOCIgcj0iMy42IiBmaWxsPSJub25lIiBzdHJva2U9IiMxZjZmNTIiIHN0cm9rZS13aWR0aD0iMS42Ii8+Cjwvc3ZnPgo=" download="fullmedia-alchemist-icon.svg">SVG</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="assets-section">
+  <div class="wrap">
+    <h2>Wordmark</h2>
+    <p class="lede">Set in Fraunces. &ldquo;Fullmedia&rdquo; upright in the page's ink color; &ldquo;Alchemist&rdquo; italic, always the same emerald regardless of light or dark.</p>
+    <div class="wm-showcase">
+      <div class="wm-row on-paper"><img src="/assets/logo-mark.svg" alt=""><span class="word">Fullmedia <em>Alchemist</em></span></div>
+      <div class="wm-row on-navy"><img src="/assets/logo-mark.svg" alt=""><span class="word">Fullmedia <em>Alchemist</em></span></div>
+    </div>
+    <div class="spec-list">
+      font-family: "Fraunces", Georgia, serif<br>
+      font-weight: 600<br>
+      "Alchemist" color: #2e9c74 (constant in light &amp; dark)<br>
+      "Alchemist" font-style: italic
+    </div>
+  </div>
+</section>
+
+<section class="assets-section">
+  <div class="wrap">
+    <h2>Color palette</h2>
+    <p class="lede">The full set of brand colors, pulled straight from the live site's CSS.</p>
+    <div class="palette-grid">
+      <div class="swatch"><div class="fill" style="background:#10160f"></div><div class="label"><b>Navy</b>#10160f</div></div>
+      <div class="swatch"><div class="fill" style="background:#f8f3e6"></div><div class="label"><b>Paper</b>#f8f3e6</div></div>
+      <div class="swatch"><div class="fill" style="background:#2e9c74"></div><div class="label"><b>Emerald</b>#2e9c74</div></div>
+      <div class="swatch"><div class="fill" style="background:#1f6f52"></div><div class="label"><b>Emerald (dim)</b>#1f6f52</div></div>
+      <div class="swatch"><div class="fill" style="background:#e8a33d"></div><div class="label"><b>Amber</b>#e8a33d</div></div>
+      <div class="swatch"><div class="fill" style="background:#4a2e05"></div><div class="label"><b>Amber ink</b>#4a2e05</div></div>
+      <div class="swatch"><div class="fill" style="background:#1c170f"></div><div class="label"><b>Ink</b>#1c170f</div></div>
+      <div class="swatch"><div class="fill" style="background:#8a5aa6"></div><div class="label"><b>Violet</b>#8a5aa6</div></div>
+    </div>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="foot-row">
+      <a class="logo" href="index.html">
+        <img class="logo-mark" width="24" height="24" src="/assets/logo-mark.svg" alt="">
+        <span class="logo-word" style="font-size:14px">Fullmedia <em>Alchemist</em></span>
+      </a>
+      <div class="foot-links">
+        <a href="index.html#how-it-works">How it works</a>
+        <a href="index.html#improve">Review &amp; Improve</a>
+        <a href="index.html#showcase">Real output</a>
+        <a href="index.html#features">Features</a>
+        <a href="index.html#pricing">Pricing</a>
+        <a href="index.html#faq">FAQ</a>
+        <a href="https://unitedpress.media" target="_blank" rel="noopener">unitedpress.media</a>
+      </div>
+    </div>
+    <div class="foot-copy">Fullmedia Alchemist is a tool by UPM (<a href="https://unitedpress.media" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">unitedpress.media</a>). © 2026 United Press Media. All rights reserved.</div>
+  </div>
+</footer>
+<script>
+  var navBurger = document.getElementById('navBurger');
+  var navLinks = document.getElementById('navLinks');
+  if (navBurger && navLinks) {
+    navBurger.addEventListener('click', function () {
+      var isOpen = navLinks.classList.toggle('open');
+      navBurger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      navBurger.textContent = isOpen ? '\u2715' : '\u2630';
+    });
+  }
+</script>
+<script src="/assets/site-header.js" defer></script></body>
+</html>

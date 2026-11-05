@@ -1,0 +1,34 @@
+# Vercel uses THIS file instead of .gitignore once it exists, so the two
+# entries .gitignore was carrying have to be repeated here or they would
+# start shipping.
+.vercel
+.env*
+
+# Timestamped editing backups. Without this every one of them is publicly
+# fetchable at its own URL (e.g. /index.html.backup_pre_alchemist_theme_...),
+# which serves old copies of the site and whatever keys were embedded in them.
+*.bak
+*.bak-*
+*.backup
+*.backup_*
+*.patch
+*~
+
+# Edge function source. Deployed to Supabase, not to the web root -- shipping
+# it here just makes the source publicly readable.
+supabase/
+
+# Local scratch
+.logos/
+.DS_Store
+*.new
+_to_delete/
+
+# More editing backups (index.html.backup_*, index.html.bak-*, index.html.new):
+# these were shipping publicly too.
+*.html.*
+*.backup*
+
+# CI / git only
+.github/
+.gitignore

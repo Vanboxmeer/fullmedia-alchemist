@@ -1,0 +1,19 @@
+.vercel
+.env*
+node_modules
+.DS_Store
+# editing backups and scratch (never committed, never deployed)
+*.bak
+*.bak-*
+*.backup
+*.backup_*
+*.backup*
+*.html.*
+*.new
+*.patch
+*~
+_pictest/
+_to_delete/
+_to_delete_tools/
+.logos/
+*.bak*

@@ -1,0 +1,34 @@
+# Push to main -> deploys only the Supabase edge functions that changed (JWT settings come from supabase/config.toml).
+# One-time setup: GitHub repo -> Settings -> Secrets and variables -> Actions -> New secret: SUPABASE_ACCESS_TOKEN
+# (create it at https://supabase.com/dashboard/account/tokens). The site itself deploys through Vercel's GitHub connection.
+name: Deploy edge functions
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/functions/**", "supabase/config.toml"]
+  workflow_dispatch:
+concurrency: { group: deploy-functions, cancel-in-progress: false }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: tpqvvrdglnsdljdpzwfl
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 2 }
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+      - name: Deploy changed functions
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            fns=$(ls supabase/functions)
+          else
+            fns=$(git diff --name-only HEAD^ HEAD -- supabase/functions | cut -d/ -f3 | sort -u)
+            if git diff --name-only HEAD^ HEAD | grep -q '^supabase/config.toml$'; then fns=$(ls supabase/functions); fi
+          fi
+          for f in $fns; do
+            [ -f "supabase/functions/$f/index.ts" ] || continue
+            echo "Deploying $f"; supabase functions deploy "$f" --project-ref "$PROJECT_REF"
+          done
