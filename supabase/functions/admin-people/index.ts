@@ -115,7 +115,7 @@ Deno.serve(async (req: Request) => {
       return {
         id: u.id, email: u.email, name: um.full_name || um.name || null,
         created_at: u.created_at, last_sign_in_at: u.last_sign_in_at || null, signup_app: um.signup_app || null,
-        app: haveView ? (cls.get(u.id)?.app || 'unknown') : null,
+        app: haveView ? (cls.get(u.id)?.app || 'other') : null,
         internal: haveView ? !!cls.get(u.id)?.internal : ADMIN_EMAILS.includes(u.email || ''),
         provider: (u.app_metadata && u.app_metadata.provider) || ((u.identities && u.identities[0] && u.identities[0].provider) || 'email'),
         confirmed: !!u.email_confirmed_at, tz: um.tz || null, lang: um.lang || um.locale || null,

@@ -199,7 +199,9 @@ function toHtml(text: string) {
   const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const link = (m: string) => {
     const tail = (m.match(/[.,;:!?)]+$/) || [""])[0]; const u = tail ? m.slice(0, -tail.length) : m;
-    const href = /^https?:\/\//i.test(u) ? u : "https://" + u;
+    let href = /^https?:\/\//i.test(u) ? u : "https://" + u;
+    // links to our own site carry a source tag, so the admin stats can show how many visits and sign-ups outreach brings
+    try { const U = new URL(href); if (/(^|\.)fullmediaalchemist\.com$/i.test(U.hostname) && !U.searchParams.has("utm_source")) { U.searchParams.set("utm_source", "reach"); U.searchParams.set("utm_medium", "email"); U.searchParams.set("utm_campaign", "outreach"); href = U.toString(); } } catch (_e) { /* keep as is */ }
     return '<a href="' + href + '">' + u.replace(/^https?:\/\//i, "") + "</a>" + tail;
   };
   const re = /(?<![@\w.\/-])((?:https?:\/\/)?(?:www\.)?[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|co|ai|app|media|uk|ca|dev|me|us)(?:\/[^\s<]*)?)/gi;

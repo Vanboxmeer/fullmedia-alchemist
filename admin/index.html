@@ -161,7 +161,7 @@ a{color:var(--gold)}
     var top = Math.max(steps[0].v, 1);
     return steps.map(function (s, i) {
       var prev = i ? steps[i - 1].v : null;
-      return '<div class="bar b' + (i < 3 ? 1 : i < 4 ? 2 : 3) + '"><span>' + esc(s.l) + '</span><div class="t"><i style="width:' + Math.max(s.v / top * 100, s.v ? 1 : 0).toFixed(1) + '%"></i></div><em>' + n(s.v) + " · " + pct(s.v, top) + (prev ? " (" + pct(s.v, prev) + " of prev)" : "") + "</em></div>";
+      return '<div class="bar b' + (i < 3 ? 1 : i < 4 ? 2 : 3) + '"><span>' + esc(s.l) + '</span><div class="t"><i style="width:' + Math.max(s.v / top * 100, s.v ? 1 : 0).toFixed(1) + '%"></i></div><em>' + n(s.v) + " · " + pct(s.v, top) + (prev && s.v <= prev ? " (" + pct(s.v, prev) + " of prev)" : "") + "</em></div>";
     }).join("");
   }
 
@@ -243,7 +243,7 @@ a{color:var(--gold)}
       '<p class="note">Plan mix, Content: ' + (v.content_by_plan.map(function (p) { return esc(p.plan) + " " + n(p.n); }).join(" · ") || "—") + "<br>Plan mix, Reach: " + (v.reach_by_plan.map(function (p) { return esc(p.plan) + " " + n(p.n); }).join(" · ") || "—") +
       "<br>Annual plans are counted as one twelfth per month. Comped accounts are not counted as revenue.</p></section>" +
       '<section class="card"><h2>Content use (credits per day)</h2>' + bars((c.daily || []).map(function (d) { return { l: short(d.d), v: Number(d.credits) }; }), "var(--blue)") +
-      '<p class="note">' + n(c.credits) + " credits used by " + n(c.active_brands) + " customer brands (your own brands and admin test runs excluded)." + (c.credits_yours ? " Your own brands used " + n(c.credits_yours) + " more, not counted." : "") + "</p></section></div>";
+      '<p class="note">' + n(c.credits) + " credits used by " + n(c.active_brands) + " customer brand(s) (your own brands and admin test runs excluded)." + (c.credits_yours ? " Your own brands used " + n(c.credits_yours) + " more, not counted." : "") + "</p></section></div>";
     h += '<section class="card"><h2>Reach</h2><div class="grid two" style="margin:0"><div>' + bars((rc.daily || []).map(function (d) { return { l: short(d.d), v: d.n }; }), "var(--gold)") + "</div><div>" +
       table(["", ""], [["AI calls (everyone)", n(rc.calls) + (rc.failed ? " (" + n(rc.failed) + " failed)" : "")], ["\u2026of which customers", rc.calls_customers != null ? n(rc.calls_customers) : "\u2014"], ["Customer workspaces using it", n(rc.active_workspaces)], ["Web searches", n(rc.web_searches)],
         ["Estimated AI cost", usd(rc.est_cost_cents)], ["Workspaces / deals tracked", n(rc.workspaces_total) + " / " + n(rc.deals_total)]]) +
