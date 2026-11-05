@@ -2669,9 +2669,10 @@ function renderCampaign() {
   };
   $('#campMenu').onclick = (e) => {
     e.stopPropagation();
-    popMenu(e.currentTarget, `<button type="button" data-a="share">Client approval link</button><button type="button" data-a="ics">Add all posts to my calendar</button><button type="button" data-a="export">Export for automation (Metricool…)</button><div class="sep"></div><button type="button" data-a="archive">Archive campaign</button>`, (m) => {
+    popMenu(e.currentTarget, `<button type="button" data-a="share">Client approval link</button><button type="button" data-a="ics">Add all posts to my calendar</button><button type="button" data-a="autosched">Auto-schedule with Claude…</button><button type="button" data-a="export">Export for automation (Metricool…)</button><div class="sep"></div><button type="button" data-a="archive">Archive campaign</button>`, (m) => {
       m.querySelector('[data-a="share"]').onclick = () => openClientLinks(c);
       m.querySelector('[data-a="export"]').onclick = () => openExport(c.id);
+      m.querySelector('[data-a="autosched"]').onclick = () => openAutoSchedule(c.id);
       m.querySelector('[data-a="ics"]').onclick = () => { const list = postsFor(c.id).filter((x) => x.scheduled_date && stageOf(x)[0] !== 'Posted'); if (!list.length) { toast('No upcoming posts to add.', 'info'); return; } downloadIcs(list, (c.name || 'campaign') + '.ics'); };
       m.querySelector('[data-a="archive"]').onclick = async () => {
         if (!await confirmDialog(`Archive "${c.name}"? Its posts stay saved; the campaign just leaves this list.`, 'Archive')) return;
@@ -8002,6 +8003,101 @@ function openExport(campaignId) {
       const mk = await markScheduled(list, o, 'any'); if (mk) s.msg(m0 + mk, 'ok');
     }
   };
+}
+
+/* ── Auto-schedule with Claude (2026-11-06) ───────────────────────────────
+   The user's own Claude schedules their APPROVED posts in their own Metricool (Metricool's connector works on
+   every Metricool plan). We hand Claude each post through the content-agent connector: exact caption per account,
+   images, date and time. Nothing goes to a social network directly. Reuses the export builders above. */
+async function caCall(body) {
+  const r = await fetch(FN('content-agent'), { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()), body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.ok === false) throw new Error(j.error || 'Something went wrong. Try again.');
+  return j;
+}
+function openAutoSchedule(campaignId) {
+  closeMenus();
+  if (!S.brand) return;
+  const camps = S.campaigns || [];
+  let live = true, data = null, newUrl = '';
+  const STATE = { queued: ['Waiting for Claude', ''], claimed: ['Claude is on it', ''], scheduled: ['Scheduled in Metricool', 'ok'], needs_user: ['Needs you', 'warn'], failed: ['Failed', 'warn'] };
+  const s = openSheet({
+    title: 'Auto-schedule with Claude',
+    onClose: () => { live = false; },
+    body: `<div class="stack">
+      <p class="small muted" style="margin:0">Your Claude schedules your approved posts in your Metricool, with the exact captions, images and times you see here. It never posts to a social network directly. Metricool does the posting.</p>
+      <div class="notice" style="margin:0"><b>One-time setup (2 minutes)</b><ol class="small" style="margin:6px 0 0 18px;padding:0;line-height:1.5">
+        <li>In Claude: Settings → Connectors → Browse, add <b>Metricool</b> (works on any Metricool plan, even Free).</li>
+        <li>Press <b>Make my link</b> below, then in Claude: Settings → Connectors → Add custom connector, paste the link.</li>
+        <li>Say to Claude: <i>“Schedule my next Alchemist posts.”</i></li></ol></div>
+      <div class="field"><span class="label">Your Claude link</span>
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><button type="button" class="btn btn-ghost btn-sm" id="caMake">Make my link</button><span class="small muted" id="caKeys"></span></div>
+        <div id="caNew" hidden style="margin-top:8px"><input class="input" id="caUrl" readonly style="font-family:monospace;font-size:12px"><div class="row" style="gap:8px;margin-top:6px"><button type="button" class="btn btn-gold btn-sm" id="caCopy">Copy link</button><span class="hint">Shown once. Keep it private: anyone with it can schedule your approved posts.</span></div></div></div>
+      <div class="grid2">
+        <div class="field"><label for="caMc">Brand name in Metricool <span class="muted">(if different)</span></label><input class="input" id="caMc" maxlength="80" placeholder="${esc(S.brand)}"></div>
+        <div class="field"><label for="caCap">Most posts per day</label><select class="select" id="caCap"><option>3</option><option>5</option><option selected>10</option><option>20</option><option>30</option></select></div>
+      </div>
+      <label class="check-row"><input type="checkbox" id="caDraft"><span>Save them in Metricool as drafts (I schedule them there)</span></label>
+      <label class="check-row"><input type="checkbox" id="caOn"><span><b>Let my Claude schedule posts</b> (switch off to pause)</span></label>
+      <hr style="border:0;border-top:1px solid var(--line,#ddd);margin:4px 0">
+      <div class="grid2">
+        <div class="field"><label for="caCamp">Posts from</label><select class="select" id="caCamp"><option value="">All campaigns</option>${camps.map((c) => `<option value="${esc(c.id)}"${c.id === campaignId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
+        <div class="field"><label for="caTime">Post at <span class="muted">(when a post has no time)</span></label><input class="input" type="time" id="caTime" value="09:00"></div>
+      </div>
+      <div id="caSum" class="notice" style="margin:0"></div>
+      <div class="field"><span class="label">Queue</span><div id="caList" class="small"></div></div>
+    </div>`,
+    foot: `<span class="msg"></span><button type="button" class="btn btn-ghost" data-close>Close</button><button type="button" class="btn btn-gold" id="caSend">Send to Claude</button>`,
+  });
+  const el = s.el;
+  const opts = () => ({ campaignId: $('#caCamp', el).value, from: todayYmd(), to: '', drafts: false, time: $('#caTime', el).value || '09:00', tagsInComment: false });
+  const items = () => exportPosts(opts()).map((p) => {
+    const groups = new Map();
+    exportPlatforms(p).forEach((n) => { const k = platKey(n); if (!k || !MC_NET[n] || n === 'YouTube') return; const t = captionOf(p, opts(), k); if (!groups.has(t)) groups.set(t, []); groups.get(t).push(k); });
+    return { sku: p.sku, at: `${String(p.scheduled_date).slice(0, 10)}T${String(timeOf(p, opts().time)).slice(0, 5)}`, tz: userTz(), location: p.include_location_tag === false ? '' : (p.location_tag || ''), groups: [...groups].map(([text, networks]) => ({ networks, text })) };
+  });
+  const paintSum = () => {
+    const sent = new Set(((data && data.items) || []).filter((x) => x.state !== 'failed' && x.state !== 'needs_user').map((x) => x.sku));
+    const list = items().filter((i) => i.groups.length), fresh = list.filter((i) => !sent.has(i.sku));
+    $('#caSum', el).textContent = list.length ? `${fresh.length} approved post${fresh.length === 1 ? '' : 's'} ready to send${list.length - fresh.length ? ` (${list.length - fresh.length} already with Claude)` : ''}.` : 'No approved posts with an image, a date and an account to post to. Approve some first.';
+    $('#caSend', el).disabled = !fresh.length;
+  };
+  const paintList = () => {
+    const box = $('#caList', el), arr = (data && data.items) || [];
+    box.innerHTML = arr.length ? arr.map((x) => { const [lab, cls] = STATE[x.state] || [x.state, '']; return `<div class="row" style="gap:8px;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line,#eee)"><span>${esc(x.title || x.sku)} <span class="muted">· ${esc(String(x.at || '').replace('T', ' '))} · ${esc((x.networks || []).join(', '))}</span>${x.reason ? `<br><span class="muted">${esc(x.reason)}</span>` : ''}</span><span style="white-space:nowrap"><span class="pill ${cls}">${esc(lab)}</span> ${x.state === 'needs_user' || x.state === 'failed' ? `<button type="button" class="btn btn-ghost btn-sm" data-ca="retry" data-sku="${esc(x.sku)}">Retry</button>` : ''}${x.state !== 'scheduled' && x.state !== 'claimed' ? `<button type="button" class="btn btn-ghost btn-sm" data-ca="remove" data-sku="${esc(x.sku)}">Remove</button>` : ''}</span></div>`; }).join('') : '<span class="muted">Nothing sent yet.</span>';
+    $('#caKeys', el).textContent = data && data.keys.length ? `${data.keys.length} link${data.keys.length === 1 ? '' : 's'} active${data.keys[0].last_used_at ? ', last used ' + new Date(data.keys[0].last_used_at).toLocaleString() : ', not used yet'}.` : 'No link yet.';
+    $$('[data-ca]', box).forEach((b) => b.onclick = async () => { b.disabled = true; try { await caCall({ action: b.dataset.ca, sku: b.dataset.sku }); await load(); } catch (e) { s.msg(e.message, 'err'); b.disabled = false; } });
+  };
+  const load = async () => {
+    try {
+      data = await caCall({ action: 'status' });
+      const st = data.settings;
+      if (!el.dataset.init) { el.dataset.init = '1'; $('#caOn', el).checked = !!st.on; $('#caDraft', el).checked = !!st.asDraft; $('#caCap', el).value = String(st.dailyCap); $('#caMc', el).value = st.mcBrands[S.brand] || ''; }
+      paintList(); paintSum();
+    } catch (e) { s.msg(e.message, 'err'); }
+  };
+  const save = async () => {
+    const st = (data && data.settings) || {}; const mc = Object.assign({}, st.mcBrands || {}); const v = $('#caMc', el).value.trim(); if (v) mc[S.brand] = v; else delete mc[S.brand];
+    try { await caCall({ action: 'save_settings', on: $('#caOn', el).checked, dailyCap: Number($('#caCap', el).value), asDraft: $('#caDraft', el).checked, mcBrands: mc, pinterestBoard: st.pinterestBoard || '' }); s.msg('Saved.', 'ok'); await load(); } catch (e) { s.msg(e.message, 'err'); }
+  };
+  ['#caOn', '#caDraft', '#caCap'].forEach((id) => $(id, el).addEventListener('change', save)); $('#caMc', el).addEventListener('change', save);
+  ['#caCamp', '#caTime'].forEach((id) => $(id, el).addEventListener('change', paintSum));
+  $('#caMake', el).onclick = async () => {
+    try { const r = await caCall({ action: 'create_key', label: 'Claude (Content)' }); newUrl = r.url; $('#caUrl', el).value = newUrl; $('#caNew', el).hidden = false; await load(); } catch (e) { s.msg(e.message, 'err'); }
+  };
+  $('#caCopy', el).onclick = async () => { try { await navigator.clipboard.writeText(newUrl); s.msg('Copied. Paste it into Claude as a custom connector.', 'ok'); } catch (_e) { $('#caUrl', el).select(); s.msg('Select the link and copy it.', 'info'); } };
+  $('#caSend', el).onclick = async () => {
+    const list = items().filter((i) => i.groups.length); if (!list.length) return;
+    $('#caSend', el).disabled = true;
+    try {
+      if (!(data && data.settings && data.settings.on)) { $('#caOn', el).checked = true; await save(); }
+      const r = await caCall({ action: 'queue', items: list });
+      s.msg(`Sent ${r.queued} to Claude.${r.skipped.length ? ' Skipped ' + r.skipped.length + ': ' + r.skipped.slice(0, 3).map((x) => x.sku + ' (' + x.why + ')').join(', ') + '.' : ''} Now tell Claude: “Schedule my next Alchemist posts.”`, r.queued ? 'ok' : 'warn');
+      await load();
+    } catch (e) { s.msg(e.message, 'err'); $('#caSend', el).disabled = false; }
+  };
+  load();
+  const tick = setInterval(() => { if (!live || !el.isConnected) { clearInterval(tick); return; } load(); }, 20000);
 }
 
 </script>

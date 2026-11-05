@@ -63,3 +63,6 @@ verify_jwt = false
 
 [functions.create-stripe-checkout]
 verify_jwt = true
+
+[functions.content-agent]
+verify_jwt = false
