@@ -1,3 +1,4 @@
+// reach-agent: bounce handling, account check, clean email links (auto-deployed from GitHub)
 // reach-agent — lets a user's OWN agent (Claude Cowork, another desktop agent) work the Reach rows the user has
 // APPROVED for automation: send the email, submit the web form, send the follow-up, then report back.
 // Deploy with verify_jwt=false. Auth: x-reach-key / Bearer rak_… / ?key=rak_… for the agent (MCP over HTTP),
