@@ -1411,7 +1411,7 @@ function renderLogin(msg = '', kind = '') {
       // sign-in; signup_app marks new accounts made here.
       const res = await fetch(SUPABASE_URL + '/auth/v1/otp?redirect_to=' + encodeURIComponent(location.origin + '/dashboard/'), {
         method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, create_user: true, data: { signup_app: 'alchemist', terms_version: TERMS_VERSION, terms_shown_at: new Date().toISOString() }, options: { emailRedirectTo: location.origin + '/dashboard/' } }),
+        body: JSON.stringify({ email, create_user: true, data: { signup_app: 'alchemist', fma_sid: (function () { try { return sessionStorage.getItem('fma-sid') || ''; } catch (_e) { return ''; } })(), terms_version: TERMS_VERSION, terms_shown_at: new Date().toISOString() }, options: { emailRedirectTo: location.origin + '/dashboard/' } }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -6582,11 +6582,12 @@ async function tagAlchemistUser() {
 }
 async function siteSignupCheck() {
   try {
-    const sid = sessionStorage.getItem('fma-sid');
-    if (!sid || localStorage.getItem('fma-site-signup') || localStorage.getItem('fma-no-track') === '1' || navigator.doNotTrack === '1' || !session) return;
-    localStorage.setItem('fma-site-signup', '1');
+    if (localStorage.getItem('fma-site-signup') || localStorage.getItem('fma-no-track') === '1' || navigator.doNotTrack === '1' || !session) return;
     const u = await fetch(SUPABASE_URL + '/auth/v1/user', { headers: authHeaders() }).then((r) => (r.ok ? r.json() : null));
-    if (!u || !u.created_at || Date.now() - Date.parse(u.created_at) > 3600000) return;
+    // the magic link opens in a new tab, so the visit id also travels inside the sign-in request (user_metadata.fma_sid)
+    const sid = sessionStorage.getItem('fma-sid') || (u && u.user_metadata && u.user_metadata.fma_sid) || '';
+    if (!u || !sid || !u.created_at || Date.now() - Date.parse(u.created_at) > 86400000) return;
+    localStorage.setItem('fma-site-signup', '1');
     await fetch(SUPABASE_URL + '/rest/v1/rpc/site_track', {
       method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
       body: JSON.stringify({ p_sid: sid, p_event: 'signup', p_path: '/dashboard/', p_extra: { uid: u.id, tz: (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_e) { return ''; } })() } }),

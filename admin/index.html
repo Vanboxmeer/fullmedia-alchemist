@@ -307,7 +307,7 @@ a{color:var(--gold)}
   /* People: everyone who signed up, how they found us, roughly where, their plans, and the account actions. */
   var peopleQ = "", peopleF = "all", peopleScope = "alch", peopleData = null;
   /* One login system is shared with SpinQuest and other apps, so "everyone" includes their players. Alchemist = has a brand, client or plan, or signed up in the last 14 days (so a brand-new signup is never hidden). */
-  function isAlch(p) { return !!(p.brands.length || p.client_id || p.content || p.reach || p.is_admin || (Date.now() - new Date(p.created_at).getTime()) < 14 * 86400000); }
+  function isAlch(p) { return !!(p.signup_app === "alchemist" || p.brands.length || p.client_id || p.content || p.reach || p.is_admin || (Date.now() - new Date(p.created_at).getTime()) < 14 * 86400000); }
   var AREA = { America: "Americas", Europe: "Europe", Asia: "Asia", Africa: "Africa", Australia: "Oceania", Pacific: "Oceania", Atlantic: "Atlantic", Indian: "Indian Ocean" };
   function region(tz) { if (!tz) return "\u2014"; var p = String(tz).split("/"); return (p[p.length - 1] || "").replace(/_/g, " ") + (AREA[p[0]] ? " \u00b7 " + AREA[p[0]] : ""); }
   function ago(d) { if (!d) return "\u2014"; var m = Math.floor((Date.now() - Date.parse(d)) / 60000); if (m < 60) return Math.max(m, 1) + "m ago"; if (m < 2880) return Math.floor(m / 60) + "h ago"; return Math.floor(m / 1440) + "d ago"; }

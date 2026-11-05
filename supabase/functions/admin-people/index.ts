@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
       const um = u.user_metadata || {};
       return {
         id: u.id, email: u.email, name: um.full_name || um.name || null,
-        created_at: u.created_at, last_sign_in_at: u.last_sign_in_at || null,
+        created_at: u.created_at, last_sign_in_at: u.last_sign_in_at || null, signup_app: um.signup_app || null,
         provider: (u.app_metadata && u.app_metadata.provider) || ((u.identities && u.identities[0] && u.identities[0].provider) || 'email'),
         confirmed: !!u.email_confirmed_at, tz: um.tz || null, lang: um.lang || um.locale || null,
         brands: bl.map((b) => b.brand), client_id: cid, client_name: cid ? clientName.get(cid) || null : null,
