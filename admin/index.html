@@ -305,7 +305,9 @@ a{color:var(--gold)}
     Array.prototype.forEach.call(box.querySelectorAll("[data-f]"), function (b) { b.onclick = function () { tkFilter = b.getAttribute("data-f"); loadTickets(); }; });
   }
   /* People: everyone who signed up, how they found us, roughly where, their plans, and the account actions. */
-  var peopleQ = "", peopleF = "all", peopleData = null;
+  var peopleQ = "", peopleF = "all", peopleScope = "alch", peopleData = null;
+  /* One login system is shared with SpinQuest and other apps, so "everyone" includes their players. Alchemist = has a brand, client or plan, or signed up in the last 14 days (so a brand-new signup is never hidden). */
+  function isAlch(p) { return !!(p.brands.length || p.client_id || p.content || p.reach || p.is_admin || (Date.now() - new Date(p.created_at).getTime()) < 14 * 86400000); }
   var AREA = { America: "Americas", Europe: "Europe", Asia: "Asia", Africa: "Africa", Australia: "Oceania", Pacific: "Oceania", Atlantic: "Atlantic", Indian: "Indian Ocean" };
   function region(tz) { if (!tz) return "\u2014"; var p = String(tz).split("/"); return (p[p.length - 1] || "").replace(/_/g, " ") + (AREA[p[0]] ? " \u00b7 " + AREA[p[0]] : ""); }
   function ago(d) { if (!d) return "\u2014"; var m = Math.floor((Date.now() - Date.parse(d)) / 60000); if (m < 60) return Math.max(m, 1) + "m ago"; if (m < 2880) return Math.floor(m / 60) + "h ago"; return Math.floor(m / 1440) + "d ago"; }
@@ -330,7 +332,9 @@ a{color:var(--gold)}
   function drawPeople() {
     var box = document.getElementById("ppBody"), d = peopleData; box.className = "";
     var q = peopleQ.toLowerCase();
+    var nAlch = d.people.filter(isAlch).length;
     var list = d.people.filter(function (p) {
+      if (peopleScope === "alch" && !isAlch(p)) return false;
       if (q && (p.email + " " + (p.name || "") + " " + p.brands.join(" ") + " " + region(p.tz)).toLowerCase().indexOf(q) < 0) return false;
       var c = p.content, free = !c || c.plan_key === "free";
       if (peopleF === "paying") return c && c.pays_by_card;
@@ -339,10 +343,10 @@ a{color:var(--gold)}
       if (peopleF === "nobrand") return !p.brands.length;
       return true;
     });
-    box.innerHTML = '<div class="pf"><input id="ppQ" placeholder="Search email, name, brand or place" value="' + esc(peopleQ) + '"><span class="seg2">' +
+    box.innerHTML = '<div class="pf"><span class="seg2"><button type="button" data-ps="alch" aria-pressed="' + (peopleScope === "alch") + '">Alchemist (' + n(nAlch) + ')</button><button type="button" data-ps="all" aria-pressed="' + (peopleScope === "all") + '">Everyone (' + n(d.people.length) + ')</button></span><input id="ppQ" placeholder="Search email, name, brand or place" value="' + esc(peopleQ) + '"><span class="seg2">' +
       [["all", "All"], ["paying", "Paying"], ["comped", "Comped"], ["free", "Free"], ["nobrand", "No brand yet"]].map(function (x) { return '<button type="button" data-pf="' + x[0] + '" aria-pressed="' + (peopleF === x[0]) + '">' + x[1] + "</button>"; }).join("") + '</span></div>' +
       '<div class="pp"><div class="prh phd"><span>Person</span><span>Signed up</span><span>How they came</span><span>Where</span><span>Plans</span><span>Used 30d</span></div><div id="ppList"></div></div>' +
-      '<p class="note">' + n(list.length) + " of " + n(d.people.length) + ". Region is a guess from the browser timezone (no IP kept), so older accounts fill in as people next open the app. \u201cHow they came\u201d only exists for sign-ups after the visit counter linked them; the rest show how they log in.</p>";
+      '<p class="note">' + n(list.length) + " of " + n(d.people.length) + ". " + (peopleScope === "alch" ? "Accounts from SpinQuest and other apps share this login system. They are hidden here, and appear under Everyone. " : "") + "Region is a guess from the browser timezone (no IP kept), so older accounts fill in as people next open the app. \u201cHow they came\u201d only exists for sign-ups after the visit counter linked them; the rest show how they log in.</p>";
     var ul = document.getElementById("ppList");
     list.slice(0, 200).forEach(function (p) {
       var row = document.createElement("div"); row.className = "pr";
@@ -356,6 +360,7 @@ a{color:var(--gold)}
       ul.appendChild(row);
     });
     document.getElementById("ppQ").oninput = function (e) { peopleQ = e.target.value; clearTimeout(drawPeople.t); drawPeople.t = setTimeout(function () { drawPeople(); var i = document.getElementById("ppQ"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250); };
+    Array.prototype.forEach.call(box.querySelectorAll("[data-ps]"), function (b) { b.onclick = function () { peopleScope = b.getAttribute("data-ps"); drawPeople(); }; });
     Array.prototype.forEach.call(box.querySelectorAll("[data-pf]"), function (b) { b.onclick = function () { peopleF = b.getAttribute("data-pf"); drawPeople(); }; });
   }
   function fillDetail(dt, p) {
