@@ -8281,7 +8281,7 @@ function openAutoSchedule(campaignId) {
     const offOut = {}; brands.forEach((b) => { if (off[b]) offOut[b] = true; });
     const mcOut = {}; brands.forEach((b) => { if (mc[b]) mcOut[b] = mc[b]; });
     const bd = {}; brands.forEach((b) => { bd[b] = boards[b] || ''; });
-    try { await caCall({ action: 'save_settings', on: $('#caOn', el).checked, mode: mode(), dailyCap: Number($('#caCap', el).value), gapSec: Number($('#caGap', el).value), asDraft: $('#caDraft', el).checked, mcBrands: mcOut, accounts: acc, pinterestBoards: bd, brandsOff: offOut }); s.msg('Saved.', 'ok'); const keep = data; await load(); if (!data) data = keep; } catch (e) { s.msg(e.message, 'err'); }
+    try { await caCall({ action: 'save_settings', on: $('#caOn', el).checked, mode: mode(), dailyCap: Number($('#caCap', el).value), gapSec: Number($('#caGap', el).value), asDraft: $('#caDraft', el).checked, mcBrands: mcOut, accounts: acc, pinterestBoards: bd, pinterestBoard: boards[S.brand] || '', brandsOff: offOut }); s.msg('Saved.', 'ok'); const keep = data; await load(); if (!data) data = keep; } catch (e) { s.msg(e.message, 'err'); }
   };
   ['#caOn', '#caDraft', '#caCap', '#caGap'].forEach((id) => $(id, el).addEventListener('change', save));
   $('#caMode', el).addEventListener('change', () => { paintMode(); paintBrands(); paintSum(); save(); });
