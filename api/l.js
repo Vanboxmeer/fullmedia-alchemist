@@ -1,6 +1,7 @@
 // Short-link redirect for brands' OWN domains (e.g. go.theirbrand.com/ab3k9xz).
 // Routed by vercel.json: any host that is not ours -> /api/l?code=<code>. Counts one visit per human click
-// (a daily total, not a row per click), never counts bots or link-preview fetches, and always redirects.
+// (a daily total, not a row per click), never counts bots or link-preview fetches, stops counting past the plan's monthly cap
+// (still redirects, from the CDN cache), and always redirects.
 const SB_URL = 'https://tpqvvrdglnsdljdpzwfl.supabase.co';
 // Public anon key: it can only call fma_link_resolve, which returns a destination and bumps a counter.
 const KEY = process.env.JOURNAL_SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwcXZ2cmRnbG5zZGxqZHB6d2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0OTEwMTAsImV4cCI6MjA5NzA2NzAxMH0.gxr0vEWFBwPp8ErX41rHNFV0aMU_lhiceFhY64iA7Ko';
@@ -27,11 +28,13 @@ module.exports = async (req, res) => {
       headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({ p_host: host, p_code: code, p_bot: bot }),
     });
-    const target = r.ok ? await r.json() : null;
+    const out = r.ok ? await r.json() : null;
+    const target = out && out.url;
     if (typeof target === 'string' && /^https?:\/\//i.test(target)) {
       res.statusCode = 302;
       res.setHeader('Location', target);
-      res.setHeader('Cache-Control', 'no-store');
+      // counted visits are never cached; everything else (bots, past the monthly cap) can be, so a viral link costs almost nothing
+      res.setHeader('Cache-Control', out.counted ? 'no-store' : 'public, s-maxage=3600, stale-while-revalidate=86400');
       res.setHeader('Referrer-Policy', 'no-referrer-when-downgrade');
       return res.end();
     }

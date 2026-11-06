@@ -1,5 +1,5 @@
 -- Tracking links (2026-11-07): per-brand tagged URLs (Step 1) and short links on the brand's OWN domain (Step 2).
--- Paid plans only (cc_plans.sort_order >= 1). Access is only through the links-api / reach-agent edge functions and the
+-- Growth and Agency plans only (cc_plans.sort_order >= 2). Access is only through the links-api / reach-agent edge functions and the
 -- redirect function; tables have RLS on and no policies.
 create table if not exists public.fma_link_settings (
   client_id uuid not null, brand text not null,
@@ -28,6 +28,8 @@ create table if not exists public.fma_links (
 );
 create unique index if not exists fma_links_dedupe on public.fma_links (client_id, brand, kind, ref, network, target_url);
 create index if not exists fma_links_brand on public.fma_links (client_id, brand);
+-- daily rows older than 90 days are rolled into this running total, so storage stays flat however many years of posts a brand has
+alter table public.fma_links add column if not exists clicks_total bigint not null default 0;
 -- one row per link per day, not one per click (a brand with millions of clicks stays cheap)
 create table if not exists public.fma_link_daily (
   link_id uuid not null references public.fma_links(id) on delete cascade,
@@ -36,6 +38,13 @@ create table if not exists public.fma_link_daily (
   bot_clicks integer not null default 0,
   primary key (link_id, day)
 );
+-- monthly counted clicks per account (cost guard): past the cap links still redirect but are served from the CDN cache and not counted
+create table if not exists public.fma_link_month (
+  client_id uuid not null, month date not null, clicks integer not null default 0,
+  primary key (client_id, month)
+);
+alter table public.fma_link_month enable row level security;
+revoke all on public.fma_link_month from anon, authenticated;
 alter table public.fma_link_settings enable row level security;
 alter table public.fma_link_domains  enable row level security;
 alter table public.fma_links         enable row level security;
@@ -45,7 +54,7 @@ revoke all on public.fma_link_settings, public.fma_link_domains, public.fma_link
 create or replace function public.fma_paid(p_client uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from cc_subscriptions s join cc_plans p on p.id = s.plan_id
-                 where s.client_id = p_client and s.status in ('active','trialing') and p.sort_order >= 1);
+                 where s.client_id = p_client and s.status in ('active','trialing') and p.sort_order >= 2);
 $$;
 
 create or replace function public.fma_track_info(p_client uuid, p_brand text) returns jsonb
@@ -69,6 +78,7 @@ begin
   v_host := info->>'host';
   select code into v_code from fma_links where client_id = p_client and brand = p_brand and kind = p_kind and ref = p_ref and network = p_network and target_url = p_target;
   if found then return 'https://' || v_host || '/' || v_code; end if;
+  if (select count(*) from fma_links where client_id = p_client) >= fma_link_cap(p_client) then return null; end if;
   for v_i in 1..8 loop
     v_code := '';
     for k in 1..7 loop v_code := v_code || substr(v_chars, 1 + floor(random() * length(v_chars))::int, 1); end loop;
@@ -84,21 +94,60 @@ begin
   return null;
 end $$;
 
--- called by the redirect function with the public key: returns where to send the visitor and counts the visit
-create or replace function public.fma_link_resolve(p_host text, p_code text, p_bot boolean default false) returns text
+create or replace function public.fma_click_cap(p_client uuid) returns integer
+language sql stable security definer set search_path = public as $$
+  select coalesce((select case p.sort_order when 2 then 100000 when 3 then 1000000 else 0 end
+                   from cc_subscriptions s join cc_plans p on p.id = s.plan_id
+                   where s.client_id = p_client and s.status in ('active','trialing') and p.sort_order >= 2
+                   order by p.sort_order desc limit 1), 0);
+$$;
+
+-- how many short links one account may hold (cost guard); past it the app falls back to the tagged long link, which costs nothing
+create or replace function public.fma_link_cap(p_client uuid) returns integer
+language sql stable security definer set search_path = public as $$
+  select case when fma_click_cap(p_client) >= 1000000 then 50000 when fma_click_cap(p_client) > 0 then 5000 else 0 end;
+$$;
+
+create or replace function public.fma_link_rollup(p_client uuid) returns void
+language sql security definer set search_path = public as $$
+  with old as (
+    select d.link_id, sum(d.clicks)::bigint c from fma_link_daily d join fma_links l on l.id = d.link_id
+    where l.client_id = p_client and d.day < (now() at time zone 'utc')::date - 90 group by d.link_id),
+  upd as (update fma_links l set clicks_total = l.clicks_total + o.c from old o where l.id = o.link_id returning l.id)
+  delete from fma_link_daily d using fma_links l
+  where l.id = d.link_id and l.client_id = p_client and d.day < (now() at time zone 'utc')::date - 90;
+$$;
+
+create or replace function public.fma_link_usage(p_client uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('used', coalesce((select clicks from fma_link_month where client_id = p_client and month = date_trunc('month', now() at time zone 'utc')::date), 0),
+                            'cap', fma_click_cap(p_client));
+$$;
+
+-- called by the redirect function with the public key: returns where to send the visitor, and whether the visit was counted.
+-- Bots and link-preview fetches are never counted or written. Past the monthly cap the redirect still works (links never break)
+-- but is not counted, so the redirect function lets the CDN cache it.
+drop function if exists public.fma_link_resolve(text, text, boolean);
+create or replace function public.fma_link_resolve(p_host text, p_code text, p_bot boolean default false) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare v_id uuid; v_target text;
+declare v_id uuid; v_client uuid; v_target text; v_cap int; v_used int; v_month date := date_trunc('month', now() at time zone 'utc')::date;
 begin
   if coalesce(p_code, '') = '' then
     select home_url into v_target from fma_link_domains where hostname = lower(p_host);
-    return v_target;
+    if v_target is null then return null; end if;
+    return jsonb_build_object('url', v_target, 'counted', false);
   end if;
-  select id, target_url into v_id, v_target from fma_links where host = lower(p_host) and code = p_code;
+  select id, client_id, target_url into v_id, v_client, v_target from fma_links where host = lower(p_host) and code = p_code;
   if not found then return null; end if;
-  insert into fma_link_daily (link_id, day, clicks, bot_clicks)
-  values (v_id, (now() at time zone 'utc')::date, case when p_bot then 0 else 1 end, case when p_bot then 1 else 0 end)
-  on conflict (link_id, day) do update set clicks = fma_link_daily.clicks + excluded.clicks, bot_clicks = fma_link_daily.bot_clicks + excluded.bot_clicks;
-  return v_target;
+  if p_bot then return jsonb_build_object('url', v_target, 'counted', false); end if;
+  v_cap := fma_click_cap(v_client);
+  select clicks into v_used from fma_link_month where client_id = v_client and month = v_month;
+  if coalesce(v_used, 0) >= v_cap then return jsonb_build_object('url', v_target, 'counted', false, 'over', true); end if;
+  insert into fma_link_month (client_id, month, clicks) values (v_client, v_month, 1)
+    on conflict (client_id, month) do update set clicks = fma_link_month.clicks + 1;
+  insert into fma_link_daily (link_id, day, clicks) values (v_id, (now() at time zone 'utc')::date, 1)
+    on conflict (link_id, day) do update set clicks = fma_link_daily.clicks + 1;
+  return jsonb_build_object('url', v_target, 'counted', true);
 end $$;
 
 create or replace function public.fma_link_stats(p_client uuid, p_brand text, p_days int default 30) returns jsonb
@@ -116,6 +165,6 @@ language sql stable security definer set search_path = public as $$
     'byCampaign', coalesce((select jsonb_object_agg(campaign, c) from (select campaign, sum(clicks)::int c from d where clicks > 0 and campaign <> '' group by campaign) n), '{}'::jsonb));
 $$;
 
-revoke all on function public.fma_paid(uuid), public.fma_track_info(uuid, text), public.fma_make_link(uuid, text, text, text, text, text, text), public.fma_link_stats(uuid, text, int), public.fma_link_resolve(text, text, boolean) from public, anon, authenticated;
-grant execute on function public.fma_paid(uuid), public.fma_track_info(uuid, text), public.fma_make_link(uuid, text, text, text, text, text, text), public.fma_link_stats(uuid, text, int) to service_role;
+revoke all on function public.fma_link_cap(uuid), public.fma_link_rollup(uuid), public.fma_click_cap(uuid), public.fma_link_usage(uuid), public.fma_paid(uuid), public.fma_track_info(uuid, text), public.fma_make_link(uuid, text, text, text, text, text, text), public.fma_link_stats(uuid, text, int), public.fma_link_resolve(text, text, boolean) from public, anon, authenticated;
+grant execute on function public.fma_link_cap(uuid), public.fma_link_rollup(uuid), public.fma_click_cap(uuid), public.fma_link_usage(uuid), public.fma_paid(uuid), public.fma_track_info(uuid, text), public.fma_make_link(uuid, text, text, text, text, text, text), public.fma_link_stats(uuid, text, int) to service_role;
 grant execute on function public.fma_link_resolve(text, text, boolean) to anon, authenticated, service_role;

@@ -8055,8 +8055,11 @@ async function trkLoad(force) {
 async function trkPrime() {
   const brand = S.brand, t = S.trk[brand]; if (!t || !t.short) return;
   const items = [], seen = new Set();
+  // only posts going out soon (or just gone out): old posts never get new short links, so a brand's history does not grow the bill
+  const from = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
   (S.posts || []).forEach((p) => {
     if (!p.content_link || !trkIsOwn(p.content_link)) return;
+    if (!p.scheduled_date || String(p.scheduled_date).slice(0, 10) < from) return;
     const nets = targetKeys(p);
     (nets.length ? nets : ['']).forEach((k) => {
       const tagged = t.tag ? trkTag(p.content_link, p, k) : p.content_link, key = brand + '|' + p.sku + '|' + k + '|' + tagged;
@@ -8079,7 +8082,7 @@ async function wireTracking(el) {
   const paint = () => {
     if (!r) return;
     if (!r.eligible) {
-      box.innerHTML = `<div class="notice" style="margin:0">Tracking links come with a paid plan. They tag your links so you can see which posts bring visitors, and let you use short links on your own domain. <a href="#" data-trk-plan style="color:var(--gold)">See plans</a></div>`;
+      box.innerHTML = `<div class="notice" style="margin:0">Tracking links come with the Growth and Agency plans. They tag your links so you can see which posts bring visitors, and let you use short links on your own domain. <a href="#" data-trk-plan style="color:var(--gold)">See plans</a></div>`;
       $('[data-trk-plan]', box).onclick = (e) => { e.preventDefault(); openPlan(); };
       return;
     }
@@ -8099,6 +8102,7 @@ async function wireTracking(el) {
       </div>
       <div class="field"><span class="label" data-info="Visits that came through your short links in the last 30 days. Bots and link-preview fetches are not counted. Visits to tagged page links show up in your own analytics, not here.">Short-link clicks, last 30 days</span>
         ${Number(st.links) ? `<div class="small"><b>${Number(st.total || 0).toLocaleString()}</b> clicks across ${Number(st.links).toLocaleString()} links</div>${clicks ? `<div class="small stack" style="gap:4px;margin-top:6px">${clicks}</div>` : ''}` : `<span class="hint">No short links yet.</span>`}</div>
+      ${r.usage && r.usage.cap ? `<span class="small muted" data-info="Your plan includes a monthly number of counted short-link clicks. Past it, your short links keep working and still send people to your page, but the extra clicks are not counted.">${Number(r.usage.used).toLocaleString()} of ${Number(r.usage.cap).toLocaleString()} counted clicks used this month</span>` : ''}
       <span class="small muted" id="trkMsg" aria-live="polite"></span>`;
     wire();
   };

@@ -14,6 +14,7 @@ const VT = Deno.env.get("VERCEL_TOKEN") || "";
 const VP = Deno.env.get("VERCEL_PROJECT_ID") || "content-conveyor-belt";
 const VTEAM = Deno.env.get("VERCEL_TEAM_ID") || "";
 const CNAME_TARGET = "cname.vercel-dns.com";
+const lastRollup = new Map<string, number>();
 
 const CORS = {
   "access-control-allow-origin": "*",
@@ -63,11 +64,12 @@ async function info(client: string, brand: string) {
 }
 
 async function status(client: string, brand: string, days = 30) {
-  const [inf, st, dom, stats] = await Promise.all([
+  const [inf, st, dom, stats, usage] = await Promise.all([
     info(client, brand),
     admin.from("fma_link_settings").select("tag_urls,short_enabled").eq("client_id", client).eq("brand", brand).maybeSingle(),
     admin.from("fma_link_domains").select("hostname,status,note,home_url,created_at,verified_at").eq("client_id", client).eq("brand", brand).maybeSingle(),
     admin.rpc("fma_link_stats", { p_client: client, p_brand: brand, p_days: days }),
+    admin.rpc("fma_link_usage", { p_client: client }),
   ]);
   const s: any = st.data || {};
   return {
@@ -76,6 +78,7 @@ async function status(client: string, brand: string, days = 30) {
     active: { tag: inf.tag, short: inf.short, host: inf.host },
     domain: dom.data || null, dnsTarget: CNAME_TARGET, domainsReady: !!VT,
     stats: stats.data || { total: 0, links: 0, top: [], byNetwork: {}, byCampaign: {} },
+    usage: usage.data || { used: 0, cap: 0 },
   };
 }
 
@@ -94,13 +97,13 @@ async function act(u: { uid: string; client: string | null; brands: Set<string> 
       updated_at: new Date().toISOString(),
     };
     if (!(await info(client, brand)).eligible && (data.tag_urls !== cur.tag_urls || data.short_enabled !== cur.short_enabled))
-      return { ok: false, error: "Tracking links are on paid plans. Upgrade to turn them on.", upgrade: true };
+      return { ok: false, error: "Tracking links are on the Growth and Agency plans. Upgrade to turn them on.", upgrade: true };
     await admin.from("fma_link_settings").upsert(data, { onConflict: "client_id,brand" });
     return await status(client, brand);
   }
 
   if (action === "add_domain") {
-    if (!(await info(client, brand)).eligible) return { ok: false, error: "Short links on your own domain are on paid plans.", upgrade: true };
+    if (!(await info(client, brand)).eligible) return { ok: false, error: "Short links on your own domain are on the Growth and Agency plans.", upgrade: true };
     if (!VT) return { ok: false, error: "Own-domain short links are not switched on yet. We will let you know when they are." };
     const host = cleanHost(body.hostname);
     if (!host) return { ok: false, error: "Use a subdomain you own, like go.yourbrand.com (not your main domain)." };
@@ -155,6 +158,7 @@ async function act(u: { uid: string; client: string | null; brands: Set<string> 
   if (action === "ensure") {
     const inf = await info(client, brand);
     if (!inf.short) return { ok: true, map: {} };
+    if (Date.now() - (lastRollup.get(client) || 0) > 3600_000) { lastRollup.set(client, Date.now()); await admin.rpc("fma_link_rollup", { p_client: client }); }
     const items = (Array.isArray(body.items) ? body.items : []).slice(0, 300);
     const map: Record<string, string> = {};
     for (const it of items) {
