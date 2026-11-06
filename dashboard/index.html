@@ -8096,7 +8096,13 @@ async function wireTracking(el) {
         <div class="row" style="gap:8px;flex-wrap:wrap"><input class="input" id="trkHost" maxlength="100" placeholder="go.yourbrand.com" inputmode="url" autocapitalize="off" spellcheck="false" aria-label="Your short-link domain" style="flex:1;min-width:180px"><button type="button" class="btn btn-ghost" id="trkAdd">Connect</button></div>
         <span class="hint">Use a subdomain of a domain you own, like go.yourbrand.com. You will add one DNS record next.</span>` : `
         <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(host)}</b><span class="pill ${live ? 'ok' : 'warn'}">${live ? 'Connected' : 'Waiting for your DNS record'}</span></div>
-        ${live ? '' : `<div class="notice" style="margin:6px 0 0"><div class="small">At the company where you manage ${esc(host.split('.').slice(1).join('.'))}, add this record:</div><div class="small" style="margin-top:6px;font-family:monospace">Type: CNAME<br>Name: ${esc(first)} <span class="muted">(or ${esc(host)}, depending on your provider)</span><br>Value: ${esc(r.dnsTarget)}</div><div class="small muted" style="margin-top:6px">It can take a few minutes to a few hours to show up. ${d.note ? esc(d.note) : ''}</div></div>`}
+        ${live ? '' : `<div class="notice" style="margin:6px 0 0"><div class="small"><b>Two minutes in your domain settings</b></div>
+          <ol class="small" style="margin:6px 0 0 18px;padding:0;line-height:1.6">
+            <li>Log in where you manage ${esc(host.split('.').slice(1).join('.'))} (GoDaddy, Namecheap, Cloudflare, Squarespace, your web host…) and open <b>DNS settings</b>.</li>
+            <li>Add a new record:<div class="small" style="margin:4px 0;font-family:monospace;line-height:1.9">Type: <b>CNAME</b><br>Name: <b>${esc(first)}</b> <button type="button" class="btn btn-ghost btn-sm" data-trk-copy="${esc(first)}">Copy</button> <span class="muted" style="font-family:inherit">(some providers want the full ${esc(host)})</span><br>Value: <b>${esc(r.dnsTarget)}</b> <button type="button" class="btn btn-ghost btn-sm" data-trk-copy="${esc(r.dnsTarget)}">Copy</button></div></li>
+            <li>On Cloudflare, switch the orange cloud to grey (<b>DNS only</b>) for this record.</li>
+            <li>Save, then press <b>Check now</b> below. It can take a few minutes, sometimes a few hours, to show up. This page keeps checking.</li>
+          </ol>${d.note ? `<div class="small muted" style="margin-top:6px">${esc(d.note)}</div>` : ''}</div>`}
         <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px">${live ? '' : '<button type="button" class="btn btn-ghost btn-sm" id="trkCheck">Check now</button>'}<button type="button" class="btn btn-ghost btn-sm" id="trkRemove">Remove domain</button></div>
         ${live ? `<label class="check-row" style="margin-top:6px"><input type="checkbox" id="trkShort"${r.settings.short_enabled ? ' checked' : ''}><span><b>Use short links in my posts</b><br><span class="hint">Looks like ${esc(host)}/ab3k9xz. Your page tags are kept inside the short link.</span></span></label>` : ''}`}
       </div>
@@ -8117,11 +8123,13 @@ async function wireTracking(el) {
     if (g('trkShort')) g('trkShort').onchange = (e) => run({ action: 'save', short_enabled: e.target.checked }, 'Saved.');
     if (g('trkAdd')) g('trkAdd').onclick = () => run({ action: 'add_domain', hostname: g('trkHost').value }, 'Added. Now add the DNS record below.');
     if (g('trkCheck')) g('trkCheck').onclick = () => run({ action: 'check_domain' }, '');
+    $$('[data-trk-copy]', box).forEach((b) => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.trkCopy); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1500); } catch (_e) { msg('Select the text and copy it.', true); } });
     if (g('trkRemove')) g('trkRemove').onclick = () => { if (confirm('Remove this domain? Short links on it will stop working.')) run({ action: 'remove_domain' }, 'Removed.'); };
   };
   try { r = await tlCall({ action: 'status', brand }); } catch (e) { box.innerHTML = `<span class="hint">${esc(e.message)}</span>`; return; }
   paint();
   if (r.domain && r.domain.status !== 'active') run({ action: 'check_domain' }, '');
+  const poll = setInterval(() => { if (!el.isConnected) { clearInterval(poll); return; } if (r && r.domain && r.domain.status !== 'active') run({ action: 'check_domain' }, ''); }, 30000);
 }
 
 /* ── Auto-post with Claude (2026-11-06) ───────────────────────────────────
