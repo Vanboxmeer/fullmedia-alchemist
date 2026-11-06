@@ -5644,8 +5644,9 @@ function verifyCommunity(c,run,r,brand){
   if(dncHit(brand,name,emailOk?email:"")) return {why:"on the do-not-contact list",name};
   const bh=blockHit(brand,{name,site:url,urls:[url,c.sourceUrl],emails:emailOk?[email]:[],niche:c.niche,type:c.type,platform:c.platform}); if(bh) return {why:(bh.kind==="competitor"?"competitor of this brand ("+bh.term+")":"blocked word ("+bh.term+")"),name};
   const nk=squash(name);
-  const existing=state.options.find(o=>(squash(o.channelName)===nk)||(o.contactLink&&urlSq(o.contactLink)===urlSq(url)));
+  const existing=findExisting("option",{name,email:emailOk?email:"",link:url});
   if(existing){ const inBrand=(ix().byBrand.get(brand.id)||[]).some(d=>d.optionId===existing.id); if(inBrand) return {why:"already in this brand",name}; }
+  { const bd=brandDupHit(brand,{name,email:emailOk?email:"",urls:[url]}); if(bd) return {why:"already in this brand ("+bd+")",name}; }
   const plat=String((c.platform||"")+" "+url).toLowerCase();
   const via=emailOk?"email":/reddit/.test(plat)?"reddit":/discord/.test(plat)?"discord":/telegram|t\.me/.test(plat)?"telegram":"form";
   const label={open:"posting allowed",thread_only:"allowed in a promo thread only",ask_mods:"ask the mods first",submission:"submission / pitch route",unclear:"rules unclear"}[policy]||"rules unclear";
@@ -5671,6 +5672,25 @@ async function badPre(cands){ try{
   const dead=new Set(); await Promise.all([...new Set(em.map(e=>e.split("@")[1]))].map(async d=>{ try{ const q=async t=>(await fetch("https://cloudflare-dns.com/dns-query?name="+encodeURIComponent(d)+"&type="+t,{headers:{accept:"application/dns-json"}})).json(); const mx=await q("MX"); if(mx.Status===3) dead.add(d); else if(!(mx.Answer||[]).some(a=>a.type===15)){ const a=await q("A"); if(a.Status===3||!(a.Answer||[]).some(x=>x.type===1||x.type===28)) dead.add(d); } }catch(e){} }));
   cands.forEach(c=>{ const e=String(c&&c.contactEmail||"").trim().toLowerCase(); if(!e) return; const d=e.split("@")[1]; const why=bad.get(e)||bad.get(d)||(dead.has(d)?"domain doesn\u2019t exist or can\u2019t receive mail":""); if(why){ c._badWhy=why; c.contactEmail=""; } });
  }catch(e){} }
+/* ---- duplicate guard for Find more: same name, email, website/domain or profile link, in the brand and inside one run ---- */
+const FREE_MAIL=/^(gmail|googlemail|yahoo|ymail|outlook|hotmail|live|msn|icloud|me|aol|proton|protonmail|pm|gmx|mail|zoho|yandex|qq|163|126|fastmail|hey)\.[a-z.]+$/i;
+function dupKeys(o){
+  const k=[]; const nm=squash(o.name||"").replace(/^the(?=.{4})/,""); if(nm.length>=3) k.push("n:"+nm);
+  const em=String(o.email||"").trim().toLowerCase();
+  if(EMAIL_RE.test(em)&&!o.shared){ k.push("e:"+em.replace(/\+[^@]*@/,"@")); const dom=em.split("@")[1].replace(/^www\./,""); if(dom&&!FREE_MAIL.test(dom)&&!SOCIAL_RE.test(dom)) k.push("u:"+dom); }
+  (o.urls||[]).forEach(u=>{ const x=urlKey(u); if(x) k.push("u:"+x); });
+  return k;
+}
+function brandDupHit(brand,cand){
+  const ck=dupKeys(cand); if(!ck.length) return "";
+  for(const d of (ix().byBrand.get(brand.id)||[])){
+    const t=targetForDeal(d)||{}; const shared=!!(t.orderVia||t.inDeck||t.publicId||t.catalog==="upm-deck");
+    const tk=new Set(dupKeys({name:t.channelName||t.name||d.targetName,email:t.contactEmail,urls:[t.website,t.contactLink],shared}));
+    for(const x of ck) if(tk.has(x)) return x[0]==="n"?"same name":x[0]==="e"?"same email":"same website or profile";
+  }
+  return "";
+}
+function candKeys(v){ return dupKeys({name:v.name,email:v.email,urls:[v.url,v.raw&&v.raw.website,v.raw&&v.raw.contactUrl,v.raw&&v.raw.url]}); }
 function verifyCandidate(c,run,r,brand,ctx){
   if(r.mode==="communities"&&r.flow!=="lead") return verifyCommunity(c,run,r,brand);
   const lead=r.flow==="lead"; const need=(r.criteria||{}).needContact!==false;
@@ -5689,9 +5709,9 @@ function verifyCandidate(c,run,r,brand,ctx){
   if(dncHit(brand,name,emailOk?email:"")) return {why:"on the do-not-contact list",name};
   const bh=blockHit(brand,{name,site:c.website,urls:[cUrl,c.sourceUrl,c.website],emails:emailOk?[email]:[],niche:c.niche,type:c.type,platform:c.platform}); if(bh) return {why:(bh.kind==="competitor"?"competitor of this brand ("+bh.term+")":"blocked word ("+bh.term+")"),name};
   const nk=squash(name);
-  const existing=lead?state.leads.find(l=>(squash(l.name)===nk)||(emailOk&&(l.contactEmail||"").toLowerCase()===email))
-                     :state.options.find(o=>(squash(o.channelName)===nk)||(emailOk&&(o.contactEmail||"").toLowerCase()===email)||(urlOk&&o.contactLink&&urlSq(o.contactLink)===urlSq(cUrl)));
+  const existing=findExisting(lead?"lead":"option",{name,email:emailOk?email:"",link:urlOk?cUrl:"",site:/^https?:\/\//i.test(c.website||"")?c.website:""});
   if(existing){ const inBrand=(ix().byBrand.get(brand.id)||[]).some(d=>(lead?d.leadId:d.optionId)===existing.id); if(inBrand) return {why:"already in this brand",name}; }
+  { const bd=brandDupHit(brand,{name,email:emailOk?email:"",urls:[cUrl,c.website]}); if(bd) return {why:"already in this brand ("+bd+")",name}; }
   const src=/^https?:\/\//i.test(String(c.sourceUrl||""))&&urlIn(run,c.sourceUrl)?String(c.sourceUrl).trim():"";
   const quote=String(c.evidenceQuote||"").trim(); const quoteOk=quote.length>=10&&chunkHas(run,[name,quote],4);
   const fol=String(c.followersText||"").trim(); const folOk=fol&&chunkHas(run,[name,fol],3)?fol:"";
@@ -5704,7 +5724,7 @@ async function runResearch(r,ctl){
   const run=newRun(Math.min(120,25+count*5),(c,t,inp)=>{ if(ctl.setStat) ctl.setStat({calls:run.calls,cap:run.maxCalls}); const q=inp&&(inp.query||inp.q||inp.objective||inp.url||(inp.search_queries&&inp.search_queries[0])||""); ctl.log((t==="web_fetch"?"Reading ":"Searching ")+(q?String(Array.isArray(q)?q[0]:q).slice(0,90):"…")); });
   if(ctl.setStat) ctl.setStat({want:count,found:0,cap:run.maxCalls,calls:0});
   ctl.log("Connecting to web research…","spin"); const tools=await connTools("web",run); ctl.unspin();
-  const found=[], dropped=[], reasons={}; const seen=(ix().byBrand.get(brand.id)||[]).map(d=>nameOf(d)).filter(Boolean); let pass=0;
+  const found=[], dropped=[], reasons={}; const runSeen=new Set(); const seen=(ix().byBrand.get(brand.id)||[]).map(d=>nameOf(d)).filter(Boolean); (ix().byBrand.get(brand.id)||[]).forEach(d=>{ const t=targetForDeal(d)||{}; [t.website,t.contactLink].forEach(u=>{ const h=urlKey(u); if(h) seen.push(h); }); }); let pass=0;
   while(found.length<count&&pass<5&&!ctl.signal.aborted){
     pass++; ctl.log("Round "+pass+": looking for "+(count-found.length)+" "+(found.length?"more ":"")+"…","spin");
     let out; try{ out=await agentWithTools(researchPrompt(r,brand,count-found.length,found.map(f=>f.name),seen,pass),tools,ctl,"web",run,"complex"); }
@@ -5712,12 +5732,13 @@ async function runResearch(r,ctl){
     ctl.unspin();
     const cands=Array.isArray(out.candidates)?out.candidates:[]; let good=0;
     await badPre(cands);
-    for(const c of cands){ if(found.length>=count) break; const v=verifyCandidate(c,run,r,brand,{}); if(v.ok&&!found.some(f=>squash(f.name)===squash(v.name))){ found.push(v); good++; if(ctl.setStat) ctl.setStat({found:found.length}); ctl.log("✓ "+v.name+" · "+(v.rulesNote&&r.mode==="communities"?v.rulesNote:v.email?v.email:({dm:"open DMs/profile",form:"contact form",telegram:"Telegram",discord:"Discord",reddit:"subreddit modmail"}[v.via]||"contact route")),"ok"); } else { const w=v.why||"duplicate in this run"; reasons[w]=(reasons[w]||0)+1; if(v.name) seen.push(v.name); dropped.push(v.name||"?"); ctl.log("✗ "+(v.name||"(unnamed)")+" — "+w,"dim"); } }
+    for(const c of cands){ if(found.length>=count) break; const v=verifyCandidate(c,run,r,brand,{}); const dk=v.ok?candKeys(v):[]; const dupRun=v.ok&&(dk.some(x=>runSeen.has(x))||found.some(f=>squash(f.name)===squash(v.name))); if(v.ok&&!dupRun){ dk.forEach(x=>runSeen.add(x)); found.push(v); good++; if(ctl.setStat) ctl.setStat({found:found.length}); ctl.log("✓ "+v.name+" · "+(v.rulesNote&&r.mode==="communities"?v.rulesNote:v.email?v.email:({dm:"open DMs/profile",form:"contact form",telegram:"Telegram",discord:"Discord",reddit:"subreddit modmail"}[v.via]||"contact route")),"ok"); } else { const w=v.why||"same name, email or website as another result in this run"; reasons[w]=(reasons[w]||0)+1; if(v.name) seen.push(v.name); dropped.push(v.name||"?"); ctl.log("✗ "+(v.name||"(unnamed)")+" — "+w,"dim"); } }
     ctl.log("Round "+pass+": "+good+" verified of "+cands.length+" suggested ("+run.calls+" lookups so far).");
     if(out&&out.note&&!good) ctl.log("Alchemist note: "+String(out.note).slice(0,220),"dim"); if(!good&&pass>=4) break;
   }
   /* write results */
   const wave=ix().wave.get(r.waveId); const now=Date.now(); const newIds=[];
+  { /* last check right before saving: another run or a manual add may have landed in the meantime */ const keep=found.filter(v=>{ if(v.existing){ return !(ix().byBrand.get(brand.id)||[]).some(d=>(lead?d.leadId:d.optionId)===v.existing.id); } return !brandDupHit(brand,{name:v.name,email:v.email,urls:[v.url,v.raw&&v.raw.website]}); }); if(keep.length!==found.length){ ctl.log((found.length-keep.length)+" dropped at the last check: already added meanwhile.","dim"); found.length=0; keep.forEach(v=>found.push(v)); } }
   found.forEach((v,i)=>{
     const c=v.raw; let rid=v.existing?v.existing.id:uid(lead?"lead":"opt");
     const notes=("Found by in-app research "+todayISO()+(v.src?" — source: "+v.src:"")+(v.quote?" — “"+v.quote+"”":"")+(v.rulesNote?" — "+v.rulesNote:"")).slice(0,700);
