@@ -710,7 +710,6 @@
       html += '<details class="fm-dt"><summary>More from Fullmedia Alchemist</summary>' + [["Website home", "/"], ["Blog", "/blog/"], ["Resources", "/resources/"], ["Pricing", "/pricing/"], ["FAQ", "/pricing/#faq"]].map(function (l) { return '<a class="fm-i" role="menuitem" target="_blank" rel="noopener" href="' + l[1] + '">' + l[0] + "</a>"; }).join("") + "</details>";
       if (isAd) {
         html += '<div class="fm-sep"></div><div class="fm-sec">Admin</div>' + item("Admin dashboard · traffic & problems", function () {}, { href: "/admin/", blank: true });
-        if (HERE === "content") html += item("Accounts & comps", function () { nativePress(/^Admin/); });
       }
       html += '<div class="fm-sep"></div><div class="fm-legal"><a href="/terms/">Terms</a><a href="/privacy/">Privacy</a></div>';
       html += item("Log out", function () { globalSignOut(); if (HERE === "content") { if (!nativePress(/^Log out$/)) { try { localStorage.removeItem("ccb-session"); } catch (e) {} location.replace("/login/"); } } else if (window.xpSignOut) window.xpSignOut(); }, { cls: "out" });
