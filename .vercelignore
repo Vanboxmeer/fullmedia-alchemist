@@ -32,3 +32,4 @@ _to_delete/
 # CI / git only
 .github/
 .gitignore
+tools/
