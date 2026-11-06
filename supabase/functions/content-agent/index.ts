@@ -36,7 +36,7 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 const clean = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim().slice(0, max);
 const AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const KP = "cq:";
-const CLAIM_MS = 30 * 60 * 1000;
+const CLAIM_MS = 15 * 60 * 1000;
 // networks Metricool takes for image posts (YouTube needs video; Pinterest needs a board so it is only sent when one is saved)
 const NETS: Record<string, string> = { instagram: "Instagram", facebook: "Facebook", x: "X (Twitter)", linkedin: "LinkedIn", tiktok: "TikTok", pinterest: "Pinterest" };
 // networks Claude can post to from a normal signed-in browser (TikTok photo posts and Pinterest boards are left to the user)
@@ -53,7 +53,8 @@ const BROWSER_NETS: Record<string, { label: string; url: string }> = {
 const MCP_INSTRUCTIONS =
   "You post the user's OWN approved Alchemist posts. Loop: call content_get_next_post. If status is off, empty, not_due or daily_cap, stop; if wait, pause waitSeconds then continue. " +
   "Otherwise do exactly that one post the way its instructions say, then call content_report_result. Never change the wording, hashtags or links. Never invent a link. " +
-  "Never log in, type passwords or codes, solve CAPTCHAs or pay: hand the post back with outcome needs_user (or wrong_account) and the plain reason. Do not retry a failing step more than once.";
+  "Never log in, type passwords or codes, solve CAPTCHAs or pay: hand the post back with outcome needs_user (or wrong_account) and the plain reason. Do not retry a failing step more than once. " +
+  "IMPORTANT: before you stop on a post for ANY reason (it failed, something is blocked, you cannot continue), call content_report_result (outcome failed or needs_user, with the plain reason) so Alchemist shows the true status. Never only tell the user in chat.";
 
 const TOOLS = [
   { name: "content_get_next_post", description: "Get the next approved post to schedule in Metricool (or a status saying why there is none).", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
@@ -190,7 +191,8 @@ async function agentNext(sc: Scope) {
         "(5) the images are the user's own public image links listed in images. Do NOT download them with a shell, curl or any command line (those are blocked from these links and fail with 403). Get them into the composer through Chrome instead: open each image link in its own tab to check it loads; then in the composer tab use the javascript_tool to fetch each link, turn the response into a File, add the Files in the order given to a DataTransfer, set that on the composer's file input and fire a change event (or use the file upload tool if the site gives you one). Carousel / multiple images where the network allows it. If you cannot attach the images after one more try, report needs_user with the reason 'could not attach the images' and do not post without them; " +
         "(6) paste the text exactly as given (do not edit, shorten or add anything), post it, then open the new post and copy its live address; " +
         "(7) report with content_report_result results [{network, outcome: posted, link: the live post URL}]. A posted result without a real link is rejected. " +
-        "Report each network as soon as it is done, not all at the end. If a step fails twice, report failed or needs_user with the plain reason and go on to the next network.",
+        "Report each network as soon as it is done, not all at the end. If a step fails twice, report failed or needs_user with the plain reason and go on to the next network. " +
+        "ALWAYS report: if you stop for any reason, call content_report_result for every network you did not finish (needs_user or failed, with the reason) BEFORE you reply to the user. Never leave a post without a report.",
     };
   }
   if (notDue.length) { const nx = notDue.sort()[0]; return { status: "not_due", nextAt: nx, message: "Nothing is due yet. The next post is due " + nx.replace("T", " ") + " (the user's local time). Stop now; the user can ask again later, or choose Post now in Alchemist." }; }
@@ -226,7 +228,7 @@ async function agentResult(sc: Scope, a: any) {
     const left = all.filter((n) => BROWSER_NETS[n] && !done[n]);
     if (!left.length) { d.state = "posted"; d.doneDay = iso(new Date()); delete d.reason; }
     else if (bad.length) { d.state = wrong || bad.some((b) => /needs you|log in|captcha/i.test(b)) ? "needs_user" : "failed"; d.reason = bad.join(" · ").slice(0, 300); }
-    else d.state = "claimed";   // still has networks to do
+    else { d.state = "claimed"; d.claimedAt = Date.now(); }   // still has networks to do
     d.doneAt = Date.now(); if (d.state === "posted" || d.state === "needs_user" || d.state === "failed") delete d.claimedAt;
     await putDoc(sc.client, sku, d);
     if (wrong) await admin.from("ar_settings").upsert({ client_id: sc.client, key: "content_automation", data: Object.assign({}, await getSettings(sc.client), { on: false }), updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
