@@ -592,9 +592,7 @@
     if (tok) { try { fetch(SB + "/auth/v1/logout?scope=global", { method: "POST", keepalive: true, headers: { apikey: KEY, Authorization: "Bearer " + tok } }).catch(function () {}); } catch (e) {} }
   }
   function moduleItems() {
-    var items = [];
-    if (HERE === "reach") return (window.xpModuleItems && window.xpModuleItems()) || [];
-    return items;
+    return (window.xpModuleItems && window.xpModuleItems()) || [];
   }
   var ADMIN_MAILS = ["brad@unitedpress.media"];
   var adminKnown = null;

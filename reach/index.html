@@ -2250,7 +2250,7 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
   }
   function moduleItems() {
     var items = [];
-    if (HERE === "reach") return (window.xpModuleItems && window.xpModuleItems()) || [];
+    return (window.xpModuleItems && window.xpModuleItems()) || [];
     return items;
   }
   var ADMIN_MAILS = ["brad@unitedpress.media"];
@@ -4077,7 +4077,7 @@ function renderSidebar(){
 /* Account menu + module menu are built by /assets/xpromo.js (one component for Content and Reach). Reach only supplies its own entries. */
 window.xpHostInfo=function(){ const m=wsMeta(); return {workspace:m.wsName||(viewerIsAdmin?"UPM \u2014 agency":"My workspace")}; };
 window.xpModuleItems=function(){
-  const items=[{label:"Workspace settings",fn:()=>openAccountModal()},{label:"Connections",mini:CONNECTORS.filter(c=>connUsable(c.key)).length+"/"+CONNECTORS.length,fn:()=>openConnections()},{label:"Automation",fn:()=>openAutomation()}];
+  const items=[{label:"Workspace settings",fn:()=>openAccountModal()},{label:"Connections",mini:CONNECTORS.filter(c=>connUsable(c.key)).length+"/"+CONNECTORS.length,fn:()=>openConnections()},{label:"Claude automation",fn:()=>openAutomation()}];
   if(state.currentBrandId&&viewerIsAdmin) items.push({label:CLIENT.preview?"Exit client view":"Client view",fn:()=>{ if(CLIENT.preview) exitPreview(); else startPreview(); }});
   items.push({label:"Reach guide",href:"/reach-features/"}); return items; };
 window.xpCloseHostMenus=function(){ closeBrandMenu(); };

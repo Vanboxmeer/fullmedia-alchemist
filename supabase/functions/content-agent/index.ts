@@ -89,6 +89,8 @@ async function getSettings(client: string) {
     on: d.on === true, mode: d.mode === "metricool" ? "metricool" : "browser",
     dailyCap: Math.max(1, Math.min(30, Number(d.dailyCap) || 5)), gapSec: Math.max(30, Math.min(900, Number(d.gapSec) || 120)),
     asDraft: d.asDraft === true, mcBrands: (d.mcBrands && typeof d.mcBrands === "object") ? d.mcBrands : {}, pinterestBoard: clean(d.pinterestBoard, 80),
+    pinterestBoards: (d.pinterestBoards && typeof d.pinterestBoards === "object") ? d.pinterestBoards : {},   // { brand: "Board name" }; pinterestBoard is the old single value, still used as a fallback
+    brandsOff: (d.brandsOff && typeof d.brandsOff === "object") ? d.brandsOff : {},   // { brand: true } = this brand is paused
     accounts: (d.accounts && typeof d.accounts === "object") ? d.accounts : {},   // { brand: { instagram: "@handle", ... } } = the accounts Claude may post to
   };
 }
@@ -120,7 +122,7 @@ async function agentNext(sc: Scope) {
     const wait = Math.ceil((lastDoneAt(docs) + st.gapSec * 1000 - Date.now()) / 1000);
     if (wait > 0) return { status: "wait", waitSeconds: wait, message: "Pausing between posts so it looks natural." };
   }
-  const list = docs.filter((x) => eligible(x.d)).sort((a, b) => String(a.d.at).localeCompare(String(b.d.at)));
+  const list = docs.filter((x) => eligible(x.d) && !(st.brandsOff || {})[x.d.brand]).sort((a, b) => String(a.d.at).localeCompare(String(b.d.at)));
   for (const next of list) {
     const d = next.d;
     if (st.mode === "metricool") {
@@ -131,7 +133,7 @@ async function agentNext(sc: Scope) {
         status: "task", mode: "metricool", sku: d.sku, brand: d.brand, metricoolBrand: st.mcBrands[d.brand] || d.brand, title: d.title || "",
         publishAt: d.at, timezone: d.tz || "UTC", asDraft: st.asDraft, groups: d.groups, images: d.images,
         firstComment: d.firstComment || undefined, link: d.link || undefined, location: d.location || undefined,
-        pinterestBoard: d.groups.some((g: any) => (g.networks || []).includes("pinterest")) ? st.pinterestBoard : undefined,
+        pinterestBoard: d.groups.some((g: any) => (g.networks || []).includes("pinterest")) ? boardOf(st, d.brand) : undefined,
         instructions: "Use the user's Metricool connector (get_brands first, pick metricoolBrand). Create ONE scheduled post per entry in groups with exactly that text, only those networks, the images in order (public links), at publishAt in the timezone (asDraft true = save as draft). Never publish immediately and never open a social site. Then call content_report_result with outcome scheduled, the networks scheduled and the Metricool link or id as proof; if Metricool cannot do it, outcome needs_user with the reason.",
       };
     }
@@ -143,7 +145,7 @@ async function agentNext(sc: Scope) {
       if (done[n] || !BROWSER_NETS[n]) continue;
       const who = clean(acc[n], 160);
       if (!who) { missing.push(BROWSER_NETS[n].label); continue; }
-      posts.push({ network: n, label: BROWSER_NETS[n].label, openAt: BROWSER_NETS[n].url, expectAccount: who, text: g.text, ...(n === "pinterest" ? { note: "Pin to the board named: " + (st.pinterestBoard || "") } : {}) });
+      posts.push({ network: n, label: BROWSER_NETS[n].label, openAt: BROWSER_NETS[n].url, expectAccount: who, text: g.text, ...(n === "pinterest" ? { note: "Pin to the board named: " + (boardOf(st, d.brand)) } : {}) });
     }
     if (!posts.length) {
       d.state = "needs_user"; d.reason = missing.length ? "Add the account for " + [...new Set(missing)].join(", ") + " in Auto-post, then Retry." : "Nothing left Claude can post here (TikTok and Pinterest are done by hand).";
@@ -267,6 +269,8 @@ async function userCtx(req: Request) {
   return { uid: u.user.id, client, brands: mine };
 }
 
+function boardOf(st: any, brand: string) { return clean((st.pinterestBoards || {})[brand], 80) || st.pinterestBoard || ""; }
+
 async function appStatus(client: string, brands: Set<string>) {
   const st = await getSettings(client);
   const docs = await queueDocs(client);
@@ -291,7 +295,13 @@ async function appAction(u: any, client: string, body: any) {
     const accounts: Record<string, Record<string, string>> = {};
     Object.keys(cur.accounts || {}).forEach((b) => { if (u.brands.has(b)) accounts[b] = cur.accounts[b]; });
     Object.keys(body.accounts || {}).forEach((b) => { if (!u.brands.has(b)) return; const o: Record<string, string> = {}; Object.keys(BROWSER_NETS).forEach((n) => { const v = clean((body.accounts[b] || {})[n], 160); if (v) o[n] = v; }); accounts[b] = o; });
-    const data = { on: body.on === true, mode: body.mode === "metricool" ? "metricool" : "browser", dailyCap: Math.max(1, Math.min(30, Number(body.dailyCap) || 5)), gapSec: Math.max(30, Math.min(900, Number(body.gapSec) || cur.gapSec)), asDraft: body.asDraft === true, mcBrands: mc, pinterestBoard: clean(body.pinterestBoard, 80), accounts };
+    const boards: Record<string, string> = {};
+    Object.keys(cur.pinterestBoards || {}).forEach((b) => { if (u.brands.has(b)) { const v = clean(cur.pinterestBoards[b], 80); if (v) boards[b] = v; } });
+    if (body.pinterestBoards && typeof body.pinterestBoards === "object") Object.keys(body.pinterestBoards).forEach((b) => { if (!u.brands.has(b)) return; const v = clean(body.pinterestBoards[b], 80); if (v) boards[b] = v; else delete boards[b]; });
+    const off: Record<string, boolean> = {};
+    const offSrc: Record<string, unknown> = body.brandsOff && typeof body.brandsOff === "object" ? body.brandsOff : (cur.brandsOff || {});
+    Object.keys(offSrc).forEach((b) => { if (u.brands.has(b) && offSrc[b] === true) off[b] = true; });
+    const data = { on: body.on === true, mode: body.mode === "metricool" ? "metricool" : "browser", dailyCap: Math.max(1, Math.min(30, Number(body.dailyCap) || 5)), gapSec: Math.max(30, Math.min(900, Number(body.gapSec) || cur.gapSec)), asDraft: body.asDraft === true, mcBrands: mc, pinterestBoard: clean(body.pinterestBoard, 80) || (Object.keys(boards).length ? "" : cur.pinterestBoard), pinterestBoards: boards, brandsOff: off, accounts };
     const { error } = await admin.from("ar_settings").upsert({ client_id: client, key: "content_automation", data, updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
     return { ok: !error, settings: data, error: error ? "Couldn't save" : undefined };
   }
@@ -317,7 +327,7 @@ async function appAction(u: any, client: string, body: any) {
       const groups: { networks: string[]; text: string }[] = [];
       for (const g of Array.isArray(it.groups) ? it.groups : []) {
         const nets = (Array.isArray(g.networks) ? g.networks : []).map((n: unknown) => String(n).toLowerCase())
-          .filter((n: string) => (st.mode === "browser" ? !!BROWSER_NETS[n] : !!NETS[n]) && !r[n + "_posted_at"] && !r[n + "_post_link"] && (n !== "pinterest" || !!st.pinterestBoard));
+          .filter((n: string) => (st.mode === "browser" ? !!BROWSER_NETS[n] : !!NETS[n]) && !r[n + "_posted_at"] && !r[n + "_post_link"] && (n !== "pinterest" || !!boardOf(st, String(r.brand))));
         const text = clean(g.text, 5000);
         if (nets.length && text) groups.push({ networks: [...new Set(nets)] as string[], text });
       }

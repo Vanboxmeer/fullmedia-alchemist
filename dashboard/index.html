@@ -2670,7 +2670,7 @@ function renderCampaign() {
   };
   $('#campMenu').onclick = (e) => {
     e.stopPropagation();
-    popMenu(e.currentTarget, `<button type="button" data-a="share">Client approval link</button><button type="button" data-a="ics">Add all posts to my calendar</button><button type="button" data-a="autosched">Auto-post with Claude…</button><button type="button" data-a="export">Export for automation (Metricool…)</button><div class="sep"></div><button type="button" data-a="archive">Archive campaign</button>`, (m) => {
+    popMenu(e.currentTarget, `<button type="button" data-a="share">Client approval link</button><button type="button" data-a="ics">Add all posts to my calendar</button><button type="button" data-a="autosched">Claude automation…</button><button type="button" data-a="export">Export for automation (Metricool…)</button><div class="sep"></div><button type="button" data-a="archive">Archive campaign</button>`, (m) => {
       m.querySelector('[data-a="share"]').onclick = () => openClientLinks(c);
       m.querySelector('[data-a="export"]').onclick = () => openExport(c.id);
       m.querySelector('[data-a="autosched"]').onclick = () => openAutoSchedule(c.id);
@@ -8132,6 +8132,8 @@ async function wireTracking(el) {
   const poll = setInterval(() => { if (!el.isConnected) { clearInterval(poll); return; } if (r && r.domain && r.domain.status !== 'active') run({ action: 'check_domain' }, ''); }, 30000);
 }
 
+/* Main-menu entry (2026-11-08): account-level, same place as Reach's Automation */
+window.xpModuleItems = function () { return [{ label: 'Claude automation', fn: function () { try { openAutoSchedule(); } catch (e) {} } }]; };
 /* ── Auto-post with Claude (2026-11-06) ───────────────────────────────────
    The user's own Claude posts their APPROVED posts. Default: "in my browser", like posting by hand, using Claude in
    Chrome while the user is signed in to their own accounts. Optional: schedule through the user's Metricool connector.
@@ -8148,68 +8150,82 @@ function openAutoSchedule(campaignId) {
   if (!S.brand) return;
   const camps = S.campaigns || [];
   const BN = ['instagram', 'facebook', 'x', 'linkedin', 'tiktok', 'pinterest', 'reddit'];
-  let conf = {}, socs = {};   // conf: networks ticked; socs: { key: profile address } from Brand settings
+  const brands = (S.brands && S.brands.length ? S.brands : [S.brand]);
+  // Per brand: conf = networks ticked, socs = { key: profile address } from Brand settings, boards, mc (Metricool name), off (paused)
+  let conf = {}, socs = {}, boards = {}, mc = {}, off = {};
   let live = true, data = null, newUrl = '';
   const mode = () => ($('#caMode', el) && $('#caMode', el).value) || (data && data.settings && data.settings.mode) || 'browser';
   const STATE = { queued: ['Waiting for Claude', ''], claimed: ['Claude is on it', ''], scheduled: ['Scheduled in Metricool', 'ok'], posted: ['Posted', 'ok'], needs_user: ['Needs you', 'warn'], failed: ['Failed', 'warn'] };
   const s = openSheet({
-    title: 'Auto-post with Claude',
+    title: 'Claude automation',
     onClose: () => { live = false; },
     body: `<div class="stack">
-      <div class="field"><label for="caMode">How should Claude post?</label><select class="select" id="caMode"><option value="browser">Post for me in my browser (like I do by hand)</option><option value="metricool">Schedule in my Metricool</option></select></div>
-      <p class="small muted" style="margin:0" id="caIntro"></p>
-      <div class="notice" style="margin:0" data-for="browser"><b>One-time setup (3 minutes)</b><ol class="small" style="margin:6px 0 0 18px;padding:0;line-height:1.5">
-        <li>Install <b>Claude in Chrome</b> and, in that Chrome, stay signed in to the accounts you list below. Claude never logs in or types passwords for you.</li>
-        <li>Press <b>Make my link</b> below, then in Claude: Customize → Connectors → + Add → Add custom connector. Name it “Alchemist Content”, paste the link, Continue, choose “No sign in”, then Add.</li>
-        <li>Tell Claude: <i>“Post my next Alchemist posts.”</i> Keep Chrome open while it works.</li></ol></div>
-      <div class="notice" style="margin:0" data-for="metricool"><b>One-time setup (2 minutes)</b><ol class="small" style="margin:6px 0 0 18px;padding:0;line-height:1.5">
-        <li>In Claude: Customize → Connectors, find <b>Metricool</b> and connect it (works on any Metricool plan, even Free).</li>
-        <li>Press <b>Make my link</b> below, then in Claude: Customize → Connectors → + Add → Add custom connector. Name it “Alchemist Content”, paste the link, Continue, choose “No sign in”, then Add.</li>
-        <li>Tell Claude: <i>“Schedule my next Alchemist posts.”</i></li></ol></div>
-      <div class="field"><span class="label">Your Claude link</span>
+      <p class="small muted" style="margin:0">Your own Claude posts your approved posts. One link covers every brand. Each brand below has its own accounts and on/off switch.</p>
+      <div class="field"><span class="label">1. Your Claude link <span class="muted">(once, for all brands)</span></span>
         <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><button type="button" class="btn btn-ghost btn-sm" id="caMake">Make my link</button><span class="small muted" id="caKeys"></span></div>
-        <div id="caNew" hidden style="margin-top:8px"><input class="input" id="caUrl" readonly style="font-family:monospace;font-size:12px"><div class="row" style="gap:8px;margin-top:6px"><button type="button" class="btn btn-gold btn-sm" id="caCopy">Copy link</button><span class="hint">Shown once. Keep it private: anyone with it can post your approved posts.</span></div></div></div>
-      <div class="field" data-for="browser"><span class="label">Accounts for ${esc(S.brand)}, from Brand settings</span>
-        <div id="caAccts" class="stack" style="gap:6px"></div>
-        <div class="field" id="caPinWrap" hidden><label for="caPin">Pinterest board to pin to</label><input class="input" id="caPin" maxlength="80" placeholder="Board name"></div>
-        <span class="hint">Tick the accounts you are signed in to in this Chrome. Claude checks it is exactly that account before posting, and stops (and switches itself off) if not. Missing one? <a href="#" id="caAddAcct">Add it in Brand settings</a>. YouTube and Evrylife stay manual.</span></div>
+        <div id="caNew" hidden style="margin-top:8px"><input class="input" id="caUrl" readonly style="font-family:monospace;font-size:12px"><div class="row" style="gap:8px;margin-top:6px"><button type="button" class="btn btn-gold btn-sm" id="caCopy">Copy link</button><span class="hint">Shown once. Keep it private: anyone with it can post your approved posts.</span></div></div>
+        <span class="hint">In Claude: Customize → Connectors → + Add → Add custom connector. Name it “Alchemist Content”, paste the link, Continue, choose “No sign in”, then Add.</span></div>
+      <div class="field"><label for="caMode">2. How should Claude post?</label><select class="select" id="caMode"><option value="browser">Post for me in my browser (like I do by hand)</option><option value="metricool">Schedule in my Metricool</option></select>
+        <span class="hint" data-for="browser">Install <b>Claude in Chrome</b> and stay signed in to your accounts in that Chrome. Claude never logs in or types passwords for you. Keep Chrome open while it works.</span>
+        <span class="hint" data-for="metricool">In Claude: Customize → Connectors, find <b>Metricool</b> and connect it (any Metricool plan, even Free).</span></div>
       <div class="grid2">
-        <div class="field" data-for="metricool"><label for="caMc">Brand name in Metricool <span class="muted">(if different)</span></label><input class="input" id="caMc" maxlength="80" placeholder="${esc(S.brand)}"></div>
-        <div class="field"><label for="caCap">Most posts per day</label><select class="select" id="caCap"><option>3</option><option selected>5</option><option>10</option><option>20</option><option>30</option></select></div>
+        <div class="field"><label for="caCap">Most posts per day <span class="muted">(all brands)</span></label><select class="select" id="caCap"><option>3</option><option selected>5</option><option>10</option><option>20</option><option>30</option></select></div>
         <div class="field" data-for="browser"><label for="caGap">Pause between posts</label><select class="select" id="caGap"><option value="60">1 minute</option><option value="120" selected>2 minutes</option><option value="300">5 minutes</option><option value="900">15 minutes</option></select></div>
       </div>
       <label class="check-row" data-for="metricool"><input type="checkbox" id="caDraft"><span>Save them in Metricool as drafts (I schedule them there)</span></label>
-      <label class="check-row"><input type="checkbox" id="caOn"><span><b>Let my Claude post for me</b> (switch off to pause)</span></label>
+      <label class="check-row"><input type="checkbox" id="caOn"><span><b>Let my Claude post for me</b> (master switch, switch off to pause everything)</span></label>
       <p class="hint" style="margin:0" data-for="browser">Posting through the website is like doing it by hand, so networks can be stricter about it than about their official tools. Start with a small daily limit. Claude only posts what is in the queue, with your exact text, and records the live link as proof.</p>
+      <div class="field"><span class="label">3. Your brands</span><div id="caBrands" class="stack" style="gap:8px"></div></div>
       <hr style="border:0;border-top:1px solid var(--line,#ddd);margin:4px 0">
+      <div class="field"><span class="label">4. Send posts to Claude <span class="muted">· ${esc(S.brand)}</span></span><span class="hint">Sends the approved posts of the brand you have open. Switch brand at the top to send another brand’s.</span></div>
       <div class="grid2">
         <div class="field"><label for="caCamp">Posts from</label><select class="select" id="caCamp"><option value="">All campaigns</option>${camps.map((c) => `<option value="${esc(c.id)}"${c.id === campaignId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         <div class="field"><label for="caTime">Post at <span class="muted">(when a post has no time)</span></label><input class="input" type="time" id="caTime" value="09:00"></div>
       </div>
       <div id="caSum" class="notice" style="margin:0"></div>
+      <div class="notice" style="margin:0"><span class="small">Then tell Claude: <i id="caSay">“Post my next Alchemist posts.”</i></span></div>
       <div class="field"><span class="label">Queue</span><div id="caList" class="small"></div></div>
     </div>`,
     foot: `<span class="msg"></span><button type="button" class="btn btn-ghost" data-close>Close</button><button type="button" class="btn btn-gold" id="caSend">Send to Claude</button>`,
   });
   const el = s.el;
+  const ownOf = (b) => { const o = {}; const own = (S.ovSocials && S.ovSocials[b]) || {}; Object.keys(own).forEach((n) => { const k = platKey(n); if (k && BN.includes(k) && own[n]) o[k] = own[n]; }); return o; };
+  const loadSocialsFor = async (b) => {
+    S.ovSocials = S.ovSocials || {};
+    if (!S.ovSocials[b]) { try { S.ovSocials[b] = (await termsRpc('cc_brand_get_socials', { p_brand: b })) || {}; } catch (_e) { S.ovSocials[b] = {}; } }
+    return ownOf(b);
+  };
+  const accountsOf = (b) => { const o = {}; BN.forEach((k) => { if ((conf[b] || {})[k] && (socs[b] || {})[k]) o[k] = socs[b][k]; }); return o; };
+  const accounts = () => accountsOf(S.brand);
   const paintMode = () => {
     const m = mode();
     $$('[data-for]', el).forEach((n) => { n.hidden = n.dataset.for !== m; });
-    $('#caIntro', el).textContent = m === 'browser'
-      ? 'Your Claude opens each network in your own signed-in Chrome, downloads the images, pastes the exact caption, posts, and saves the live link here under Publishing Status. It works one post at a time with pauses, like a person would.'
-      : 'Your Claude schedules your approved posts in your Metricool, with the exact captions, images and times you see here. Metricool does the posting.';
-    $('#caSend', el).textContent = 'Send to Claude';
+    $('#caSay', el).textContent = m === 'browser' ? '“Post my next Alchemist posts.”' : '“Schedule my next Alchemist posts.”';
   };
-  const accounts = () => { const o = {}; BN.forEach((k) => { if (conf[k] && socs[k]) o[k] = socs[k]; }); return o; };
-  const paintAccts = () => {
-    const box = $('#caAccts', el), ks = BN.filter((k) => socs[k]);
-    box.innerHTML = ks.length ? ks.map((k) => `<label class="check-row"><input type="checkbox" data-acc="${k}"${conf[k] ? ' checked' : ''}><span><b>${esc(PLAT_NAME[k])}</b> <span class="muted">${esc(String(socs[k]).replace(/^https?:\/\/(www\.)?/, ''))}</span></span></label>`).join('') : '<span class="small muted">No accounts saved for this brand yet.</span>';
-    $$('[data-acc]', box).forEach((c) => c.onchange = () => { conf[c.dataset.acc] = c.checked; paintAccts(); paintSum(); save(); });
-    $('#caPinWrap', el).hidden = !(conf.pinterest && socs.pinterest);
+  const paintBrands = () => {
+    const box = $('#caBrands', el), m = mode();
+    box.innerHTML = brands.map((b, i) => {
+      const ks = BN.filter((k) => (socs[b] || {})[k]);
+      const n = Object.keys(accountsOf(b)).length;
+      const sub = off[b] ? 'Paused' : m === 'browser' ? (n ? `${n} account${n === 1 ? '' : 's'} ticked` : 'No accounts ticked yet') : (mc[b] ? `Metricool: ${esc(mc[b])}` : 'Uses the brand name in Metricool');
+      const accts = m === 'browser'
+        ? (ks.length ? ks.map((k) => `<label class="check-row"><input type="checkbox" data-acc="${k}" data-b="${esc(b)}"${(conf[b] || {})[k] ? ' checked' : ''}><span><b>${esc(PLAT_NAME[k])}</b> <span class="muted">${esc(String(socs[b][k]).replace(/^https?:\/\/(www\.)?/, ''))}</span></span></label>`).join('') : '<span class="small muted">No accounts saved for this brand yet.</span>')
+          + `<span class="hint">Tick the accounts that are signed in in this Chrome. Claude checks it is exactly that account before posting, and stops if not. ${b === S.brand ? 'Missing one? <a href="#" data-addacct>Add it in Brand settings</a>.' : 'Missing one? Open this brand, then add it in Brand settings.'} YouTube and Evrylife stay manual.</span>`
+          + ((conf[b] || {}).pinterest && (socs[b] || {}).pinterest ? `<div class="field"><label>Pinterest board to pin to</label><input class="input" data-pin="${esc(b)}" maxlength="80" placeholder="Board name" value="${esc(boards[b] || '')}"></div>` : '')
+        : `<div class="field"><label>Brand name in Metricool <span class="muted">(if different)</span></label><input class="input" data-mc="${esc(b)}" maxlength="80" placeholder="${esc(b)}" value="${esc(mc[b] || '')}"></div>`
+          + ((socs[b] || {}).pinterest ? `<div class="field"><label>Pinterest board to pin to</label><input class="input" data-pin="${esc(b)}" maxlength="80" placeholder="Board name" value="${esc(boards[b] || '')}"></div>` : '');
+      return `<details class="card" style="padding:8px 12px" ${b === S.brand || brands.length === 1 ? 'open' : ''}><summary style="display:flex;gap:10px;align-items:center;justify-content:space-between;cursor:pointer"><span><b>${esc(b)}</b> <span class="small muted">· ${sub}</span></span><label class="check-row" style="margin:0" onclick="event.stopPropagation()"><input type="checkbox" data-bon="${esc(b)}"${off[b] ? '' : ' checked'}><span class="small">Posting on</span></label></summary><div class="stack" style="gap:8px;margin-top:10px">${accts}</div></details>`;
+    }).join('');
+    $$('[data-acc]', box).forEach((c) => c.onchange = () => { (conf[c.dataset.b] = conf[c.dataset.b] || {})[c.dataset.acc] = c.checked; paintBrands(); paintSum(); save(); });
+    $$('[data-bon]', box).forEach((c) => c.onchange = () => { off[c.dataset.bon] = !c.checked; paintBrands(); paintSum(); save(); });
+    $$('[data-pin]', box).forEach((c) => c.onchange = () => { boards[c.dataset.pin] = c.value.trim(); save(); });
+    $$('[data-mc]', box).forEach((c) => c.onchange = () => { mc[c.dataset.mc] = c.value.trim(); paintBrands(); save(); });
+    const aa = $('[data-addacct]', box); if (aa) aa.onclick = (e) => { e.preventDefault(); s.close(); setTimeout(() => openBrandSettings(false, 'socials'), 280); };
   };
   const opts = () => ({ campaignId: $('#caCamp', el).value, from: todayYmd(), to: '', drafts: false, time: $('#caTime', el).value || '09:00', tagsInComment: false });
   const items = () => {
     const m = mode(), acc = accounts();
+    if (off[S.brand]) return [];
     return exportPosts(opts()).map((p) => {
       const groups = new Map();
       exportPlatforms(p).forEach((n) => {
@@ -8224,7 +8240,7 @@ function openAutoSchedule(campaignId) {
     const sent = new Set(((data && data.items) || []).filter((x) => x.state !== 'failed' && x.state !== 'needs_user').map((x) => x.sku));
     const list = items().filter((i) => i.groups.length), fresh = list.filter((i) => !sent.has(i.sku));
     const noAcc = mode() === 'browser' && !Object.keys(accounts()).length;
-    $('#caSum', el).textContent = noAcc ? 'Add at least one account above so Claude knows where it may post.' : list.length ? `${fresh.length} approved post${fresh.length === 1 ? '' : 's'} ready to send${list.length - fresh.length ? ` (${list.length - fresh.length} already with Claude)` : ''}.` : 'No approved posts with an image, a date and an account to post to. Approve some first.';
+    $('#caSum', el).textContent = off[S.brand] ? `${S.brand} is paused. Switch “Posting on” back on in step 3.` : noAcc ? `Tick at least one account for ${S.brand} in step 3 so Claude knows where it may post.` : list.length ? `${fresh.length} approved post${fresh.length === 1 ? '' : 's'} ready to send${list.length - fresh.length ? ` (${list.length - fresh.length} already with Claude)` : ''}.` : 'No approved posts with an image, a date and an account to post to. Approve some first.';
     $('#caSend', el).disabled = !fresh.length;
   };
   const paintList = () => {
@@ -8232,7 +8248,7 @@ function openAutoSchedule(campaignId) {
     box.innerHTML = arr.length ? arr.map((x) => {
       const [lab, cls] = STATE[x.state] || [x.state, ''];
       const links = (x.links || []).filter((u) => /^https:\/\//.test(u)).map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener">link ${i + 1}</a>`).join(' · ');
-      return `<div class="row" style="gap:8px;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line,#eee)"><span>${esc(x.title || x.sku)} <span class="muted">· ${esc(String(x.at || '').replace('T', ' '))} · ${esc((x.networks || []).join(', '))}</span>${x.reason ? `<br><span class="muted">${esc(x.reason)}</span>` : ''}${links ? `<br>${links}` : ''}</span><span style="white-space:nowrap"><span class="pill ${cls}">${esc(lab)}</span> ${x.state === 'needs_user' || x.state === 'failed' ? `<button type="button" class="btn btn-ghost btn-sm" data-ca="retry" data-sku="${esc(x.sku)}">Retry</button>` : ''}${x.state !== 'scheduled' && x.state !== 'posted' && x.state !== 'claimed' ? `<button type="button" class="btn btn-ghost btn-sm" data-ca="remove" data-sku="${esc(x.sku)}">Remove</button>` : ''}</span></div>`;
+      return `<div class="row" style="gap:8px;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line,#eee)"><span>${esc(x.title || x.sku)} <span class="muted">· ${brands.length > 1 && x.brand ? esc(x.brand) + ' · ' : ''}${esc(String(x.at || '').replace('T', ' '))} · ${esc((x.networks || []).join(', '))}</span>${x.reason ? `<br><span class="muted">${esc(x.reason)}</span>` : ''}${links ? `<br>${links}` : ''}</span><span style="white-space:nowrap"><span class="pill ${cls}">${esc(lab)}</span> ${x.state === 'needs_user' || x.state === 'failed' ? `<button type="button" class="btn btn-ghost btn-sm" data-ca="retry" data-sku="${esc(x.sku)}">Retry</button>` : ''}${x.state !== 'scheduled' && x.state !== 'posted' && x.state !== 'claimed' ? `<button type="button" class="btn btn-ghost btn-sm" data-ca="remove" data-sku="${esc(x.sku)}">Remove</button>` : ''}</span></div>`;
     }).join('') : '<span class="muted">Nothing sent yet.</span>';
     $('#caKeys', el).textContent = data && data.keys.length ? `${data.keys.length} link${data.keys.length === 1 ? '' : 's'} active${data.keys[0].last_used_at ? ', last used ' + new Date(data.keys[0].last_used_at).toLocaleString() : ', not used yet'}.` : 'No link yet.';
     $$('[data-ca]', box).forEach((b) => b.onclick = async () => { b.disabled = true; try { await caCall({ action: b.dataset.ca, sku: b.dataset.sku }); await load(); } catch (e) { s.msg(e.message, 'err'); b.disabled = false; } });
@@ -8244,28 +8260,31 @@ function openAutoSchedule(campaignId) {
       if (!el.dataset.init) {
         el.dataset.init = '1';
         $('#caMode', el).value = st.mode === 'metricool' ? 'metricool' : 'browser';
-        $('#caOn', el).checked = !!st.on; $('#caDraft', el).checked = !!st.asDraft; $('#caCap', el).value = String(st.dailyCap); $('#caMc', el).value = (st.mcBrands || {})[S.brand] || '';
+        $('#caOn', el).checked = !!st.on; $('#caDraft', el).checked = !!st.asDraft; $('#caCap', el).value = String(st.dailyCap);
         if (st.gapSec) $('#caGap', el).value = String(st.gapSec);
-        await loadOwnSocials();
-        socs = {}; const own = S.ovSocials[S.brand] || {}; Object.keys(own).forEach((n) => { const k = platKey(n); if (k && BN.includes(k) && own[n]) socs[k] = own[n]; });
-        const a = (st.accounts || {})[S.brand] || {}; const had = Object.keys(a).length > 0;
-        conf = {}; BN.forEach((k) => { conf[k] = had ? !!a[k] : !!socs[k]; });
-        $('#caPin', el).value = st.pinterestBoard || '';
-        paintAccts();
-        paintMode();
+        off = Object.assign({}, st.brandsOff || {});
+        mc = Object.assign({}, st.mcBrands || {});
+        boards = Object.assign({}, st.pinterestBoards || {});
+        for (const b of brands) {
+          socs[b] = await loadSocialsFor(b);
+          const a = (st.accounts || {})[b] || {}; const had = Object.keys(a).length > 0;
+          conf[b] = {}; BN.forEach((k) => { conf[b][k] = had ? !!a[k] : !!socs[b][k]; });
+          if (!boards[b] && st.pinterestBoard && b === S.brand) boards[b] = st.pinterestBoard;
+        }
+        paintMode(); paintBrands();
       }
       paintList(); paintSum();
     } catch (e) { s.msg(e.message, 'err'); }
   };
   const save = async () => {
-    const st = (data && data.settings) || {}; const mc = Object.assign({}, st.mcBrands || {}); const v = $('#caMc', el).value.trim(); if (v) mc[S.brand] = v; else delete mc[S.brand];
-    const acc = Object.assign({}, st.accounts || {}); acc[S.brand] = accounts();
-    try { await caCall({ action: 'save_settings', on: $('#caOn', el).checked, mode: mode(), dailyCap: Number($('#caCap', el).value), gapSec: Number($('#caGap', el).value), asDraft: $('#caDraft', el).checked, mcBrands: mc, accounts: acc, pinterestBoard: $('#caPin', el).value.trim() }); s.msg('Saved.', 'ok'); await load(); } catch (e) { s.msg(e.message, 'err'); }
+    const acc = {}; brands.forEach((b) => { acc[b] = accountsOf(b); });
+    const offOut = {}; brands.forEach((b) => { if (off[b]) offOut[b] = true; });
+    const mcOut = {}; brands.forEach((b) => { if (mc[b]) mcOut[b] = mc[b]; });
+    const bd = {}; brands.forEach((b) => { bd[b] = boards[b] || ''; });
+    try { await caCall({ action: 'save_settings', on: $('#caOn', el).checked, mode: mode(), dailyCap: Number($('#caCap', el).value), gapSec: Number($('#caGap', el).value), asDraft: $('#caDraft', el).checked, mcBrands: mcOut, accounts: acc, pinterestBoards: bd, brandsOff: offOut }); s.msg('Saved.', 'ok'); const keep = data; await load(); if (!data) data = keep; } catch (e) { s.msg(e.message, 'err'); }
   };
   ['#caOn', '#caDraft', '#caCap', '#caGap'].forEach((id) => $(id, el).addEventListener('change', save));
-  $('#caMode', el).addEventListener('change', () => { paintMode(); paintSum(); save(); });
-  ['#caMc', '#caPin'].forEach((id) => { $(id, el).addEventListener('change', () => { paintSum(); save(); }); });
-  $('#caAddAcct', el).onclick = (e) => { e.preventDefault(); s.close(); setTimeout(() => openBrandSettings(false, 'socials'), 280); };
+  $('#caMode', el).addEventListener('change', () => { paintMode(); paintBrands(); paintSum(); save(); });
   ['#caCamp', '#caTime'].forEach((id) => $(id, el).addEventListener('change', paintSum));
   paintMode();
   $('#caMake', el).onclick = async () => {
