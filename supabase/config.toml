@@ -66,3 +66,6 @@ verify_jwt = true
 
 [functions.content-agent]
 verify_jwt = false
+
+[functions.links-api]
+verify_jwt = false

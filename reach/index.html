@@ -1989,6 +1989,129 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
   function hfHidden() { try { return localStorage.getItem("fm-hide-handsfree") === "1"; } catch (e) { return false; } }
   function setHfHidden(v) { try { localStorage.setItem("fm-hide-handsfree", v ? "1" : "0"); } catch (e) {} if (window.fmHfApply) window.fmHfApply(); }
   applyAlch();
+  /* ===== Info icons (2026-11-07): a small "i" next to labels that need a word of explanation, in Content and Reach.
+     Each person can hide them all from Preferences (kept in this browser). Text comes from data-info="..." on an element,
+     or from the list below, matched on the label's text. Nothing here changes layout when hidden. ===== */
+  function infoHidden() { try { return localStorage.getItem("fm-hide-info") === "1"; } catch (e) { return false; } }
+  var INFO = [
+    [/^Where posts link/i, "The page your posts send people to, usually your website or a product page. It is also the page we tag and track."],
+    [/^News or blog page/i, "A page the Alchemist can read for fresh news and updates to write about."],
+    [/^Where the Alchemist looks for ideas/i, "Pages the Alchemist reads for ideas: your site, news and profiles. It only uses what it can verify."],
+    [/^Where this brand posts/i, "Add the accounts this brand posts to, and only those. Reminders, captions and auto-post only cover these accounts."],
+    [/^Logo image address/i, "A direct link to your logo image. It is placed on your cards."],
+    [/^Look$/i, "The style, typefaces and colours used on every card for this brand."],
+    [/^Character$/i, "A mascot or person who can appear in your images, kept looking the same."],
+    [/^Show the character doing new things/i, "Lets the Alchemist draw your character in new places or poses that match each post, instead of reusing one image."],
+    [/^Who it.s for/i, "Your audience. The Alchemist writes in a way that suits them."],
+    [/^How it should sound/i, "The voice of your brand, in a few words: friendly, bold, calm."],
+    [/^Facts it may use/i, "Real facts about your brand. The Alchemist never invents facts; it only uses these and what is on your site."],
+    [/^Never do this/i, "Things the Alchemist must never write or show for this brand."],
+    [/^Your own rules/i, "Your standing rules for every post, like words to avoid."],
+    [/^Hashtags every post must include/i, "Hashtags that will be added to every post for this brand."],
+    [/^Campaign name/i, "A name for this batch of posts. Used for tracking and for finding it later."],
+    [/^How many( posts)?$/i, "How many posts to make. Each one uses credits."],
+    [/^Format$/i, "Single image, carousel or a mix. Carousels use more credits."],
+    [/^Caption length/i, "How long the written part of each post should be."],
+    [/^QR code/i, "Adds a scannable code to the image that opens your link."],
+    [/^Location tag/i, "A place name to tag on the post, shown where the network supports it."],
+    [/^People and brands to tag/i, "Accounts to @mention in posts. Each network gets the right handle for it."],
+    [/^Link works for/i, "Which campaigns this link is used in."],
+    [/^How should I use this link/i, "Tell the Alchemist what the link is for so the posts around it make sense."],
+    [/^Send people to/i, "Where the call to action in your posts points."],
+    [/^Event date/i, "The date of the event. Posts are timed around it."],
+    [/^Finish by/i, "The latest date you want posts for this campaign to go out."],
+    [/^Look back at/i, "How far back the Alchemist looks for news and results."],
+    [/^Live post link/i, "The web address of the live post. Paste it once it is posted. It proves the post went out and counts it as posted."],
+    [/^Pinterest board/i, "The board your pins are saved to."],
+    [/^Metricool (template|brand name)/i, "Matches the export to your Metricool setup."],
+    [/^How should Claude post/i, "In your own signed-in Chrome, like you do by hand, or scheduled through your Metricool."],
+    [/^Accounts for /i, "These come from your Brand settings. Tick the ones you are signed in to in this Chrome. Claude checks it is exactly that account before posting."],
+    [/^Your Claude link/i, "A private link that lets your own Claude fetch the posts you sent. Keep it private. You can make a new one any time."],
+    [/^Most posts per day/i, "A safety limit. Claude will not post more than this in one day."],
+    [/^Pause between posts/i, "Waiting time between posts, so it looks natural and stays within network limits."],
+    [/^Posts from$/i, "Which campaign's approved posts to send to Claude."],
+    [/^Post at/i, "The time used when a post has no time of its own."],
+    [/^Queue$/i, "Posts waiting for Claude, and what happened to the ones it has handled."],
+    [/^Daily send ramp/i, "Sending many messages on day one can get your mailbox flagged. Reach warns you when a day goes above this number."],
+    [/^Max sends per day/i, "The most messages Reach will send for you in one day."],
+    [/^Default sender mailbox/i, "The email address Reach sends from. Claude checks it is signed in to exactly this address before sending."],
+    [/^Email signature/i, "Added to the end of every message Reach sends for you."],
+    [/^My name in messages/i, "The name used when a message says who it is from."],
+    [/^Best send window/i, "When this contact is most likely to read a message."],
+    [/^Fit score/i, "How well this target matches your brand, from 1 (poor) to 10 (excellent)."],
+    [/^(Min|Max) audience/i, "Limits on the size of the audience a target should have."],
+    [/^Monthly budget/i, "What you are happy to spend on placements each month."],
+    [/^Budget cap per placement/i, "The most you will pay for a single placement."],
+    [/^Free coverage quota/i, "How many free listings or features you want to aim for."],
+    [/^Contact source/i, "Where the contact details came from, so you can trust or recheck them."],
+    [/^How you verified it/i, "How you confirmed the details are correct."],
+    [/^Intro type/i, "The style of the first message: a quick hello, a pitch, or a request."],
+    [/^Extra criteria/i, "Anything else a target must match, in your own words."],
+    [/^(Types of target|Channel types)/i, "The kinds of places to look for: blogs, newsletters, directories, creators."],
+    [/^Deal history/i, "Past dealings with this contact, and any risk the relationship may not renew."],
+    [/^Coverage type/i, "What you are asking for: a review, a listing, a mention, a feature."],
+    [/^Confirm to send/i, "A safety step so nothing goes out by accident."],
+    [/^Latest news/i, "A page Reach can read to find something recent to mention."],
+    [/^Official site/i, "The brand's own website."],
+    [/^Copy for the form/i, "The text Claude pastes into a website contact form."],
+    [/^Note for buyers/i, "A short note shown to anyone who looks at this deal."]
+  ];
+  var infoPop = null, infoBtn = null;
+  function infoClose() { if (infoPop) { infoPop.remove(); infoPop = null; } if (infoBtn) { infoBtn.setAttribute("aria-expanded", "false"); infoBtn = null; } }
+  function infoOpen(btn, text) {
+    var same = infoBtn === btn; infoClose(); if (same) return;
+    var p = PAL[themeNow()] || PAL.dark, d = document.createElement("div");
+    d.className = "fm-info-pop"; d.setAttribute("role", "tooltip"); d.textContent = text;
+    d.style.cssText = "position:fixed;z-index:2147483000;max-width:min(300px,calc(100vw - 24px));padding:10px 12px;border-radius:10px;font:400 13px/1.45 system-ui,-apple-system,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.35);background:" + p.panel + ";color:" + p.ink + ";border:1px solid " + p.line;
+    document.body.appendChild(d);
+    var r = btn.getBoundingClientRect(), w = d.offsetWidth, h = d.offsetHeight;
+    var left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left + r.width / 2 - w / 2));
+    var top = r.bottom + 8; if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 8);
+    d.style.left = Math.round(left) + "px"; d.style.top = Math.round(top) + "px";
+    infoPop = d; infoBtn = btn; btn.setAttribute("aria-expanded", "true");
+  }
+  function infoCss() {
+    if (document.getElementById("fmInfoCss")) return;
+    var s = document.createElement("style"); s.id = "fmInfoCss";
+    s.textContent = ".fm-info{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:16px;height:16px;min-width:16px;margin:0 0 0 6px;padding:0;border:1px solid currentColor;border-radius:50%;background:transparent;color:inherit;font:italic 600 10px/1 Georgia,serif;opacity:.5;cursor:pointer;vertical-align:text-bottom;text-transform:none;letter-spacing:0}" +
+      ".fm-info:hover,.fm-info:focus-visible{opacity:1;outline:none}.fm-info:focus-visible{box-shadow:0 0 0 2px var(--gold,#e8a33d)}" +
+      "html.fm-no-info .fm-info,html.fm-no-info .fm-info-pop{display:none!important}";
+    document.head.appendChild(s);
+  }
+  function infoAdd(el, text) {
+    if (!el || el.getAttribute("data-fm-i") || !text) return;
+    el.setAttribute("data-fm-i", "1");
+    var b = document.createElement("button"); b.type = "button"; b.className = "fm-info"; b.textContent = "i";
+    b.setAttribute("aria-label", "More info"); b.setAttribute("aria-expanded", "false"); b.title = "More info";
+    b.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); infoOpen(b, text); });
+    el.appendChild(b);
+  }
+  function infoScan() {
+    if (infoHidden()) return;
+    infoCss();
+    var i, n, els = document.querySelectorAll("[data-info]:not([data-fm-i])");
+    for (i = 0; i < els.length; i++) infoAdd(els[i], els[i].getAttribute("data-info"));
+    els = document.querySelectorAll("label:not([data-fm-i]),.label:not([data-fm-i]),legend:not([data-fm-i])");
+    for (i = 0; i < els.length; i++) {
+      var el = els[i]; if (el.closest(".fm-info-pop")) continue;
+      var t = (el.textContent || "").replace(/\s+/g, " ").trim(); if (t.length < 3 || t.length > 90) continue;
+      for (n = 0; n < INFO.length; n++) if (INFO[n][0].test(t)) { infoAdd(el, INFO[n][1]); break; }
+    }
+  }
+  function applyInfo() {
+    document.documentElement.classList.toggle("fm-no-info", infoHidden());
+    if (infoHidden()) infoClose(); else infoScan();
+  }
+  function setInfoHidden(v) { try { localStorage.setItem("fm-hide-info", v ? "1" : "0"); } catch (e) {} applyInfo(); }
+  (function () {
+    var tm = 0;
+    function later() { clearTimeout(tm); tm = setTimeout(infoScan, 350); }
+    function start() { applyInfo(); try { new MutationObserver(later).observe(document.body, { childList: true, subtree: true }); } catch (e) {} }
+    if (document.body) start(); else document.addEventListener("DOMContentLoaded", start);
+    document.addEventListener("click", function (e) { if (infoPop && !(e.target.closest && (e.target.closest(".fm-info") || e.target.closest(".fm-info-pop")))) infoClose(); }, true);
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") infoClose(); });
+    window.addEventListener("scroll", infoClose, true); window.addEventListener("resize", infoClose);
+  })();
   var fmBypass = false;
   function fmCss() {
     if (document.getElementById("fmCss")) return;
@@ -2233,6 +2356,7 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
       pf += item(themeNow() === "light" ? "Dark mode" : "Light mode", function () { if (HERE === "content") nativePress(/(Light|Dark) mode/i); else if (window.xpToggleTheme) window.xpToggleTheme(); });
       pf += item(alchHidden() ? "Show the Alchemist helper" : "Hide the Alchemist helper", function () { setAlchHidden(!alchHidden()); });
       if (window.fmHfApply) pf += item(hfHidden() ? "Show the hands-free mic button" : "Hide the hands-free mic button", function () { setHfHidden(!hfHidden()); });
+      pf += item(infoHidden() ? "Show info icons" : "Hide info icons", function () { setInfoHidden(!infoHidden()); });
       html += '<details class="fm-dt"><summary>Preferences</summary>' + pf + "</details>";
       html += '<div class="fm-sep"></div>';
       html += item("Report a problem", function () { fmReport(); });

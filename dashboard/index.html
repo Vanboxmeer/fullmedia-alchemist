@@ -1541,6 +1541,7 @@ async function loadBrand(brand) {
   { const live = new Set(S.campaigns.map((c) => c.id)); S.posts = S.posts.filter((p) => p.campaign_id && live.has(p.campaign_id)); }
   // 2026-10-12: captions saved for one network (Captions for each account).
   S.platCopy = await termsRpc('cc_platform_copy_get', { p_brand: brand }).catch(() => ({})) || {};
+  trkLoad(true).then(trkPrime).catch(() => {});
   S.mentions = (await termsRpc('cc_mentions_get', { p_brand: brand }).catch(() => null)) || { campaigns: {}, posts: {} };
   // 2026-10-13: campaigns whose accounts were picked on purpose (a subset of
   // the brand's). Any other campaign covers all of the brand's accounts.
@@ -3309,7 +3310,7 @@ async function copyTitle(p) {
   }
 }
 async function copyCaption(p) {
-  const text = tidyCopy(applyMentions(p.copy_plus_general || [p.post_copy, p.content_link, p.general_hashtags].filter(Boolean).join('\n\n'), p, null).text);
+  const text = swapLink(tidyCopy(applyMentions(p.copy_plus_general || [p.post_copy, p.content_link, p.general_hashtags].filter(Boolean).join('\n\n'), p, null).text), p, '');
   try { await navigator.clipboard.writeText(text); toast('Caption, link and hashtags copied.'); }
   catch (e) {
     const s = openSheet({ title: 'Copy caption', dialog: true, body: '<textarea class="textarea" style="min-height:200px" readonly></textarea>', foot: '<button type="button" class="btn btn-gold" data-close>Done</button>' });
@@ -5209,7 +5210,7 @@ function fitCaption(p, k, o = {}) {
   const rule = NET[k] || NET.evrylife; const max = netMax(k);
   const mt = applyMentions(String(p.post_copy || '').trim(), p, k);
   const copy = mt.text;
-  const link = rule.link === 'in' ? (p.content_link || '') : '';
+  const link = rule.link === 'in' ? linkFor(p, k) : '';
   const src = k === 'instagram' && p.ig_hashtags ? p.ig_hashtags : k === 'tiktok' && p.tiktok_hashtags ? p.tiktok_hashtags : p.general_hashtags;
   const allTags = tagsOf(src);
   const sents0 = copy.split(/(?<=[.!?…])\s+/).filter(Boolean);
@@ -6121,6 +6122,7 @@ async function openBrandSettings(openAdv = false, focus = '') {
       <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn btn-ghost btn-sm" id="bsSrcSave">Save list</button><button type="button" class="btn btn-ghost btn-sm" id="bsSrcGo">Refresh now</button></div>
       <div class="hint" id="bsSrcOut" style="margin-top:8px" aria-live="polite"></div></div>
     ${socialsFieldHtml()}
+    ${trackingFieldHtml()}
     <div class="field"><span class="label">Look</span><div id="bsLook" class="stack"><div class="skel" style="height:120px"></div></div><span class="hint">How every card is drawn: style, typefaces and the five brand colours.</span></div>
     <button type="button" class="btn btn-ghost" id="bsKb" style="justify-self:start">The Alchemist’s knowledge →</button>
     <div class="field"><label for="bsLogo">Logo image address</label><input class="input" id="bsLogo" maxlength="500" placeholder="https://…/logo.png"></div>
@@ -6186,6 +6188,7 @@ async function openBrandSettings(openAdv = false, focus = '') {
     setTimeout(() => { const first = $('[data-bio]', f); if (first) first.focus({ preventScroll: true }); }, 400);
   });
   wireSocialsReader(el, S.brand);
+  wireTracking(el);
   $('#bsArchive', el).onclick = () => archiveBrand(S.brand, s);
   $('#bsPlan', el).onclick = (e) => { e.preventDefault(); openPlan(); };
   $('#bsKb', el).onclick = () => { s.close(); setTimeout(() => openKnowledge(), 280); };
@@ -7802,7 +7805,7 @@ function captionOf(p, { tagsInComment = false } = {}, k) {
   // 2026-10-12: a network gets its own fitted (or saved) caption.
   if (k) return captionFor(p, k, { noTags: tagsInComment }).text;
   const copy = applyMentions(String(p.post_copy || '').trim(), p, null).text;
-  const link = p.content_link || '';
+  const link = linkFor(p, '');
   const tags = String(p.general_hashtags || '').trim();
   return tagsInComment ? [copy, link].filter(Boolean).join('\n\n') : [copy, link, tags].filter(Boolean).join('\n\n');
 }
@@ -7859,7 +7862,7 @@ function buildMetricool(posts, o) {
     });
     { const imgs = (p.media_urls || []).slice(0, 10); imgs.forEach((u, i) => { set(`Picture Url ${i + 1}`, cleanImg(u)); set(`Alt text picture ${i + 1}`, imageAlt(p, i, imgs.length).slice(0, 120)); }); }
     if (o.tagsInComment && p.general_hashtags) set('First Comment Text', String(p.general_hashtags).trim());
-    if (plats.includes('Pinterest') && o.board) { set('Pinterest Board', o.board); set('Pinterest Pin Title', String(p.post_idea || '').slice(0, 100)); set('Pinterest Pin Link', p.content_link || ''); }
+    if (plats.includes('Pinterest') && o.board) { set('Pinterest Board', o.board); set('Pinterest Pin Title', String(p.post_idea || '').slice(0, 100)); set('Pinterest Pin Link', linkFor(p, 'pinterest')); }
     if (plats.includes('LinkedIn') && (p.media_urls || []).length > 1) set('LinkedIn Images as Carousel', 'TRUE');
     if (p.location_tag && p.include_location_tag !== false) warn.add('Metricool’s import has no location field, so add locations in Metricool (they’re in the "Any tool" export).');
     if (plats.some((n) => platKey(n) === 'x') && captionFor(p, 'x').over) warn.add('A caption is still over X’s limit. Edit it in Captions for each account.');
@@ -7874,7 +7877,7 @@ function buildBuffer(posts, o) {
     if (n === 'YouTube' || n === 'Evrylife') return;
     const f = files[n] = files[n] || [n === 'Pinterest' ? ['Text', 'Image URL', 'Tags', 'Posting Time', 'Board Name', 'Title', 'Link'] : ['Text', 'Image URL', 'Tags', 'Posting Time']];
     const row = [captionOf(p, o, platKey(n)), cleanImg((p.media_urls || [])[0]), '', `${String(p.scheduled_date).slice(0, 10)} ${timeOf(p, o.time)}`];
-    if (n === 'Pinterest') row.push(o.board || '', String(p.post_idea || '').slice(0, 100), p.content_link || '');
+    if (n === 'Pinterest') row.push(o.board || '', String(p.post_idea || '').slice(0, 100), linkFor(p, 'pinterest'));
     f.push(row);
   }));
   return files;
@@ -7884,7 +7887,7 @@ function buildUniversal(posts, o) {
     const camp = (S.campaigns || []).find((c) => c.id === p.campaign_id);
     return {
       id: p.sku, brand: S.brand, campaign: camp ? camp.name : '', date: String(p.scheduled_date).slice(0, 10), time: timeOf(p, o.time),
-      timezone: userTz(), platforms: exportPlatforms(p), caption: applyMentions(String(p.post_copy || '').trim(), p, null).text, link: p.content_link || '',
+      timezone: userTz(), platforms: exportPlatforms(p), caption: applyMentions(String(p.post_copy || '').trim(), p, null).text, link: linkFor(p, ''),
       hashtags: String(p.general_hashtags || '').trim(), instagram_hashtags: String(p.ig_hashtags || '').trim(), tiktok_hashtags: String(p.tiktok_hashtags || '').trim(),
       full_text: captionOf(p, o), location: p.include_location_tag === false ? '' : (p.location_tag || ''), title: p.post_idea || '',
       images: (p.media_urls || []).map(cleanImg), status: String(p.approval_status || ''),
@@ -8003,6 +8006,118 @@ function openExport(campaignId) {
       const mk = await markScheduled(list, o, 'any'); if (mk) s.msg(m0 + mk, 'ok');
     }
   };
+}
+
+/* ── Tracking links (2026-11-07) ──────────────────────────────────────────
+   Per brand, paid plans. Step 1: the brand's own page links get a short tag (utm_*) so the brand's own analytics show which
+   post and network sent each visit. Step 2: short links on the brand's OWN domain (go.theirbrand.com), set up in Brand settings.
+   Everything below is sync for captions (cache filled by trkLoad / trkPrime); the server decides who is allowed. */
+S.trk = S.trk || {}; S.shortMap = S.shortMap || {};
+async function tlCall(body) {
+  const r = await fetch(FN('links-api'), { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()), body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.ok === false) { const e = new Error(j.error || 'Something went wrong. Try again.'); e.upgrade = !!j.upgrade; throw e; }
+  return j;
+}
+function trkOwnHost() { try { return new URL(S.brandData.default_wheel_url).hostname.replace(/^www\./, '').toLowerCase(); } catch (_e) { return ''; } }
+function trkIsOwn(url) { try { const own = trkOwnHost(); const h = new URL(url).hostname.replace(/^www\./, '').toLowerCase(); return !!own && (h === own || h.endsWith('.' + own)); } catch (_e) { return false; } }
+function trkTag(url, p, k) {
+  if (!trkIsOwn(url)) return url;
+  let U; try { U = new URL(url); } catch (_e) { return url; }
+  if (U.searchParams.has('utm_source')) return url;
+  const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
+  const camp = ((S.campaigns || []).find((c) => c.id === p.campaign_id) || {}).name || '';
+  U.searchParams.set('utm_source', k || 'social'); U.searchParams.set('utm_medium', 'social');
+  if (camp) U.searchParams.set('utm_campaign', slug(camp));
+  U.searchParams.set('utm_content', String(p.sku || '').toLowerCase());
+  return U.toString();
+}
+// The link a post should carry on one network: tagged, and short when the brand connected its own domain.
+function linkFor(p, k) {
+  const url = p.content_link || ''; if (!url) return '';
+  const t = S.trk[S.brand]; if (!t || !t.eligible) return url;
+  const tagged = t.tag ? trkTag(url, p, k) : url;
+  if (t.short) { const sm = S.shortMap[S.brand + '|' + p.sku + '|' + (k || '') + '|' + tagged]; if (sm) return sm; }
+  return tagged;
+}
+function swapLink(text, p, k) {
+  const orig = p.content_link || ''; if (!orig || !text) return text;
+  const mine = linkFor(p, k); return mine && mine !== orig ? String(text).split(orig).join(mine) : text;
+}
+async function trkLoad(force) {
+  if (!S.brand) return null;
+  const c = S.trk[S.brand];
+  if (!force && c && Date.now() - c.at < 60000) return c;
+  try { const r = await tlCall({ action: 'status', brand: S.brand }); S.trk[S.brand] = { at: Date.now(), eligible: !!r.eligible, tag: !!(r.active && r.active.tag), short: !!(r.active && r.active.short), host: r.active && r.active.host }; }
+  catch (_e) { S.trk[S.brand] = { at: Date.now(), eligible: false, tag: false, short: false }; }
+  return S.trk[S.brand];
+}
+async function trkPrime() {
+  const brand = S.brand, t = S.trk[brand]; if (!t || !t.short) return;
+  const items = [], seen = new Set();
+  (S.posts || []).forEach((p) => {
+    if (!p.content_link || !trkIsOwn(p.content_link)) return;
+    const nets = targetKeys(p);
+    (nets.length ? nets : ['']).forEach((k) => {
+      const tagged = t.tag ? trkTag(p.content_link, p, k) : p.content_link, key = brand + '|' + p.sku + '|' + k + '|' + tagged;
+      if (S.shortMap[key] || seen.has(key)) return; seen.add(key);
+      items.push({ ref: p.sku, network: k, url: tagged, campaign: ((S.campaigns || []).find((c) => c.id === p.campaign_id) || {}).name || '' });
+    });
+  });
+  for (let i = 0; i < items.length && i < 600; i += 100) {
+    try { const r = await tlCall({ action: 'ensure', brand, items: items.slice(i, i + 100) }); Object.keys(r.map || {}).forEach((m) => { const [ref, net, ...rest] = m.split('|'); S.shortMap[brand + '|' + ref + '|' + net + '|' + rest.join('|')] = r.map[m]; }); }
+    catch (_e) { break; }
+  }
+}
+
+function trackingFieldHtml() {
+  return `<div class="field" id="bsTrack"><span class="label" data-info="Add tracking to the links in your posts so you can see which post and which network sent each visit. You can add tags to your own page addresses, and, if you like, use short links on your own domain.">Tracking links</span><div id="bsTrackBody" class="stack"><div class="skel" style="height:60px"></div></div></div>`;
+}
+async function wireTracking(el) {
+  const box = $('#bsTrackBody', el); if (!box) return;
+  const brand = S.brand; let r;
+  const paint = () => {
+    if (!r) return;
+    if (!r.eligible) {
+      box.innerHTML = `<div class="notice" style="margin:0">Tracking links come with a paid plan. They tag your links so you can see which posts bring visitors, and let you use short links on your own domain. <a href="#" data-trk-plan style="color:var(--gold)">See plans</a></div>`;
+      $('[data-trk-plan]', box).onclick = (e) => { e.preventDefault(); openPlan(); };
+      return;
+    }
+    const d = r.domain, st = r.stats || {}, host = d && d.hostname, live = d && d.status === 'active';
+    const first = host ? host.split('.')[0] : '';
+    const clicks = (st.top || []).map((x) => `<div class="row" style="justify-content:space-between;gap:8px"><span>${esc(x.ref || x.kind)} <span class="muted">· ${esc(x.network || 'link')}${x.campaign ? ' · ' + esc(x.campaign) : ''}</span></span><b>${Number(x.clicks).toLocaleString()}</b></div>`).join('');
+    box.innerHTML = `
+      <label class="check-row"><input type="checkbox" id="trkTag"${r.settings.tag_urls ? ' checked' : ''}><span><b>Add tracking tags to my page links</b><span data-info="Your page address stays exactly the same. We only add a short tag at the end, like ?utm_source=instagram, so Google Analytics (or any analytics you use) can show which network and post sent each visit. Good if you want to keep long, search-friendly addresses."></span><br><span class="hint">Only links to your own website. Your page address stays the same.</span></span></label>
+      <div class="field" style="margin-top:6px"><span class="label" data-info="A short link on a domain you own, like go.yourbrand.com/ab3k9xz. It shortens the link (more room in short fields) and counts clicks. You add one DNS record at your domain provider; the domain stays yours and you can disconnect it any time.">Short links on your own domain</span>
+      ${!r.domainsReady ? `<span class="hint">Not switched on yet. Tagged links above already work.</span>` : !d ? `
+        <div class="row" style="gap:8px;flex-wrap:wrap"><input class="input" id="trkHost" maxlength="100" placeholder="go.yourbrand.com" inputmode="url" autocapitalize="off" spellcheck="false" aria-label="Your short-link domain" style="flex:1;min-width:180px"><button type="button" class="btn btn-ghost" id="trkAdd">Connect</button></div>
+        <span class="hint">Use a subdomain of a domain you own, like go.yourbrand.com. You will add one DNS record next.</span>` : `
+        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(host)}</b><span class="pill ${live ? 'ok' : 'warn'}">${live ? 'Connected' : 'Waiting for your DNS record'}</span></div>
+        ${live ? '' : `<div class="notice" style="margin:6px 0 0"><div class="small">At the company where you manage ${esc(host.split('.').slice(1).join('.'))}, add this record:</div><div class="small" style="margin-top:6px;font-family:monospace">Type: CNAME<br>Name: ${esc(first)} <span class="muted">(or ${esc(host)}, depending on your provider)</span><br>Value: ${esc(r.dnsTarget)}</div><div class="small muted" style="margin-top:6px">It can take a few minutes to a few hours to show up. ${d.note ? esc(d.note) : ''}</div></div>`}
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px">${live ? '' : '<button type="button" class="btn btn-ghost btn-sm" id="trkCheck">Check now</button>'}<button type="button" class="btn btn-ghost btn-sm" id="trkRemove">Remove domain</button></div>
+        ${live ? `<label class="check-row" style="margin-top:6px"><input type="checkbox" id="trkShort"${r.settings.short_enabled ? ' checked' : ''}><span><b>Use short links in my posts</b><br><span class="hint">Looks like ${esc(host)}/ab3k9xz. Your page tags are kept inside the short link.</span></span></label>` : ''}`}
+      </div>
+      <div class="field"><span class="label" data-info="Visits that came through your short links in the last 30 days. Bots and link-preview fetches are not counted. Visits to tagged page links show up in your own analytics, not here.">Short-link clicks, last 30 days</span>
+        ${Number(st.links) ? `<div class="small"><b>${Number(st.total || 0).toLocaleString()}</b> clicks across ${Number(st.links).toLocaleString()} links</div>${clicks ? `<div class="small stack" style="gap:4px;margin-top:6px">${clicks}</div>` : ''}` : `<span class="hint">No short links yet.</span>`}</div>
+      <span class="small muted" id="trkMsg" aria-live="polite"></span>`;
+    wire();
+  };
+  const msg = (t, bad) => { const m = $('#trkMsg', box); if (m) { m.textContent = t || ''; m.style.color = bad ? 'var(--red, #c0392b)' : ''; } };
+  const run = async (body, done) => {
+    try { r = await tlCall(Object.assign({ brand }, body)); await trkLoad(true); paint(); if (done) msg(done); trkPrime(); }
+    catch (e) { msg(e.message, true); if (e.upgrade) openPlan(); }
+  };
+  const wire = () => {
+    const g = (id) => $('#' + id, box);
+    if (g('trkTag')) g('trkTag').onchange = (e) => run({ action: 'save', tag_urls: e.target.checked }, 'Saved.');
+    if (g('trkShort')) g('trkShort').onchange = (e) => run({ action: 'save', short_enabled: e.target.checked }, 'Saved.');
+    if (g('trkAdd')) g('trkAdd').onclick = () => run({ action: 'add_domain', hostname: g('trkHost').value }, 'Added. Now add the DNS record below.');
+    if (g('trkCheck')) g('trkCheck').onclick = () => run({ action: 'check_domain' }, '');
+    if (g('trkRemove')) g('trkRemove').onclick = () => { if (confirm('Remove this domain? Short links on it will stop working.')) run({ action: 'remove_domain' }, 'Removed.'); };
+  };
+  try { r = await tlCall({ action: 'status', brand }); } catch (e) { box.innerHTML = `<span class="hint">${esc(e.message)}</span>`; return; }
+  paint();
+  if (r.domain && r.domain.status !== 'active') run({ action: 'check_domain' }, '');
 }
 
 /* ── Auto-post with Claude (2026-11-06) ───────────────────────────────────

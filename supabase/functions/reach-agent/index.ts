@@ -195,13 +195,16 @@ function applyAuto(it: Item | null, st: { autoReady: boolean; autoFu: boolean },
 const FOLLOWUP_RULES = "Follow-up text (you write it): 2–4 plain sentences, same thread (reply to the original message so the subject starts with Re:), friendly and low-pressure, no flattery, no guilt, no new claims, no prices or budget talk, no signature beyond the one provided. Follow-up 1 is a short bump; follow-up 2 is one last light check-in that says you will close it out if you don't hear back.";
 
 // The Gmail connector turns bare domains in a plain body into ugly google.com/url?q=... text. Send HTML with real anchors instead.
-function toHtml(text: string) {
+function toHtml(text: string, trk: Record<string, { href: string; text?: string }> = {}) {
   const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const link = (m: string) => {
     const tail = (m.match(/[.,;:!?)]+$/) || [""])[0]; const u = tail ? m.slice(0, -tail.length) : m;
     let href = /^https?:\/\//i.test(u) ? u : "https://" + u;
     // links to our own site carry a source tag, so the admin stats can show how many visits and sign-ups outreach brings
     try { const U = new URL(href); if (/(^|\.)fullmediaalchemist\.com$/i.test(U.hostname) && !U.searchParams.has("utm_source")) { U.searchParams.set("utm_source", "reach"); U.searchParams.set("utm_medium", "email"); U.searchParams.set("utm_campaign", "outreach"); href = U.toString(); } } catch (_e) { /* keep as is */ }
+    // the brand's own tracked link (tagged and/or short, set by the user in Brand settings), prepared before this runs
+    const t = trk[u] || trk[href];
+    if (t) return '<a href="' + t.href + '">' + (t.text || u.replace(/^https?:\/\//i, "")) + "</a>" + tail;
     return '<a href="' + href + '">' + u.replace(/^https?:\/\//i, "") + "</a>" + tail;
   };
   const re = /(?<![@\w.\/-])((?:https?:\/\/)?(?:www\.)?[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|co|ai|app|media|uk|ca|dev|me|us)(?:\/[^\s<]*)?)/gi;
@@ -209,14 +212,14 @@ function toHtml(text: string) {
 }
 const LINKS = " Send it with the htmlBody field ONLY (do not fill body), exactly as given, so links stay clean. Never paste a bare web address into a plain body: the mail connector rewrites it into an ugly google.com redirect.";
 
-function taskOf(it: Item, r: any, t: any, sig: string, today: string, sendFrom: string) {
+function taskOf(it: Item, r: any, t: any, sig: string, today: string, sendFrom: string, trk: Record<string, { href: string; text?: string }> = {}) {
   const d = r.data || {};
   const body = clean(d.draft, 8000) + (sig ? "\n\n" + sig : "");
   const common = { id: it.id, brand: it.brand, target: it.name, route: it.route.route, today, sendFrom: it.route.route === "email" ? sendFrom : undefined };
   const ACCT = " Send ONLY if the mail account you are signed into is exactly " + sendFrom + ". If it is a different account or you cannot tell, do NOT send: call reach_flag_for_user with kind wrong_account and stop the whole run.";
   if (it.kind === "first") {
     return it.route.route === "email"
-      ? { ...common, action: "send_email", to: it.route.to, subject: it.subject, htmlBody: toHtml(body), body, instructions: "Send exactly this message from the user's own mail account. Do not change the wording." + LINKS + ACCT + " Then call reach_report_result with outcome \"sent\" and the subject line as evidence. Then, about a minute later, check the inbox for a bounce (see checkBounces)." }
+      ? { ...common, action: "send_email", to: it.route.to, subject: it.subject, htmlBody: toHtml(body, trk), body, instructions: "Send exactly this message from the user's own mail account. Do not change the wording." + LINKS + ACCT + " Then call reach_report_result with outcome \"sent\" and the subject line as evidence. Then, about a minute later, check the inbox for a bounce (see checkBounces)." }
       : { ...common, action: "submit_web_form", url: it.route.link, message: body, subject: it.subject || undefined, notes: clean(t?.data?.howToPost, 300) || undefined, instructions: "Open the page, fill the form using only this message and the brand details the user's Reach profile gives (never invent details). If the form needs a CAPTCHA, a login, a payment, or fields you cannot fill from this information, STOP and call reach_flag_for_user. After submitting, call reach_report_result with outcome \"submitted\" and the confirmation text on the page as evidence." };
   }
   const n = it.followUps + 1;
@@ -231,6 +234,36 @@ async function todayCount(client: string) {
 async function lastSendAt(client: string): Promise<number> {
   const { data } = await admin.from("ar_agent_log").select("created_at").eq("client_id", client).in("outcome", ["sent", "submitted"]).order("created_at", { ascending: false }).limit(1);
   return data && data[0] ? new Date((data[0] as any).created_at).getTime() : 0;
+}
+
+// Tracking links for the brand's OWN site in outreach (paid plans, set per brand in Content > Brand settings).
+// Tags the link (utm_*) and, if the user connected their own domain, swaps in a short link on it. Never touches other sites.
+const URL_RE = /(?<![@\w.\/-])((?:https?:\/\/)?(?:www\.)?[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|co|ai|app|media|uk|ca|dev|me|us)(?:\/[^\s<]*)?)/gi;
+async function trackLinks(client: string, brandName: string, dealId: string, text: string) {
+  const out: Record<string, { href: string; text?: string }> = {};
+  try {
+    const { data: inf } = await admin.rpc("fma_track_info", { p_client: client, p_brand: brandName });
+    if (!inf || !inf.eligible || (!inf.tag && !inf.short)) return out;
+    const { data: cb } = await admin.from("cc_brands").select("default_wheel_url").eq("client_id", client).eq("name", brandName).maybeSingle();
+    let own = ""; try { own = new URL(String((cb as any)?.default_wheel_url || "")).hostname.toLowerCase().replace(/^www\./, ""); } catch (_e) {}
+    if (!own) return out;
+    const slug = brandName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "brand";
+    for (const m of (text.match(URL_RE) || []).slice(0, 8)) {
+      const tail = (m.match(/[.,;:!?)]+$/) || [""])[0]; const u = tail ? m.slice(0, -tail.length) : m;
+      let U: URL; try { U = new URL(/^https?:\/\//i.test(u) ? u : "https://" + u); } catch (_e) { continue; }
+      const h = U.hostname.toLowerCase().replace(/^www\./, "");
+      if (h !== own && !h.endsWith("." + own)) continue;
+      if (inf.tag && !U.searchParams.has("utm_source")) { U.searchParams.set("utm_source", "reach"); U.searchParams.set("utm_medium", "email"); U.searchParams.set("utm_campaign", slug); U.searchParams.set("utm_content", "deal-" + dealId.slice(0, 8)); }
+      const tagged = U.toString();
+      let href = tagged, shown: string | undefined;
+      if (inf.short) {
+        const { data: sl } = await admin.rpc("fma_make_link", { p_client: client, p_brand: brandName, p_kind: "reach", p_ref: dealId, p_network: "email", p_campaign: slug, p_target: tagged });
+        if (sl) { href = String(sl); shown = String(sl).replace(/^https?:\/\//, ""); }
+      }
+      out[u] = { href, text: shown };
+    }
+  } catch (e) { console.error("trackLinks", e); }
+  return out;
 }
 
 // ================= agent side =================
@@ -297,7 +330,8 @@ async function agentQueue(sc: Scope) {
   }
   if (!pick) return { ok: true, tasks: [], status: "empty", queued: 0, message: "Every queued address had a domain that can't receive email, so they were skipped and flagged for the user." };
   const { r, it } = pick;
-  const task = taskOf(it, flat(r), tmap.get(r.target_id), sig, today, st.sendFrom);
+  const trk = it.kind === "first" && it.route.route === "email" ? await trackLinks(sc.client, it.brand, it.id, clean(flat(r).data?.draft, 8000)) : {};
+  const task = taskOf(it, flat(r), tmap.get(r.target_id), sig, today, st.sendFrom, trk);
   const d3 = Object.assign({}, r.data || {}); d3.agentClaim = { at: Date.now(), kind: it.kind }; d3.updatedAt = Date.now();
   await admin.from("ar_deals").update({ data: d3 }).eq("id", r.id);
   const left = queued - 1;

@@ -76,6 +76,27 @@
   ],
   "redirects": [
     {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": ".+"
+        }
+      ],
+      "missing": [
+        {
+          "type": "host",
+          "value": "^(www\\.)?fullmediaalchemist\\.com$"
+        },
+        {
+          "type": "host",
+          "value": "^.*\\.vercel\\.app$"
+        }
+      ],
+      "destination": "/api/l?code=",
+      "permanent": false
+    },
+    {
       "source": "/dashboard/classic",
       "destination": "/dashboard/",
       "permanent": false
@@ -92,6 +113,26 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/:code",
+      "has": [
+        {
+          "type": "host",
+          "value": ".+"
+        }
+      ],
+      "missing": [
+        {
+          "type": "host",
+          "value": "^(www\\.)?fullmediaalchemist\\.com$"
+        },
+        {
+          "type": "host",
+          "value": "^.*\\.vercel\\.app$"
+        }
+      ],
+      "destination": "/api/l?code=:code"
+    },
     {
       "source": "/blog",
       "destination": "/api/journal?list=1"
