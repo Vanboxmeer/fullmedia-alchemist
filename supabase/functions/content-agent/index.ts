@@ -1,7 +1,7 @@
 // content-agent — lets a user's OWN Claude post their APPROVED Content posts (in their own signed-in browser, like posting by hand,
 // or by scheduling them in their own Metricool), then report back with the live link.
 // MCP over HTTP for the agent (key cak_… via ?key= / x-content-key / Bearer); user JWT for the in-app screen.
-// Deploy with verify_jwt=false (auth is done in here). No new tables: queue lives in ar_kv (coll content_queue),
+// Deploy with verify_jwt=false (auth is done in here). No new tables: queue lives in ar_settings (one row per post, key cq:<sku>; ar_kv only allows share/access/feedback),
 // settings in ar_settings (key content_automation), keys in ar_agent_keys (prefix cak_), activity in ar_agent_log.
 // HARD RULES enforced here, not just asked of the agent:
 //  - only posts the user APPROVED and then pressed "Send to Claude" on are ever handed out
@@ -35,7 +35,7 @@ function newKey() {
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const clean = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim().slice(0, max);
 const AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
-const COLL = "content_queue";
+const KP = "cq:";
 const CLAIM_MS = 30 * 60 * 1000;
 // networks Metricool takes for image posts (YouTube needs video; Pinterest needs a board so it is only sent when one is saved)
 const NETS: Record<string, string> = { instagram: "Instagram", facebook: "Facebook", x: "X (Twitter)", linkedin: "LinkedIn", tiktok: "TikTok", pinterest: "Pinterest" };
@@ -95,12 +95,13 @@ async function getSettings(client: string) {
   };
 }
 async function queueDocs(client: string): Promise<{ id: string; d: any }[]> {
-  const { data } = await admin.from("ar_kv").select("doc_id,data").eq("client_id", client).eq("coll", COLL).limit(1000);
-  return ((data as any[]) || []).map((r) => ({ id: r.doc_id, d: r.data || {} }));
+  const { data } = await admin.from("ar_settings").select("key,data").eq("client_id", client).like("key", KP + "%").limit(1000);
+  return ((data as any[]) || []).map((r) => ({ id: String(r.key).slice(KP.length), d: r.data || {} }));
 }
 async function putDoc(client: string, sku: string, d: any) {
   d.updatedAt = Date.now();
-  await admin.from("ar_kv").upsert({ client_id: client, coll: COLL, doc_id: sku, data: d, updated_at: new Date().toISOString() }, { onConflict: "client_id,coll,doc_id" });
+  const { error } = await admin.from("ar_settings").upsert({ client_id: client, key: KP + sku, data: d, updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
+  if (error) { console.error("putDoc", error.message); throw new Error("Could not save the queue"); }
 }
 async function logIt(client: string, key: string | null, action: string, outcome: string, detail: string) {
   await admin.from("ar_agent_log").insert({ client_id: client, brand_id: null, deal_id: null, key_id: key, action: "content_" + action, outcome, detail: clean(detail, 400) });
@@ -332,10 +333,10 @@ async function appAction(u: any, client: string, body: any) {
         if (nets.length && text) groups.push({ networks: [...new Set(nets)] as string[], text });
       }
       if (!groups.length) { skipped.push({ sku, why: "No account left to post to" }); continue; }
-      await putDoc(client, sku, {
+      try { await putDoc(client, sku, {
         state: "queued", sku, brand: r.brand, title: clean(r.post_idea, 120), at, tz: clean(it.tz, 60) || "UTC", groups, images: imgs,
         firstComment: clean(it.firstComment, 2000), link: clean(r.content_link, 300), location: clean(it.location, 120), queuedAt: Date.now(), attempts: 0, done: prev?.done || undefined,
-      });
+      }); } catch (_e) { skipped.push({ sku, why: "Could not save it. Try again" }); continue; }
       queued++;
     }
     await logIt(client, null, "queue", "ok", queued + " queued, " + skipped.length + " skipped");
@@ -347,7 +348,7 @@ async function appAction(u: any, client: string, body: any) {
     if (!doc || !u.brands.has(doc.d.brand)) return { ok: false, error: "Not found" };
     if (action === "remove") {
       if (doc.d.state === "claimed" && Date.now() - (doc.d.claimedAt || 0) < CLAIM_MS) return { ok: false, error: "Claude is working on it right now." };
-      await admin.from("ar_kv").delete().eq("client_id", client).eq("coll", COLL).eq("doc_id", sku); return { ok: true };
+      await admin.from("ar_settings").delete().eq("client_id", client).eq("key", KP + sku); return { ok: true };
     }
     const d = doc.d; if (FINISHED(d.state)) return { ok: false, error: "Already done." };
     d.state = "queued"; d.attempts = 0; delete d.reason; delete d.claimedAt; await putDoc(client, sku, d); return { ok: true };
