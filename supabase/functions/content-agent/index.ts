@@ -174,7 +174,7 @@ async function agentNext(sc: Scope) {
       posts.push({ network: n, label: BROWSER_NETS[n].label, openAt: BROWSER_NETS[n].url, expectAccount: who, text: g.text, ...(n === "pinterest" ? { note: "Pin to the board named: " + (boardOf(st, d.brand)) } : {}) });
     }
     if (!posts.length) {
-      d.state = "needs_user"; d.reason = missing.length ? "Add the account for " + [...new Set(missing)].join(", ") + " in Auto-post, then Retry." : "Nothing left Claude can post here (TikTok and Pinterest are done by hand).";
+      d.state = "needs_user"; d.reason = missing.length ? "Add the account for " + [...new Set(missing)].join(", ") + " in Claude automation, then Retry." : "Nothing left Claude can post here (TikTok and Pinterest are done by hand).";
       await putDoc(sc.client, next.id, d); continue;
     }
     d.state = "claimed"; d.claimedAt = Date.now(); d.attempts = (d.attempts || 0) + 1; delete d.reason;
@@ -260,7 +260,7 @@ async function agentResult(sc: Scope, a: any) {
 
 async function mcp(req: Request, body: any) {
   const sc = await keyScope(req);
-  if (!sc) return J({ jsonrpc: "2.0", id: body?.id ?? null, error: { code: -32001, message: "Key not recognised or revoked. Make a new one in Alchemist → Auto-schedule." } }, 401);
+  if (!sc) return J({ jsonrpc: "2.0", id: body?.id ?? null, error: { code: -32001, message: "Key not recognised or revoked. Make a new one in Alchemist → Claude automation." } }, 401);
   const id = body.id, m = String(body.method || "");
   const ok = (result: unknown) => J({ jsonrpc: "2.0", id, result });
   if (m.startsWith("notifications/")) return new Response(null, { status: 202, headers: CORS });
