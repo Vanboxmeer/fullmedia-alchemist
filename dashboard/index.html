@@ -3483,6 +3483,7 @@ function openPostEditor(p, opts = {}) {
           <div class="field"><label for="peDate">Post on</label><input class="input" type="date" id="peDate"></div>
           <div class="field"><label for="peLink">Link</label><input class="input" id="peLink" maxlength="1000" placeholder="https://"><span class="hint">Changing it redraws the QR code too.</span></div>
         </div>
+        <div class="field"><label for="peTime">Post at <span class="muted">(optional)</span></label><input class="input" type="time" id="peTime"><span class="hint">Claude automation posts at this time. Leave it empty to use the default time you choose when you send.</span></div>
       </div>`,
     foot: `<span class="msg"></span><button type="button" class="btn btn-ghost" data-close>Cancel</button><button type="button" class="btn btn-gold" id="peSave">Save</button>`,
   });
@@ -3491,6 +3492,7 @@ function openPostEditor(p, opts = {}) {
   attachMic($('#peCopy', el));
   $('#peTags', el).value = p.general_hashtags || '';
   $('#peDate', el).value = p.scheduled_date ? String(p.scheduled_date).slice(0, 10) : '';
+  $('#peTime', el).value = /^\d{2}:\d{2}/.test(String(p.scheduled_time || '')) ? String(p.scheduled_time).slice(0, 5) : '';
   $('#peLink', el).value = p.content_link || '';
   const mentAll = mentionList(p).all; const mentSel = new Set(mentionList(p).list.map((m) => m.name));
   if (mentAll.length) {
@@ -3530,6 +3532,8 @@ function openPostEditor(p, opts = {}) {
       const linkChanged = link && link !== (normalizeUrl(p.content_link) || '');
       const patch = { post_copy: copy, general_hashtags: tags, copy_plus_general: [copy, link || p.content_link || '', tags].filter(Boolean).join('\n\n') };
       if (date) patch.scheduled_date = date;
+      const tm = $('#peTime', el).value || '';
+      if (tm !== (/^\d{2}:\d{2}/.test(String(p.scheduled_time || '')) ? String(p.scheduled_time).slice(0, 5) : '')) patch.scheduled_time = tm || null;
       const r = await api('update-client-post', { body: { brand: S.brand, sku: p.sku, patch } });
       Object.assign(p, r.row || patch);
       if (linkChanged) {
@@ -8183,8 +8187,9 @@ function openAutoSchedule(campaignId) {
         <div class="field"><label for="caCamp">Posts from</label><select class="select" id="caCamp"><option value="">All campaigns</option>${camps.map((c) => `<option value="${esc(c.id)}"${c.id === campaignId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         <div class="field"><label for="caTime">Post at <span class="muted">(when a post has no time)</span></label><input class="input" type="time" id="caTime" value="09:00"></div>
       </div>
+      <div class="field"><label for="caWhen">When should Claude post?</label><select class="select" id="caWhen"><option value="sched">At each post’s date and time</option><option value="asap">As soon as Claude runs (post now)</option></select><span class="hint" id="caWhenHint"></span></div>
       <div id="caSum" class="notice" style="margin:0"></div>
-      <div class="notice" style="margin:0"><span class="small">Then tell Claude: <i id="caSay">“Post my next Alchemist posts.”</i></span></div>
+      <div class="notice" style="margin:0"><span class="small">Then tell Claude: <i id="caSay">“Post my next Alchemist posts.”</i><br>Claude only works when you ask. To run it by itself, tell Claude: <i>“Every morning at 9, post my next Alchemist posts.”</i> and let it set up a scheduled task.</span></div>
       <div class="field"><span class="label">Queue</span><div id="caList" class="small"></div></div>
     </div>`,
     foot: `<span class="msg"></span><button type="button" class="btn btn-ghost" data-close>Close</button><button type="button" class="btn btn-gold" id="caSend">Send to Claude</button>`,
@@ -8202,6 +8207,9 @@ function openAutoSchedule(campaignId) {
     const m = mode();
     $$('[data-for]', el).forEach((n) => { n.hidden = n.dataset.for !== m; });
     $('#caSay', el).textContent = m === 'browser' ? '“Post my next Alchemist posts.”' : '“Schedule my next Alchemist posts.”';
+    const w = $('#caWhen', el) && $('#caWhen', el).value;
+    if ($('#caWhenHint', el)) $('#caWhenHint', el).textContent = w === 'asap' ? 'Posts everything you send the moment you tell Claude, whatever its date.' : 'Claude only gets posts that are due, using the date and time you set on each post (Edit post). A post with no time uses the time above. If a post’s time has already passed (up to 2 days) it posts straight away. Older ones wait for you to change the date.';
+    if ($('#caSend', el)) $('#caSend', el).textContent = w === 'asap' ? 'Send to post now' : 'Send to Claude';
   };
   const paintBrands = () => {
     const box = $('#caBrands', el), m = mode();
@@ -8223,7 +8231,9 @@ function openAutoSchedule(campaignId) {
     $$('[data-mc]', box).forEach((c) => c.onchange = () => { mc[c.dataset.mc] = c.value.trim(); paintBrands(); save(); });
     const aa = $('[data-addacct]', box); if (aa) aa.onclick = (e) => { e.preventDefault(); s.close(); setTimeout(() => openBrandSettings(false, 'socials'), 280); };
   };
-  const opts = () => ({ campaignId: $('#caCamp', el).value, from: todayYmd(), to: '', drafts: false, time: $('#caTime', el).value || '09:00', tagsInComment: false });
+  const sigOf = (str) => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+  const backYmd = (days) => { const d = new Date(); d.setDate(d.getDate() - days); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const opts = () => ({ campaignId: $('#caCamp', el).value, from: backYmd($('#caWhen', el) && $('#caWhen', el).value === 'asap' ? 365 : 2), to: '', drafts: false, time: $('#caTime', el).value || '09:00', tagsInComment: false });
   const items = () => {
     const m = mode(), acc = accounts();
     if (off[S.brand]) return [];
@@ -8234,14 +8244,17 @@ function openAutoSchedule(campaignId) {
         if (m === 'browser') { if (!acc[k]) return; } else if (!MC_NET[n] || n === 'YouTube') return;
         const t = captionOf(p, opts(), k); if (!groups.has(t)) groups.set(t, []); groups.get(t).push(k);
       });
-      return { sku: p.sku, at: `${String(p.scheduled_date).slice(0, 10)}T${String(timeOf(p, opts().time)).slice(0, 5)}`, tz: userTz(), location: p.include_location_tag === false ? '' : (p.location_tag || ''), groups: [...groups].map(([text, networks]) => ({ networks, text })) };
+      const g2 = [...groups].map(([text, networks]) => ({ networks, text })), at2 = `${String(p.scheduled_date).slice(0, 10)}T${String(timeOf(p, opts().time)).slice(0, 5)}`;
+      return { sku: p.sku, at: at2, tz: userTz(), location: p.include_location_tag === false ? '' : (p.location_tag || ''), groups: g2, asap: $('#caWhen', el).value === 'asap', sig: sigOf(at2 + JSON.stringify(g2)) };
     });
   };
   const paintSum = () => {
-    const sent = new Set(((data && data.items) || []).filter((x) => x.state !== 'failed' && x.state !== 'needs_user').map((x) => x.sku));
-    const list = items().filter((i) => i.groups.length), fresh = list.filter((i) => !sent.has(i.sku));
+    const list = items().filter((i) => i.groups.length), prevBy = new Map((((data && data.items) || [])).map((x) => [x.sku, x]));
+    const isDone = (x) => x.state === 'posted' || x.state === 'scheduled' || x.state === 'claimed';
+    const same = (i) => { const x = prevBy.get(i.sku); return !!x && (isDone(x) || (x.state === 'queued' && x.sig === i.sig && !!x.asap === !!i.asap)); };
+    const fresh = list.filter((i) => !same(i)), changed = fresh.filter((i) => { const x = prevBy.get(i.sku); return x && x.state === 'queued'; }).length;
     const noAcc = mode() === 'browser' && !Object.keys(accounts()).length;
-    $('#caSum', el).textContent = off[S.brand] ? `${S.brand} is paused. Switch “Posting on” back on in step 3.` : noAcc ? `Tick at least one account for ${S.brand} in step 3 so Claude knows where it may post.` : list.length ? `${fresh.length} approved post${fresh.length === 1 ? '' : 's'} ready to send${list.length - fresh.length ? ` (${list.length - fresh.length} already with Claude)` : ''}.` : 'No approved posts with an image, a date and an account to post to. Approve some first.';
+    $('#caSum', el).textContent = off[S.brand] ? `${S.brand} is paused. Switch “Posting on” back on in step 3.` : noAcc ? `Tick at least one account for ${S.brand} in step 3 so Claude knows where it may post.` : list.length ? `${fresh.length} approved post${fresh.length === 1 ? '' : 's'} ready to send${changed ? ` (${changed} changed since you sent ${changed === 1 ? 'it' : 'them'}, so ${changed === 1 ? 'it is' : 'they are'} updated)` : ''}${list.length - fresh.length ? ` (${list.length - fresh.length} already with Claude)` : ''}.` : 'No approved posts with an image, a date and an account to post to. Approve some first.';
     $('#caSend', el).disabled = !fresh.length;
   };
   const paintList = () => {
@@ -8287,6 +8300,7 @@ function openAutoSchedule(campaignId) {
   ['#caOn', '#caDraft', '#caCap', '#caGap'].forEach((id) => $(id, el).addEventListener('change', save));
   $('#caMode', el).addEventListener('change', () => { paintMode(); paintBrands(); paintSum(); save(); });
   ['#caCamp', '#caTime'].forEach((id) => $(id, el).addEventListener('change', paintSum));
+  $('#caWhen', el).addEventListener('change', () => { paintMode(); paintSum(); });
   paintMode();
   $('#caMake', el).onclick = async () => {
     try { const r = await caCall({ action: 'create_key', label: 'Claude (Content)' }); newUrl = r.url; $('#caUrl', el).value = newUrl; $('#caNew', el).hidden = false; await load(); } catch (e) { s.msg(e.message, 'err'); }

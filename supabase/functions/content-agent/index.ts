@@ -51,7 +51,7 @@ const BROWSER_NETS: Record<string, { label: string; url: string }> = {
 };
 
 const MCP_INSTRUCTIONS =
-  "You post the user's OWN approved Alchemist posts. Loop: call content_get_next_post. If status is off, empty or daily_cap, stop; if wait, pause waitSeconds then continue. " +
+  "You post the user's OWN approved Alchemist posts. Loop: call content_get_next_post. If status is off, empty, not_due or daily_cap, stop; if wait, pause waitSeconds then continue. " +
   "Otherwise do exactly that one post the way its instructions say, then call content_report_result. Never change the wording, hashtags or links. Never invent a link. " +
   "Never log in, type passwords or codes, solve CAPTCHAs or pay: hand the post back with outcome needs_user (or wrong_account) and the plain reason. Do not retry a failing step more than once.";
 
@@ -110,6 +110,10 @@ const FINISHED = (st: string) => st === "scheduled" || st === "posted";
 const doneToday = (docs: { d: any }[], today: string) => docs.filter((x) => FINISHED(x.d.state) && x.d.doneDay === today).length;
 const lastDoneAt = (docs: { d: any }[]) => docs.reduce((m, x) => Math.max(m, FINISHED(x.d.state) || x.d.done ? (x.d.doneAt || 0) : 0), 0);
 const netsOf = (d: any): string[] => [...new Set((d.groups || []).flatMap((g: any) => g.networks || []))] as string[];
+// "now" as local clock time (YYYY-MM-DDTHH:mm) in the post's own time zone, to compare with the post's local date and time
+function nowIn(tz: string) { try { return new Date().toLocaleString("sv-SE", { timeZone: tz || "UTC" }).replace(" ", "T").slice(0, 16); } catch { return new Date().toISOString().slice(0, 16); } }
+const hoursBetween = (a: string, b: string) => (Date.parse(b + ":00Z") - Date.parse(a + ":00Z")) / 3600000;
+const LATE_HOURS = 48;
 const eligible = (d: any) => d.state === "queued" || (d.state === "claimed" && Date.now() - (d.claimedAt || 0) > CLAIM_MS && (d.attempts || 0) < 2);
 
 // ---------- agent side ----------
@@ -124,8 +128,29 @@ async function agentNext(sc: Scope) {
     if (wait > 0) return { status: "wait", waitSeconds: wait, message: "Pausing between posts so it looks natural." };
   }
   const list = docs.filter((x) => eligible(x.d) && !(st.brandsOff || {})[x.d.brand]).sort((a, b) => String(a.d.at).localeCompare(String(b.d.at)));
+  const notDue: string[] = [];
   for (const next of list) {
     const d = next.d;
+    // The queued copy is a snapshot: re-read the post so a changed date or time, or a post that is no longer approved, is honoured
+    const { data: pr } = await admin.from("content_calendar").select("scheduled_date,scheduled_time,approval_status").eq("sku", d.sku).eq("brand", d.brand).is("deleted_at", null).maybeSingle();
+    if (!pr || String((pr as any).approval_status || "").toLowerCase() !== "approved") {
+      d.state = "needs_user"; d.reason = "This post is no longer approved (or was removed), so it was not posted."; await putDoc(sc.client, next.id, d); continue;
+    }
+    if (!d.asap) {
+      const nd = String((pr as any).scheduled_date || "").slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(nd)) {
+        const tm = /^\d{2}:\d{2}/.test(String((pr as any).scheduled_time || "")) ? String((pr as any).scheduled_time).slice(0, 5) : String(d.at).slice(11, 16);
+        const na = nd + "T" + tm;
+        if (na !== d.at) { d.at = na; await putDoc(sc.client, next.id, d); }
+      }
+    }
+    if (!d.asap) {
+      const nowL = nowIn(d.tz || "UTC");
+      if (d.at > nowL) { notDue.push(d.at); continue; }
+      if (hoursBetween(d.at, nowL) > LATE_HOURS) {
+        d.state = "needs_user"; d.reason = "Its date passed more than 2 days ago. Change the date, or choose Post now, then Retry."; await putDoc(sc.client, next.id, d); continue;
+      }
+    }
     if (st.mode === "metricool") {
       d.state = "claimed"; d.claimedAt = Date.now(); d.attempts = (d.attempts || 0) + 1; delete d.reason;
       await putDoc(sc.client, next.id, d);
@@ -168,6 +193,7 @@ async function agentNext(sc: Scope) {
         "Report each network as soon as it is done, not all at the end. If a step fails twice, report failed or needs_user with the plain reason and go on to the next network.",
     };
   }
+  if (notDue.length) { const nx = notDue.sort()[0]; return { status: "not_due", nextAt: nx, message: "Nothing is due yet. The next post is due " + nx.replace("T", " ") + " (the user's local time). Stop now; the user can ask again later, or choose Post now in Alchemist." }; }
   return { status: "empty", message: "No approved posts are waiting." };
 }
 
@@ -280,7 +306,7 @@ async function appStatus(client: string, brands: Set<string>) {
   const { data: log } = await admin.from("ar_agent_log").select("action,outcome,detail,created_at").eq("client_id", client).like("action", "content_%").order("created_at", { ascending: false }).limit(12);
   const pub = (x: { id: string; d: any }) => {
     const d = x.d, stale = d.state === "claimed" && Date.now() - (d.claimedAt || 0) > CLAIM_MS;
-    return { sku: x.id, brand: d.brand, title: d.title, at: d.at, state: stale ? "queued" : d.state, reason: d.reason || "", networks: netsOf(d), posted: Object.keys(d.done || {}), links: Object.values(d.done || {}).map((x: any) => x.link), link: d.result?.link || "", doneAt: d.doneAt || null };
+    return { sku: x.id, brand: d.brand, title: d.title, at: d.at, state: stale ? "queued" : d.state, reason: d.reason || "", networks: netsOf(d), posted: Object.keys(d.done || {}), links: Object.values(d.done || {}).map((x: any) => x.link), link: d.result?.link || "", doneAt: d.doneAt || null, sig: d.sig || "", asap: !!d.asap };
   };
   const items = docs.filter((x) => brands.has(x.d.brand)).sort((a, b) => (b.d.updatedAt || 0) - (a.d.updatedAt || 0)).slice(0, 80).map(pub);
   return { ok: true, settings: st, brands: [...brands], today, doneToday: doneToday(docs, today), items, keys: keys || [], log: log || [] };
@@ -311,7 +337,6 @@ async function appAction(u: any, client: string, body: any) {
     const items: any[] = Array.isArray(body.items) ? body.items.slice(0, 100) : [];
     const docs = new Map((await queueDocs(client)).map((x) => [x.id, x.d]));
     const skipped: { sku: string; why: string }[] = []; let queued = 0;
-    const now = new Date().toISOString().slice(0, 16);
     for (const it of items) {
       const sku = clean(it.sku, 40);
       const { data: row } = await admin.from("content_calendar").select("*").eq("sku", sku).is("deleted_at", null).maybeSingle();
@@ -322,7 +347,9 @@ async function appAction(u: any, client: string, body: any) {
       if (!imgs.length) { skipped.push({ sku, why: "No image yet" }); continue; }
       const at = String(it.at || "");
       if (!AT.test(at)) { skipped.push({ sku, why: "No valid date and time" }); continue; }
-      if (at < now) { skipped.push({ sku, why: "Its date has passed" }); continue; }
+      const asap = it.asap === true || body.asap === true;
+      const nowL = nowIn(clean(it.tz, 60) || "UTC");
+      if (!asap && at < nowL && hoursBetween(at, nowL) > LATE_HOURS) { skipped.push({ sku, why: "More than 2 days past its date. Change the date, or choose Post now" }); continue; }
       const prev = docs.get(sku);
       if (prev && (FINISHED(prev.state) || (prev.state === "claimed" && Date.now() - (prev.claimedAt || 0) < CLAIM_MS))) { skipped.push({ sku, why: FINISHED(prev.state) ? "Already done" : "Claude is on it" }); continue; }
       const groups: { networks: string[]; text: string }[] = [];
@@ -335,7 +362,7 @@ async function appAction(u: any, client: string, body: any) {
       if (!groups.length) { skipped.push({ sku, why: "No account left to post to" }); continue; }
       try { await putDoc(client, sku, {
         state: "queued", sku, brand: r.brand, title: clean(r.post_idea, 120), at, tz: clean(it.tz, 60) || "UTC", groups, images: imgs,
-        firstComment: clean(it.firstComment, 2000), link: clean(r.content_link, 300), location: clean(it.location, 120), queuedAt: Date.now(), attempts: 0, done: prev?.done || undefined,
+        firstComment: clean(it.firstComment, 2000), link: clean(r.content_link, 300), location: clean(it.location, 120), queuedAt: Date.now(), attempts: 0, done: prev?.done || undefined, asap, sig: clean(it.sig, 40),
       }); } catch (_e) { skipped.push({ sku, why: "Could not save it. Try again" }); continue; }
       queued++;
     }
