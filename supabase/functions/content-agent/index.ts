@@ -45,6 +45,9 @@ const BROWSER_NETS: Record<string, { label: string; url: string }> = {
   facebook: { label: "Facebook", url: "https://www.facebook.com/ (the page or profile named in expectAccount)" },
   x: { label: "X (Twitter)", url: "https://x.com/compose/post" },
   linkedin: { label: "LinkedIn", url: "https://www.linkedin.com/feed/ (Start a post)" },
+  tiktok: { label: "TikTok", url: "https://www.tiktok.com/tiktokstudio/upload (photo post)" },
+  pinterest: { label: "Pinterest", url: "https://www.pinterest.com/pin-creation-tool/ (use the board named in note)" },
+  reddit: { label: "Reddit", url: "https://www.reddit.com/submit (post to the profile or subreddit named in expectAccount)" },
 };
 
 const MCP_INSTRUCTIONS =
@@ -138,9 +141,9 @@ async function agentNext(sc: Scope) {
     const posts: any[] = [], missing: string[] = [];
     for (const g of d.groups || []) for (const n of g.networks || []) {
       if (done[n] || !BROWSER_NETS[n]) continue;
-      const who = clean(acc[n], 80);
+      const who = clean(acc[n], 160);
       if (!who) { missing.push(BROWSER_NETS[n].label); continue; }
-      posts.push({ network: n, label: BROWSER_NETS[n].label, openAt: BROWSER_NETS[n].url, expectAccount: who, text: g.text });
+      posts.push({ network: n, label: BROWSER_NETS[n].label, openAt: BROWSER_NETS[n].url, expectAccount: who, text: g.text, ...(n === "pinterest" ? { note: "Pin to the board named: " + (st.pinterestBoard || "") } : {}) });
     }
     if (!posts.length) {
       d.state = "needs_user"; d.reason = missing.length ? "Add the account for " + [...new Set(missing)].join(", ") + " in Auto-post, then Retry." : "Nothing left Claude can post here (TikTok and Pinterest are done by hand).";
@@ -153,7 +156,7 @@ async function agentNext(sc: Scope) {
       status: "task", mode: "browser", sku: d.sku, brand: d.brand, title: d.title || "", images: d.images, posts,
       instructions:
         "Post this on the user's own accounts using Claude in Chrome (the user's own signed-in browser), one network at a time, like the user would by hand, with a natural pause of 30 to 90 seconds between networks. " +
-        "FOR EACH entry in posts: (1) open a new tab at openAt; (2) CHECK the signed-in account really is expectAccount (profile name or handle visible in the page). If it is a different account or you cannot tell, do NOT post: call content_report_result with results [{network, outcome: wrong_account, reason}] for it and stop the whole run; " +
+        "FOR EACH entry in posts: (1) open a new tab at openAt; (2) CHECK the signed-in account really is expectAccount (expectAccount is the account's profile address or handle; open it or look at the profile name or handle shown in the page and compare). If it is a different account or you cannot tell, do NOT post: call content_report_result with results [{network, outcome: wrong_account, reason}] for it and stop the whole run; " +
         "(3) if the site asks you to log in, enter a password or code, or shows a CAPTCHA, do not continue: outcome needs_user for that network and move on; " +
         "(4) before posting, look at the account's most recent posts; if one already starts with the same first line, do not post again, report posted with that post's link; " +
         "(5) the images are the user's own public image links listed in images. The composer needs them as files: the user has approved downloading exactly these image files for this post, so save each one to a temporary folder first, then attach them in the order given (carousel / multiple images where the network allows it); " +
@@ -287,7 +290,7 @@ async function appAction(u: any, client: string, body: any) {
     const cur = await getSettings(client);
     const accounts: Record<string, Record<string, string>> = {};
     Object.keys(cur.accounts || {}).forEach((b) => { if (u.brands.has(b)) accounts[b] = cur.accounts[b]; });
-    Object.keys(body.accounts || {}).forEach((b) => { if (!u.brands.has(b)) return; const o: Record<string, string> = {}; Object.keys(BROWSER_NETS).forEach((n) => { const v = clean((body.accounts[b] || {})[n], 80); if (v) o[n] = v; }); accounts[b] = o; });
+    Object.keys(body.accounts || {}).forEach((b) => { if (!u.brands.has(b)) return; const o: Record<string, string> = {}; Object.keys(BROWSER_NETS).forEach((n) => { const v = clean((body.accounts[b] || {})[n], 160); if (v) o[n] = v; }); accounts[b] = o; });
     const data = { on: body.on === true, mode: body.mode === "metricool" ? "metricool" : "browser", dailyCap: Math.max(1, Math.min(30, Number(body.dailyCap) || 5)), gapSec: Math.max(30, Math.min(900, Number(body.gapSec) || cur.gapSec)), asDraft: body.asDraft === true, mcBrands: mc, pinterestBoard: clean(body.pinterestBoard, 80), accounts };
     const { error } = await admin.from("ar_settings").upsert({ client_id: client, key: "content_automation", data, updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
     return { ok: !error, settings: data, error: error ? "Couldn't save" : undefined };
