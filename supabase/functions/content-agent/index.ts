@@ -1,11 +1,13 @@
-// content-agent — lets a user's OWN Claude schedule their APPROVED Content posts in their own Metricool, then report back.
+// content-agent — lets a user's OWN Claude post their APPROVED Content posts (in their own signed-in browser, like posting by hand,
+// or by scheduling them in their own Metricool), then report back with the live link.
 // MCP over HTTP for the agent (key cak_… via ?key= / x-content-key / Bearer); user JWT for the in-app screen.
 // Deploy with verify_jwt=false (auth is done in here). No new tables: queue lives in ar_kv (coll content_queue),
 // settings in ar_settings (key content_automation), keys in ar_agent_keys (prefix cak_), activity in ar_agent_log.
 // HARD RULES enforced here, not just asked of the agent:
 //  - only posts the user APPROVED and then pressed "Send to Claude" on are ever handed out
 //  - captions, networks and times are exactly what the app computed; images come from the post row itself
-//  - nothing goes to a social network directly: the agent only uses the user's Metricool connector (schedule, never publish now)
+//  - browser mode posts only on networks where the user saved the expected account for that brand; wrong account = stop and pause
+//  - Metricool mode only schedules through the user's Metricool connector
 //  - a switch (on/off) and a daily cap; a post that failed or needs the user is held until the user retries it
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -37,25 +39,31 @@ const COLL = "content_queue";
 const CLAIM_MS = 30 * 60 * 1000;
 // networks Metricool takes for image posts (YouTube needs video; Pinterest needs a board so it is only sent when one is saved)
 const NETS: Record<string, string> = { instagram: "Instagram", facebook: "Facebook", x: "X (Twitter)", linkedin: "LinkedIn", tiktok: "TikTok", pinterest: "Pinterest" };
+// networks Claude can post to from a normal signed-in browser (TikTok photo posts and Pinterest boards are left to the user)
+const BROWSER_NETS: Record<string, { label: string; url: string }> = {
+  instagram: { label: "Instagram", url: "https://www.instagram.com/ (use Create → Post)" },
+  facebook: { label: "Facebook", url: "https://www.facebook.com/ (the page or profile named in expectAccount)" },
+  x: { label: "X (Twitter)", url: "https://x.com/compose/post" },
+  linkedin: { label: "LinkedIn", url: "https://www.linkedin.com/feed/ (Start a post)" },
+};
 
 const MCP_INSTRUCTIONS =
-  "You schedule the user's OWN approved Alchemist posts in the user's Metricool account, using the Metricool connector in this same chat. " +
-  "Loop: call content_get_next_post. If status is off, empty or daily_cap, stop. Otherwise do exactly that one post, then call content_report_result. " +
-  "HOW: use the Metricool connector (call get_brands first and pick the brand named in metricoolBrand). For EACH entry in groups, create ONE scheduled post in Metricool with exactly that text, " +
-  "only those networks, the images in the order given (they are public links, pass them as given), at publishAt in the given timezone (asDraft true means save it as a draft instead). " +
-  "RULES: never change the wording, hashtags or links; never publish immediately; never open a social network site or post by browser; never invent a link or id. " +
-  "If Metricool cannot do it (brand or network not connected, plan post limit reached, a tool error), do not retry more than once: call content_report_result with outcome needs_user and the plain reason. " +
-  "After Metricool confirms, call content_report_result with outcome scheduled, the networks that were scheduled, and the link or post id Metricool returned as proof.";
+  "You post the user's OWN approved Alchemist posts. Loop: call content_get_next_post. If status is off, empty or daily_cap, stop; if wait, pause waitSeconds then continue. " +
+  "Otherwise do exactly that one post the way its instructions say, then call content_report_result. Never change the wording, hashtags or links. Never invent a link. " +
+  "Never log in, type passwords or codes, solve CAPTCHAs or pay: hand the post back with outcome needs_user (or wrong_account) and the plain reason. Do not retry a failing step more than once.";
 
 const TOOLS = [
   { name: "content_get_next_post", description: "Get the next approved post to schedule in Metricool (or a status saying why there is none).", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
   { name: "content_report_result", description: "Report what happened with a post you were given.", inputSchema: { type: "object", properties: {
     sku: { type: "string", description: "The sku of the post you were given." },
-    outcome: { type: "string", enum: ["scheduled", "failed", "needs_user"] },
-    networks: { type: "array", items: { type: "string" }, description: "Networks that were scheduled." },
-    link: { type: "string", description: "Link to the post in Metricool, or its post id." },
+    results: { type: "array", description: "Browser mode: one entry per network you handled.", items: { type: "object", properties: {
+      network: { type: "string" }, outcome: { type: "string", enum: ["posted", "failed", "needs_user", "wrong_account"] },
+      link: { type: "string", description: "The live post URL (proof)." }, reason: { type: "string" } }, required: ["network", "outcome"] } },
+    outcome: { type: "string", enum: ["scheduled", "failed", "needs_user"], description: "Metricool mode only." },
+    networks: { type: "array", items: { type: "string" }, description: "Metricool mode: networks that were scheduled." },
+    link: { type: "string", description: "Metricool mode: link to the post in Metricool, or its post id." },
     reason: { type: "string", description: "For failed / needs_user: the plain reason." },
-  }, required: ["sku", "outcome"], additionalProperties: false } },
+  }, required: ["sku"], additionalProperties: false } },
   { name: "content_flag_for_user", description: "Hand a post back to the user (same as outcome needs_user).", inputSchema: { type: "object", properties: { sku: { type: "string" }, reason: { type: "string" } }, required: ["sku", "reason"], additionalProperties: false } },
 ];
 
@@ -74,7 +82,12 @@ async function keyScope(req: Request): Promise<Scope | null> {
 async function getSettings(client: string) {
   const { data } = await admin.from("ar_settings").select("data").eq("client_id", client).eq("key", "content_automation").maybeSingle();
   const d: any = (data as any)?.data || {};
-  return { on: d.on === true, dailyCap: Math.max(1, Math.min(30, Number(d.dailyCap) || 10)), asDraft: d.asDraft === true, mcBrands: (d.mcBrands && typeof d.mcBrands === "object") ? d.mcBrands : {}, pinterestBoard: clean(d.pinterestBoard, 80) };
+  return {
+    on: d.on === true, mode: d.mode === "metricool" ? "metricool" : "browser",
+    dailyCap: Math.max(1, Math.min(30, Number(d.dailyCap) || 5)), gapSec: Math.max(30, Math.min(900, Number(d.gapSec) || 120)),
+    asDraft: d.asDraft === true, mcBrands: (d.mcBrands && typeof d.mcBrands === "object") ? d.mcBrands : {}, pinterestBoard: clean(d.pinterestBoard, 80),
+    accounts: (d.accounts && typeof d.accounts === "object") ? d.accounts : {},   // { brand: { instagram: "@handle", ... } } = the accounts Claude may post to
+  };
 }
 async function queueDocs(client: string): Promise<{ id: string; d: any }[]> {
   const { data } = await admin.from("ar_kv").select("doc_id,data").eq("client_id", client).eq("coll", COLL).limit(1000);
@@ -87,29 +100,69 @@ async function putDoc(client: string, sku: string, d: any) {
 async function logIt(client: string, key: string | null, action: string, outcome: string, detail: string) {
   await admin.from("ar_agent_log").insert({ client_id: client, brand_id: null, deal_id: null, key_id: key, action: "content_" + action, outcome, detail: clean(detail, 400) });
 }
-const doneToday = (docs: { d: any }[], today: string) => docs.filter((x) => x.d.state === "scheduled" && x.d.doneDay === today).length;
+const FINISHED = (st: string) => st === "scheduled" || st === "posted";
+const doneToday = (docs: { d: any }[], today: string) => docs.filter((x) => FINISHED(x.d.state) && x.d.doneDay === today).length;
+const lastDoneAt = (docs: { d: any }[]) => docs.reduce((m, x) => Math.max(m, FINISHED(x.d.state) || x.d.done ? (x.d.doneAt || 0) : 0), 0);
+const netsOf = (d: any): string[] => [...new Set((d.groups || []).flatMap((g: any) => g.networks || []))] as string[];
 const eligible = (d: any) => d.state === "queued" || (d.state === "claimed" && Date.now() - (d.claimedAt || 0) > CLAIM_MS && (d.attempts || 0) < 2);
 
 // ---------- agent side ----------
 async function agentNext(sc: Scope) {
   const st = await getSettings(sc.client);
-  if (!st.on) return { status: "off", message: "Auto-schedule is switched off in Alchemist. Nothing to do." };
+  if (!st.on) return { status: "off", message: "Auto-post is switched off in Alchemist. Nothing to do." };
   const docs = await queueDocs(sc.client);
   const today = iso(new Date());
   if (doneToday(docs, today) >= st.dailyCap) return { status: "daily_cap", message: "Today's limit is reached. Try again tomorrow." };
-  const next = docs.filter((x) => eligible(x.d)).sort((a, b) => String(a.d.at).localeCompare(String(b.d.at)))[0];
-  if (!next) return { status: "empty", message: "No approved posts are waiting." };
-  const d = next.d;
-  d.state = "claimed"; d.claimedAt = Date.now(); d.attempts = (d.attempts || 0) + 1; delete d.reason;
-  await putDoc(sc.client, next.id, d);
-  await logIt(sc.client, sc.keyId, "get_next", "claimed", d.sku + " " + d.brand);
-  return {
-    status: "task", sku: d.sku, brand: d.brand, metricoolBrand: st.mcBrands[d.brand] || d.brand, title: d.title || "",
-    publishAt: d.at, timezone: d.tz || "UTC", asDraft: st.asDraft, groups: d.groups, images: d.images,
-    firstComment: d.firstComment || undefined, link: d.link || undefined, location: d.location || undefined,
-    pinterestBoard: d.groups.some((g: any) => (g.networks || []).includes("pinterest")) ? st.pinterestBoard : undefined,
-    instructions: "Schedule this exact post in the user's Metricool using the Metricool connector, one scheduled post per entry in groups. Do not change any wording. Then call content_report_result.",
-  };
+  if (st.mode === "browser") {
+    const wait = Math.ceil((lastDoneAt(docs) + st.gapSec * 1000 - Date.now()) / 1000);
+    if (wait > 0) return { status: "wait", waitSeconds: wait, message: "Pausing between posts so it looks natural." };
+  }
+  const list = docs.filter((x) => eligible(x.d)).sort((a, b) => String(a.d.at).localeCompare(String(b.d.at)));
+  for (const next of list) {
+    const d = next.d;
+    if (st.mode === "metricool") {
+      d.state = "claimed"; d.claimedAt = Date.now(); d.attempts = (d.attempts || 0) + 1; delete d.reason;
+      await putDoc(sc.client, next.id, d);
+      await logIt(sc.client, sc.keyId, "get_next", "claimed", d.sku + " " + d.brand);
+      return {
+        status: "task", mode: "metricool", sku: d.sku, brand: d.brand, metricoolBrand: st.mcBrands[d.brand] || d.brand, title: d.title || "",
+        publishAt: d.at, timezone: d.tz || "UTC", asDraft: st.asDraft, groups: d.groups, images: d.images,
+        firstComment: d.firstComment || undefined, link: d.link || undefined, location: d.location || undefined,
+        pinterestBoard: d.groups.some((g: any) => (g.networks || []).includes("pinterest")) ? st.pinterestBoard : undefined,
+        instructions: "Use the user's Metricool connector (get_brands first, pick metricoolBrand). Create ONE scheduled post per entry in groups with exactly that text, only those networks, the images in order (public links), at publishAt in the timezone (asDraft true = save as draft). Never publish immediately and never open a social site. Then call content_report_result with outcome scheduled, the networks scheduled and the Metricool link or id as proof; if Metricool cannot do it, outcome needs_user with the reason.",
+      };
+    }
+    // browser mode: only networks the user saved an expected account for (for this brand), not already posted
+    const acc = (st.accounts && st.accounts[d.brand]) || {};
+    const done = d.done || {};
+    const posts: any[] = [], missing: string[] = [];
+    for (const g of d.groups || []) for (const n of g.networks || []) {
+      if (done[n] || !BROWSER_NETS[n]) continue;
+      const who = clean(acc[n], 80);
+      if (!who) { missing.push(BROWSER_NETS[n].label); continue; }
+      posts.push({ network: n, label: BROWSER_NETS[n].label, openAt: BROWSER_NETS[n].url, expectAccount: who, text: g.text });
+    }
+    if (!posts.length) {
+      d.state = "needs_user"; d.reason = missing.length ? "Add the account for " + [...new Set(missing)].join(", ") + " in Auto-post, then Retry." : "Nothing left Claude can post here (TikTok and Pinterest are done by hand).";
+      await putDoc(sc.client, next.id, d); continue;
+    }
+    d.state = "claimed"; d.claimedAt = Date.now(); d.attempts = (d.attempts || 0) + 1; delete d.reason;
+    await putDoc(sc.client, next.id, d);
+    await logIt(sc.client, sc.keyId, "get_next", "claimed", d.sku + " " + d.brand + " " + posts.map((p) => p.network).join(","));
+    return {
+      status: "task", mode: "browser", sku: d.sku, brand: d.brand, title: d.title || "", images: d.images, posts,
+      instructions:
+        "Post this on the user's own accounts using Claude in Chrome (the user's own signed-in browser), one network at a time, like the user would by hand, with a natural pause of 30 to 90 seconds between networks. " +
+        "FOR EACH entry in posts: (1) open a new tab at openAt; (2) CHECK the signed-in account really is expectAccount (profile name or handle visible in the page). If it is a different account or you cannot tell, do NOT post: call content_report_result with results [{network, outcome: wrong_account, reason}] for it and stop the whole run; " +
+        "(3) if the site asks you to log in, enter a password or code, or shows a CAPTCHA, do not continue: outcome needs_user for that network and move on; " +
+        "(4) before posting, look at the account's most recent posts; if one already starts with the same first line, do not post again, report posted with that post's link; " +
+        "(5) the images are the user's own public image links listed in images. The composer needs them as files: the user has approved downloading exactly these image files for this post, so save each one to a temporary folder first, then attach them in the order given (carousel / multiple images where the network allows it); " +
+        "(6) paste the text exactly as given (do not edit, shorten or add anything), post it, then open the new post and copy its live address; " +
+        "(7) report with content_report_result results [{network, outcome: posted, link: the live post URL}]. A posted result without a real link is rejected. " +
+        "Report each network as soon as it is done, not all at the end. If a step fails twice, report failed or needs_user with the plain reason and go on to the next network.",
+    };
+  }
+  return { status: "empty", message: "No approved posts are waiting." };
 }
 
 const SCHED_COL = new Set(Object.keys(NETS));
@@ -119,11 +172,39 @@ async function agentResult(sc: Scope, a: any) {
   const doc = docs.find((x) => x.id === sku);
   if (!doc) return { ok: false, error: "That post is not in the queue." };
   const d = doc.d;
-  if (d.state === "scheduled") return { ok: true, note: "Already recorded as scheduled." };
+  if (FINISHED(d.state)) return { ok: true, note: "Already recorded as done." };
+  if (Array.isArray(a.results)) {
+    const done = d.done || (d.done = {});
+    const all = netsOf(d);
+    const { data: row } = await admin.from("content_calendar").select("*").eq("sku", sku).eq("brand", d.brand).is("deleted_at", null).maybeSingle();
+    const patch: Record<string, unknown> = {}; const bad: string[] = []; let wrong = false; const okNets: string[] = [];
+    for (const r of a.results.slice(0, 8)) {
+      const n = String(r.network || "").toLowerCase().replace(/[^a-z]/g, "").replace(/^(twitter|xtwitter)$/, "x");
+      if (!BROWSER_NETS[n] || !all.includes(n)) continue;
+      const o = String(r.outcome || "");
+      if (o === "posted") {
+        const link = clean(r.link, 400);
+        if (!/^https:\/\//i.test(link)) { bad.push(BROWSER_NETS[n].label + ": a posted result needs the live post link (https://…)"); continue; }
+        done[n] = { link, at: Date.now() }; okNets.push(n);
+        if (row && !(row as any)[n + "_posted_at"] && !(row as any)[n + "_post_link"]) { patch[n + "_post_link"] = link; patch[n + "_posted_at"] = new Date().toISOString(); }
+      } else if (o === "wrong_account") { wrong = true; bad.push(BROWSER_NETS[n].label + ": signed in to the wrong account. " + clean(r.reason, 160)); }
+      else bad.push(BROWSER_NETS[n].label + ": " + (clean(r.reason, 200) || (o === "needs_user" ? "needs you" : "failed")));
+    }
+    if (row && Object.keys(patch).length) await admin.from("content_calendar").update(patch).eq("id", (row as any).id);
+    const left = all.filter((n) => BROWSER_NETS[n] && !done[n]);
+    if (!left.length) { d.state = "posted"; d.doneDay = iso(new Date()); delete d.reason; }
+    else if (bad.length) { d.state = wrong || bad.some((b) => /needs you|log in|captcha/i.test(b)) ? "needs_user" : "failed"; d.reason = bad.join(" · ").slice(0, 300); }
+    else d.state = "claimed";   // still has networks to do
+    d.doneAt = Date.now(); if (d.state === "posted" || d.state === "needs_user" || d.state === "failed") delete d.claimedAt;
+    await putDoc(sc.client, sku, d);
+    if (wrong) await admin.from("ar_settings").upsert({ client_id: sc.client, key: "content_automation", data: Object.assign({}, await getSettings(sc.client), { on: false }), updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
+    await logIt(sc.client, sc.keyId, "report", wrong ? "wrong_account" : d.state, sku + " " + okNets.join(",") + " " + bad.join(" | "));
+    return { ok: true, recorded: d.state, posted: okNets, problems: bad, ...(wrong ? { paused: "Auto-post was switched off because a wrong account was found. Tell the user." } : {}) };
+  }
   if (outcome === "scheduled") {
     const link = clean(a.link, 400);
     if (link.length < 6) return { ok: false, error: "Scheduled needs proof: pass the link or post id Metricool returned." };
-    const all = [...new Set((d.groups || []).flatMap((g: any) => g.networks || []))] as string[];
+    const all = netsOf(d);
     const got = (Array.isArray(a.networks) && a.networks.length ? a.networks.map((n: string) => String(n).toLowerCase().replace(/[^a-z]/g, "")) : all)
       .map((n: string) => (n === "twitter" || n === "xtwitter" ? "x" : n)).filter((n: string) => SCHED_COL.has(n) && all.includes(n));
     // mark each network "scheduled" the same way the app's own export does, so the app asks later whether it went out
@@ -191,7 +272,7 @@ async function appStatus(client: string, brands: Set<string>) {
   const { data: log } = await admin.from("ar_agent_log").select("action,outcome,detail,created_at").eq("client_id", client).like("action", "content_%").order("created_at", { ascending: false }).limit(12);
   const pub = (x: { id: string; d: any }) => {
     const d = x.d, stale = d.state === "claimed" && Date.now() - (d.claimedAt || 0) > CLAIM_MS;
-    return { sku: x.id, brand: d.brand, title: d.title, at: d.at, state: stale ? "queued" : d.state, reason: d.reason || "", networks: [...new Set((d.groups || []).flatMap((g: any) => g.networks || []))], link: d.result?.link || "", doneAt: d.doneAt || null };
+    return { sku: x.id, brand: d.brand, title: d.title, at: d.at, state: stale ? "queued" : d.state, reason: d.reason || "", networks: netsOf(d), posted: Object.keys(d.done || {}), links: Object.values(d.done || {}).map((x: any) => x.link), link: d.result?.link || "", doneAt: d.doneAt || null };
   };
   const items = docs.filter((x) => brands.has(x.d.brand)).sort((a, b) => (b.d.updatedAt || 0) - (a.d.updatedAt || 0)).slice(0, 80).map(pub);
   return { ok: true, settings: st, brands: [...brands], today, doneToday: doneToday(docs, today), items, keys: keys || [], log: log || [] };
@@ -203,7 +284,11 @@ async function appAction(u: any, client: string, body: any) {
   if (action === "save_settings") {
     const mc: Record<string, string> = {};
     Object.keys(body.mcBrands || {}).forEach((k) => { if (u.brands.has(k)) { const v = clean(body.mcBrands[k], 80); if (v) mc[k] = v; } });
-    const data = { on: body.on === true, dailyCap: Math.max(1, Math.min(30, Number(body.dailyCap) || 10)), asDraft: body.asDraft === true, mcBrands: mc, pinterestBoard: clean(body.pinterestBoard, 80) };
+    const cur = await getSettings(client);
+    const accounts: Record<string, Record<string, string>> = {};
+    Object.keys(cur.accounts || {}).forEach((b) => { if (u.brands.has(b)) accounts[b] = cur.accounts[b]; });
+    Object.keys(body.accounts || {}).forEach((b) => { if (!u.brands.has(b)) return; const o: Record<string, string> = {}; Object.keys(BROWSER_NETS).forEach((n) => { const v = clean((body.accounts[b] || {})[n], 80); if (v) o[n] = v; }); accounts[b] = o; });
+    const data = { on: body.on === true, mode: body.mode === "metricool" ? "metricool" : "browser", dailyCap: Math.max(1, Math.min(30, Number(body.dailyCap) || 5)), gapSec: Math.max(30, Math.min(900, Number(body.gapSec) || cur.gapSec)), asDraft: body.asDraft === true, mcBrands: mc, pinterestBoard: clean(body.pinterestBoard, 80), accounts };
     const { error } = await admin.from("ar_settings").upsert({ client_id: client, key: "content_automation", data, updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
     return { ok: !error, settings: data, error: error ? "Couldn't save" : undefined };
   }
@@ -225,18 +310,18 @@ async function appAction(u: any, client: string, body: any) {
       if (!AT.test(at)) { skipped.push({ sku, why: "No valid date and time" }); continue; }
       if (at < now) { skipped.push({ sku, why: "Its date has passed" }); continue; }
       const prev = docs.get(sku);
-      if (prev && (prev.state === "scheduled" || (prev.state === "claimed" && Date.now() - (prev.claimedAt || 0) < CLAIM_MS))) { skipped.push({ sku, why: prev.state === "scheduled" ? "Already scheduled" : "Claude is on it" }); continue; }
+      if (prev && (FINISHED(prev.state) || (prev.state === "claimed" && Date.now() - (prev.claimedAt || 0) < CLAIM_MS))) { skipped.push({ sku, why: FINISHED(prev.state) ? "Already done" : "Claude is on it" }); continue; }
       const groups: { networks: string[]; text: string }[] = [];
       for (const g of Array.isArray(it.groups) ? it.groups : []) {
         const nets = (Array.isArray(g.networks) ? g.networks : []).map((n: unknown) => String(n).toLowerCase())
-          .filter((n: string) => NETS[n] && !r[n + "_posted_at"] && !r[n + "_post_link"] && (n !== "pinterest" || !!st.pinterestBoard));
+          .filter((n: string) => (st.mode === "browser" ? !!BROWSER_NETS[n] : !!NETS[n]) && !r[n + "_posted_at"] && !r[n + "_post_link"] && (n !== "pinterest" || !!st.pinterestBoard));
         const text = clean(g.text, 5000);
         if (nets.length && text) groups.push({ networks: [...new Set(nets)] as string[], text });
       }
       if (!groups.length) { skipped.push({ sku, why: "No account left to post to" }); continue; }
       await putDoc(client, sku, {
         state: "queued", sku, brand: r.brand, title: clean(r.post_idea, 120), at, tz: clean(it.tz, 60) || "UTC", groups, images: imgs,
-        firstComment: clean(it.firstComment, 2000), link: clean(r.content_link, 300), location: clean(it.location, 120), queuedAt: Date.now(), attempts: 0,
+        firstComment: clean(it.firstComment, 2000), link: clean(r.content_link, 300), location: clean(it.location, 120), queuedAt: Date.now(), attempts: 0, done: prev?.done || undefined,
       });
       queued++;
     }
@@ -251,7 +336,7 @@ async function appAction(u: any, client: string, body: any) {
       if (doc.d.state === "claimed" && Date.now() - (doc.d.claimedAt || 0) < CLAIM_MS) return { ok: false, error: "Claude is working on it right now." };
       await admin.from("ar_kv").delete().eq("client_id", client).eq("coll", COLL).eq("doc_id", sku); return { ok: true };
     }
-    const d = doc.d; if (d.state === "scheduled") return { ok: false, error: "Already scheduled." };
+    const d = doc.d; if (FINISHED(d.state)) return { ok: false, error: "Already done." };
     d.state = "queued"; d.attempts = 0; delete d.reason; delete d.claimedAt; await putDoc(client, sku, d); return { ok: true };
   }
   if (action === "create_key") {
