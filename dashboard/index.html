@@ -3069,8 +3069,7 @@ async function openImageEditor(p, idx = 0) {
     title: media.length > 1 ? `Edit image ${idx + 1} of ${media.length}` : 'Edit this image',
     body: `<div class="ie">
       <div class="ie-preview-wrap">
-        <div class="ie-tabs"><button type="button" class="on" data-tab="live">Live preview</button><button type="button" data-tab="render">Server render</button></div>
-        <div class="ie-live" id="ieLive" style="background:${esc(brandAccent)}">
+        <div class="ie-live" id="ieLive" style="display:none;background:${esc(brandAccent)}">
           <div class="ie-card">
             <div class="ie-card-logo left" id="ieLogo">${esc((S.brandData && S.brandData.name) || S.brand)}</div>
             <div class="ie-card-label" id="ieLiveLabel"></div>
@@ -3081,20 +3080,13 @@ async function openImageEditor(p, idx = 0) {
           </div>
           <span class="ie-tag">Live preview</span>
         </div>
-        <div class="ie-pic" id="ieRenderWrap" style="display:none"><img id="ieImg" alt="Image ${idx + 1}" src="${esc(url)}"><span class="ie-tag" id="ieTag">Server render</span></div>
+        <div class="ie-pic" id="ieRenderWrap"><img id="ieImg" alt="Image ${idx + 1}" src="${esc(url)}"><span class="ie-tag" id="ieTag" style="display:none"></span></div>
       </div>
       <div class="ie-form" id="ieForm"><div class="skel" style="height:220px"></div></div>
     </div>`,
-    foot: '<span class="msg"></span><button type="button" class="btn btn-ghost" data-close>Cancel</button><button type="button" class="btn btn-quiet" id="ieRedraw" title="Draws every image of this post again from its saved design and your generated picture">Redraw post</button><button type="button" class="btn btn-quiet" id="ieRender">Render preview</button><button type="button" class="btn btn-gold" id="ieSave" disabled>Save image</button>',
+    foot: '<span class="msg"></span><button type="button" class="btn btn-ghost" data-close>Cancel</button><button type="button" class="btn btn-quiet" id="ieRedraw" title="Draws every image of this post again from its saved design and your generated picture">Redraw post</button><button type="button" class="btn btn-gold" id="ieSave" disabled>Save image</button>',
   });
   const el = s.el; el.classList.add('wide');
-  /* --- tab switching --- */
-  $$('.ie-tabs button', el).forEach((tb) => tb.onclick = () => {
-    $$('.ie-tabs button', el).forEach((x) => x.classList.toggle('on', x === tb));
-    const live = tb.dataset.tab === 'live';
-    $('#ieLive', el).style.display = live ? '' : 'none';
-    $('#ieRenderWrap', el).style.display = live ? 'none' : '';
-  });
   let info;
   try { info = await api('alchemist-edit', { body: { action: 'slide_words', brand: S.brand, sku: p.sku, slide: n } }); }
   catch (e) { if (e.status !== 401) s.msg(e.message, 'err'); return; }
@@ -3187,7 +3179,7 @@ async function openImageEditor(p, idx = 0) {
     return e;
   };
   /* --- instant client-side preview --- */
-  let accentColor = brandAccent;
+  let accentColor = brandAccent, srvT = 0;
   const livePreview = () => {
     const w = words();
     const liveEl = $('#ieLive', el);
@@ -3215,23 +3207,22 @@ async function openImageEditor(p, idx = 0) {
     const save = $('#ieSave', el);
     const hasEdits = Object.keys(edits()).length > 0;
     save.disabled = !hasEdits;
+    clearTimeout(srvT); srvT = setTimeout(() => { if (el.isConnected) renderServerPreview(); }, 800);
   };
   /* --- server-side render preview (on demand) --- */
   let serverSeq = 0;
   const triggerServerPreview = () => { /* no-op: server preview now on-demand via Render button */ };
   const renderServerPreview = async () => {
     const e = edits(); const mine = ++serverSeq;
-    if (!Object.keys(e).length) { $('#ieImg', el).src = url; $('#ieTag', el).textContent = 'Server render'; return; }
+    const tag = $('#ieTag', el);
+    if (!Object.keys(e).length) { $('#ieImg', el).src = url; tag.style.display = 'none'; $('#ieRenderWrap', el).classList.remove('busy'); return; }
     const rw = $('#ieRenderWrap', el); if (!rw) return;
-    $('#ieTag', el).textContent = 'Drawing…'; rw.classList.add('busy');
-    /* switch to render tab */
-    $$('.ie-tabs button', el).forEach((x) => x.classList.toggle('on', x.dataset.tab === 'render'));
-    $('#ieLive', el).style.display = 'none'; rw.style.display = '';
+    tag.textContent = 'Updating…'; tag.style.display = ''; rw.classList.add('busy');
     try {
       const r = await api('alchemist-edit', { body: { action: 'edit_slide', brand: S.brand, sku: p.sku, slide: n, edits: e, preview: true } });
       if (mine !== serverSeq) return;
-      $('#ieImg', el).src = r.png; $('#ieTag', el).textContent = 'Server render · not saved yet'; s.msg('');
-    } catch (err) { if (mine === serverSeq && err.status !== 401) { s.msg(err.message, 'err'); $('#ieTag', el).textContent = 'Server render'; } }
+      $('#ieImg', el).src = r.png; tag.textContent = 'Not saved yet'; s.msg('');
+    } catch (err) { if (mine === serverSeq && err.status !== 401) { s.msg(err.message, 'err'); tag.style.display = 'none'; } }
     finally { if (mine === serverSeq && rw) rw.classList.remove('busy'); }
   };
   /* --- wire form controls --- */
@@ -3280,7 +3271,6 @@ async function openImageEditor(p, idx = 0) {
   attachMic($('#iePicNote', el));
   paintSegs(); livePreview();
   /* --- render preview button (on-demand server render) --- */
-  $('#ieRender', el).onclick = renderServerPreview;
   $('#ieRedraw', el).onclick = async () => {
     const b = $('#ieRedraw', el); b.disabled = true; s.msg('Redrawing this post with your pictures\u2026');
     try {
