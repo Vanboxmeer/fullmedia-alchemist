@@ -3021,6 +3021,7 @@ function wirePostCards(root) {
         <button type="button" data-m="fmts">${icons.spark} Other formats <span class="muted small">(text, thread, poll)</span></button>
         <button type="button" data-m="redo">${icons.spark} Redo the whole post</button>
         <div class="sep"></div>
+        <button type="button" data-m="postnow">${icons.spark} Post now with Claude <span class="muted small">(ready to post)</span></button>
         <button type="button" data-m="caps"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> Captions for each account</button>
         <button type="button" data-m="posted"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Live links &amp; results</button>
         <button type="button" data-m="slides"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Images, slides &amp; QR code</button>
@@ -3038,6 +3039,7 @@ function wirePostCards(root) {
           m.querySelector('[data-m="slides"]').onclick = () => openSlides(p());
           m.querySelector('[data-m="ics"]').onclick = () => downloadIcs([p()], (p().post_idea || 'post') + '.ics');
           m.querySelector('[data-m="posted"]').onclick = () => openResults(p());
+          m.querySelector('[data-m="postnow"]').onclick = () => openAutoSchedule(null, { sku: p().sku });
           m.querySelector('[data-m="caps"]').onclick = () => openCaptions(p());
           m.querySelector('[data-m="imged"]').onclick = () => openImageEditor(p(), +($('.media', card).dataset.idx || 0));
           m.querySelector('[data-m="archive"]').onclick = () => archivePost(p());
@@ -8149,7 +8151,7 @@ async function caCall(body) {
   if (!r.ok || j.ok === false) throw new Error(j.error || 'Something went wrong. Try again.');
   return j;
 }
-function openAutoSchedule(campaignId) {
+function openAutoSchedule(campaignId, preset) {
   closeMenus();
   if (!S.brand) return;
   const camps = S.campaigns || [];
@@ -8188,6 +8190,7 @@ function openAutoSchedule(campaignId) {
         <div class="field"><label for="caTime">Post at <span class="muted">(when a post has no time)</span></label><input class="input" type="time" id="caTime" value="09:00"></div>
       </div>
       <div class="field"><label for="caWhen">When should Claude post?</label><select class="select" id="caWhen"><option value="sched">At each post’s date and time</option><option value="asap">As soon as Claude runs (post now)</option></select><span class="hint" id="caWhenHint"></span></div>
+      ${preset ? '<div class="notice" style="margin:0"><b>Post now:</b> only this one post is sent, and Claude posts it the moment you ask. It must be approved and have an image.</div>' : ''}
       <div id="caSum" class="notice" style="margin:0"></div>
       <div class="notice" style="margin:0"><span class="small">Then tell Claude: <i id="caSay">“Post my next Alchemist posts.”</i><br>Claude only works when you ask. To run it by itself, tell Claude: <i>“Every morning at 9, post my next Alchemist posts.”</i> and let it set up a scheduled task.</span></div>
       <div class="field"><span class="label">Queue</span><div id="caList" class="small"></div></div>
@@ -8237,7 +8240,7 @@ function openAutoSchedule(campaignId) {
   const items = () => {
     const m = mode(), acc = accounts();
     if (off[S.brand]) return [];
-    return exportPosts(opts()).map((p) => {
+    return exportPosts(opts()).filter((p) => !preset || p.sku === preset.sku).map((p) => {
       const groups = new Map();
       exportPlatforms(p).forEach((n) => {
         const k = platKey(n); if (!k) return;
@@ -8301,6 +8304,7 @@ function openAutoSchedule(campaignId) {
   $('#caMode', el).addEventListener('change', () => { paintMode(); paintBrands(); paintSum(); save(); });
   ['#caCamp', '#caTime'].forEach((id) => $(id, el).addEventListener('change', paintSum));
   $('#caWhen', el).addEventListener('change', () => { paintMode(); paintSum(); });
+  if (preset) { $('#caCamp', el).value = ''; $('#caWhen', el).value = 'asap'; }
   paintMode();
   $('#caMake', el).onclick = async () => {
     try { const r = await caCall({ action: 'create_key', label: 'Claude (Content)' }); newUrl = r.url; $('#caUrl', el).value = newUrl; $('#caNew', el).hidden = false; await load(); } catch (e) { s.msg(e.message, 'err'); }
