@@ -2670,10 +2670,9 @@ function renderCampaign() {
   };
   $('#campMenu').onclick = (e) => {
     e.stopPropagation();
-    popMenu(e.currentTarget, `<button type="button" data-a="share">Client approval link</button><button type="button" data-a="ics">Add all posts to my calendar</button><button type="button" data-a="autosched">Claude automation…</button><button type="button" data-a="export">Export for automation (Metricool…)</button><div class="sep"></div><button type="button" data-a="archive">Archive campaign</button>`, (m) => {
+    popMenu(e.currentTarget, `<button type="button" data-a="share">Client approval link</button><button type="button" data-a="ics">Add all posts to my calendar</button><button type="button" data-a="export">Export for automation (Metricool…)</button><div class="sep"></div><button type="button" data-a="archive">Archive campaign</button>`, (m) => {
       m.querySelector('[data-a="share"]').onclick = () => openClientLinks(c);
       m.querySelector('[data-a="export"]').onclick = () => openExport(c.id);
-      m.querySelector('[data-a="autosched"]').onclick = () => openAutoSchedule(c.id);
       m.querySelector('[data-a="ics"]').onclick = () => { const list = postsFor(c.id).filter((x) => x.scheduled_date && stageOf(x)[0] !== 'Posted'); if (!list.length) { toast('No upcoming posts to add.', 'info'); return; } downloadIcs(list, (c.name || 'campaign') + '.ics'); };
       m.querySelector('[data-a="archive"]').onclick = async () => {
         if (!await confirmDialog(`Archive "${c.name}"? Its posts stay saved; the campaign just leaves this list.`, 'Archive')) return;
@@ -3021,7 +3020,6 @@ function wirePostCards(root) {
         <button type="button" data-m="fmts">${icons.spark} Other formats <span class="muted small">(text, thread, poll)</span></button>
         <button type="button" data-m="redo">${icons.spark} Redo the whole post</button>
         <div class="sep"></div>
-        <button type="button" data-m="postnow">${icons.spark} Post now with Claude <span class="muted small">(ready to post)</span></button>
         <button type="button" data-m="caps"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> Captions for each account</button>
         <button type="button" data-m="posted"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Live links &amp; results</button>
         <button type="button" data-m="slides"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Images, slides &amp; QR code</button>
@@ -3039,7 +3037,6 @@ function wirePostCards(root) {
           m.querySelector('[data-m="slides"]').onclick = () => openSlides(p());
           m.querySelector('[data-m="ics"]').onclick = () => downloadIcs([p()], (p().post_idea || 'post') + '.ics');
           m.querySelector('[data-m="posted"]').onclick = () => openResults(p());
-          m.querySelector('[data-m="postnow"]').onclick = () => openAutoSchedule(null, { sku: p().sku });
           m.querySelector('[data-m="caps"]').onclick = () => openCaptions(p());
           m.querySelector('[data-m="imged"]').onclick = () => openImageEditor(p(), +($('.media', card).dataset.idx || 0));
           m.querySelector('[data-m="archive"]').onclick = () => archivePost(p());
@@ -3475,7 +3472,7 @@ function openPostEditor(p, opts = {}) {
           <div class="field"><label for="peDate">Post on</label><input class="input" type="date" id="peDate"></div>
           <div class="field"><label for="peLink">Link</label><input class="input" id="peLink" maxlength="1000" placeholder="https://"><span class="hint">Changing it redraws the QR code too.</span></div>
         </div>
-        <div class="field"><label for="peTime">Post at <span class="muted">(optional)</span></label><input class="input" type="time" id="peTime"><span class="hint">Claude automation posts at this time. Leave it empty to use the default time you choose when you send.</span></div>
+        <div class="field"><label for="peTime">Post at <span class="muted">(optional)</span></label><input class="input" type="time" id="peTime"><span class="hint">The time you plan to post this. Leave it empty if it does not matter.</span></div>
       </div>`,
     foot: `<span class="msg"></span><button type="button" class="btn btn-ghost" data-close>Cancel</button><button type="button" class="btn btn-gold" id="peSave">Save</button>`,
   });
@@ -8129,7 +8126,7 @@ async function wireTracking(el) {
 }
 
 /* Main-menu entry (2026-11-08): account-level, same place as Reach's Automation */
-window.xpModuleItems = function () { return [{ label: 'Claude automation', fn: function () { try { openAutoSchedule(); } catch (e) {} } }]; };
+/* Claude automation menu entries are switched off for the Content module for now (code kept: openAutoSchedule). */
 /* ── Auto-post with Claude (2026-11-06) ───────────────────────────────────
    The user's own Claude posts their APPROVED posts. Default: "in my browser", like posting by hand, using Claude in
    Chrome while the user is signed in to their own accounts. Optional: schedule through the user's Metricool connector.

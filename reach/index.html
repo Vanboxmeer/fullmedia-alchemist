@@ -2602,6 +2602,7 @@ function sub(col){ try{ C(col).onSnapshot((snap)=>{
     markDirty();
     if(state.loading && loadedCols.size>=activeCols().length) state.loading=false;
     if(!state.loading) scheduleRender();
+    if(!state.loading&&(col==="deals"||col==="brands")) scheduleReconcile();
   },(e)=>console.warn("snap",col,e)); }catch(e){console.warn("sub",col,e);} }
 /* A background data refresh (every 20s, or another person/agent changing a row) rebuilds the page.
    It must never move what you're looking at: remember every scrolled area (list sideways and down,
@@ -2635,7 +2636,9 @@ function dbFail(e){ console.warn("db",e); toast("Couldn't save — "+((e&&e.code
 function patchDoc(col,id,patch){ const row=rowOf(col,id); if(row) Object.assign(row,patch); markDirty(); noteLocal(col,id); const p=Object.assign({},patch); return D(col+"/"+id).update(p).catch(dbFail); }
 function createDoc(col,id,data){ state[col].push(Object.assign({id},data)); markDirty(); noteLocal(col,id); return D(col+"/"+id).set(data).catch(dbFail); }
 function deleteDoc(col,id){ state[col]=state[col].filter(x=>x.id!==id); markDirty(); noteLocal(col,id); return D(col+"/"+id).delete().catch(dbFail); }
-function patchDeal(id,patch){ patch.updatedAt=Date.now(); return patchDoc("deals",id,patch); }
+function patchDeal(id,patch){ patch.updatedAt=Date.now();
+  if(typeof patch.draft==="string"||typeof patch.subject==="string"){ const bn=brandCall(brandById((rowOf("deals",id)||{}).brandId)||{}); if(typeof patch.draft==="string") patch.draft=scrubOld(patch.draft,bn); if(typeof patch.subject==="string") patch.subject=scrubOld(patch.subject,bn); }
+  return patchDoc("deals",id,patch); }
 async function pmap(items,n,fn){ const out=[]; let i=0; async function w(){ while(i<items.length){ const k=i++; out[k]=await fn(items[k],k); } } await Promise.all(Array.from({length:Math.min(n,items.length)},w)); return out; }
 
 /* ---- indexes: every lookup is O(1); rebuilt lazily after any data change ---- */
@@ -2885,7 +2888,7 @@ function renderCommandCenter(){
       +'<td class="ellipsis" style="max-width:260px;color:var(--fg-dim)">'+esc(b.campaignStatus||"")+'</td></tr>';
   }).join("");
   const table='<div class="section-title">Brands at a glance</div><div class="tablewrap"><table><thead><tr><th>Brand</th><th>Coverage</th><th>Partnerships</th><th>Open</th><th>Needs attn</th><th>Quota</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
-  const attnRows=attn.slice(0,14).map(d=>{ const b=brandById(d.brandId); const t=targetForDeal(d); const reason=d.outreachStatus==="Ready to Send"?"Ready to send":(!d.draft||!d.draft.trim()?"No draft":"Follow-up due "+fmtDate(d.followUpDue));
+  const attnRows=attn.slice(0,14).map(d=>{ const b=brandById(d.brandId); const t=targetForDeal(d); const reason=d.outreachStatus==="Ready to Send"?"Ready to send":(d.followUpDue&&d.followUpDue<=todayISO()?"Follow-up due "+fmtDate(d.followUpDue):(!d.draft||!d.draft.trim()?"No draft":"Follow-up due "+fmtDate(d.followUpDue)));
     return '<tr data-deal="'+d.id+'"><td><b>'+esc(t.channelName||t.name||d.targetName||"—")+'</b></td><td>'+esc(b?b.name:"")+'</td><td>'+(d.dealType==="lead"?'<span class="pill p-lead">lead</span>':'<span class="pill p-cov">coverage</span>')+'</td><td><span class="pill '+pillClass(d.outreachStatus)+'">'+esc(d.outreachStatus||d.dealStage||"")+'</span></td><td style="color:var(--fg-dim)">'+esc(reason)+'</td></tr>'; }).join("");
   const attnTable=attn.length?'<div class="section-title">Needs attention now'+(attn.length>14?' (first 14 of '+attn.length+')':'')+'</div><div class="tablewrap"><table><thead><tr><th>Target</th><th>Brand</th><th>Flow</th><th>Status</th><th>Why</th></tr></thead><tbody>'+attnRows+'</tbody></table></div>':'';
   return stats+table+attnTable;
@@ -3371,6 +3374,54 @@ function openDm(id){ const d=ix().deal.get(id); if(!d) return; if(replyBlock(d))
 /* =====================================================================
    STATE CHANGES — each is one optimistic patch + a log line
    ===================================================================== */
+/* ---- follow-ups: the message that was already sent is archived (never shown as a draft); a due follow-up gets its own new draft ---- */
+const OLD_NAME_RE=/content\s+conveyor\s+belt/i;
+function scrubOld(s,brandName){ s=String(s==null?"":s); if(!OLD_NAME_RE.test(s)) return s;
+  s=s.replace(/\s*[\(\[]\s*(?:formerly|previously|originally|also known as|aka|a\.k\.a\.)[^)\]]*content\s+conveyor\s+belt[^)\]]*[\)\]]/gi,"");
+  s=s.replace(/,?\s*(?:formerly|previously|originally|also)\s+(?:known\s+as\s+|called\s+)?(?:the\s+)?content\s+conveyor\s+belt/gi,"");
+  s=s.replace(/\b(?:the\s+)?content\s+conveyor\s+belt\b/gi,brandName||"the app");
+  if(brandName){ const e=brandName.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"); s=s.replace(new RegExp("\\s*\\((?:now|today|aka)\\s+"+e+"\\)","gi"),""); }
+  return s.replace(/ {2,}/g," ").replace(/\s+([.,;:!?])/g,"$1"); }
+function sentArchivePatch(d,when){
+  const p={fuv:1,draft:"",draftKind:"",draftState:""}; const bn=brandCall(brandById(d.brandId)||{});
+  const body=scrubOld(d.draft||"",bn).trim();
+  if(!d.sentSubject&&(d.subject||"").trim()) p.sentSubject=scrubOld(d.subject,bn).replace(/^\s*re:\s*/i,"").trim();
+  if(body){ const log=(d.sentLog||[]).slice(); if(!log.some(x=>x&&x.body===body)) log.push({date:when||todayISO(),subject:scrubOld(d.subject||"",bn),body:body,kind:d.draftKind||"sent"}); p.sentLog=log.slice(-6); }
+  return p; }
+function followUpDraftPatch(d){
+  const n=d.followUps||0, key=isLead(d)?"LF":(n>=1?"F2":"F1"); const m=mergeTpl(d,key);
+  return {draft:m.body,subject:routeKind(d)==="email"?m.subject:(d.subject||""),draftKind:"followup",draftState:"",draftFu:n,fuv:1}; }
+function followUpCandidate(d){ return phaseOf(d)==="sent"&&dueNow(d)&&(d.followUps||0)<2&&routeKind(d)!=="none"; }
+let reconT=0, reconBusy=false, reconTry=0;
+function scheduleReconcile(){ clearTimeout(reconT); reconT=setTimeout(reconcileDrafts,1800); }
+async function reconcileDrafts(){
+  if(CLIENT.brandId||reconBusy) return;
+  if(state.loading||loadedCols.size<activeCols().length){ if(reconTry++<6) reconT=setTimeout(reconcileDrafts,3000); return; }
+  reconBusy=true;
+  try{
+    const todo=[], bt=[]; let sweptSent=0, madeFu=0;
+    state.brands.forEach(b=>{ const p={}; Object.keys(b).forEach(k=>{ if(typeof b[k]==="string"&&OLD_NAME_RE.test(b[k])) p[k]=scrubOld(b[k],b.callAs||b.name); }); if(Object.keys(p).length) bt.push([b.id,p]); });
+    state.deals.forEach(d=>{
+      const ph=phaseOf(d); let p={};
+      if(ph==="sent"){
+        const stale=hasDraft(d)&&(!d.fuv||(d.draftKind==="followup"&&d.draftFu!=null&&d.draftFu<(d.followUps||0)));
+        let cur=d;
+        if(stale){ p=sentArchivePatch(d,d.lastSentDate||d.sentDate); cur=Object.assign({},d,p); sweptSent++; }
+        else if(!d.fuv) p.fuv=1;
+        if(!hasDraft(cur)&&followUpCandidate(cur)){ Object.assign(p,followUpDraftPatch(cur)); madeFu++; }
+      } else {
+        const bn=brandCall(brandById(d.brandId)||{});
+        ["draft","subject","personalisation","nextAction","notes"].forEach(k=>{ if(typeof d[k]==="string"&&OLD_NAME_RE.test(d[k])) p[k]=scrubOld(d[k],bn); });
+      }
+      if(Object.keys(p).length) todo.push([d.id,p]);
+    });
+    if(!todo.length&&!bt.length) return;
+    await pmap(bt,4,([id,p])=>patchDoc("brands",id,p));
+    await pmap(todo,6,([id,p])=>patchDeal(id,p));
+    stallCache.clear(); scheduleRender();
+    if(sweptSent||madeFu) toast("Follow-ups tidied: "+sweptSent+" already-sent message"+(sweptSent===1?"":"s")+" moved to “Already sent”, "+madeFu+" new follow-up draft"+(madeFu===1?"":"s")+" ready.");
+  }catch(e){ console.warn("reconcile",e); } finally{ reconBusy=false; }
+}
 function sentPatchFor(d,via,dateOverride,statusOverride){
   const t=dateOverride||todayISO(), ph=phaseOf(d), lead=isLead(d);
   const already=(ph==="sent")&&!!d.sentDate;
@@ -3384,11 +3435,13 @@ function sentPatchFor(d,via,dateOverride,statusOverride){
   else if(ph==="sent"){ /* stays sent */ }
   else { if(lead) p.dealStage="Contacted"; else p.outreachStatus=statusOverride||"Sent - Awaiting Reply"; }
   if(already&&n>=2) p.nextAction="Stop — two follow-ups sent; close out if no reply";
+  Object.assign(p,sentArchivePatch(d,t));
   return p;
 }
 function doMarkSent(id,via,opts){
   const d=ix().deal.get(id); if(!d) return; opts=opts||{};
   if(!opts.bulk&&!opts.skipGate&&replyBlock(d)) return;
+  if(!opts.bulk&&!opts.skipGate&&!opts.status&&phaseOf(d)==="sent"&&!hasDraft(d)){ toast("There is no follow-up message yet. Insert a template or write one first."); return; }
   if(!opts.bulk&&!opts.status&&!opts.date&&state.justSent&&state.justSent.id===id&&state.wb.active===id){ toast("Already marked sent. Use Undo, or Close and next conversation."); return; }
   if(hasGaps(d)){ if(opts.bulk){ (doMarkSent.skipped=doMarkSent.skipped||[]).push(id); return; } gapBlock(d); return; }
   if(!opts.skipGate){ const gph=phaseOf(d), gr=(gph==="research"||gph==="ready")?1:(gph==="replied"?2:(gph==="deal"?3:0)); if(gr&&!gateGuard(id,gr,()=>doMarkSent(id,via,Object.assign({},opts,{skipGate:true})),{bulk:opts.bulk,cancel:()=>afterRowChange(id)})){ if(opts.bulk) (doMarkSent.skipped=doMarkSent.skipped||[]).push(id); return; } }
@@ -3549,7 +3602,7 @@ function nudgeTo(d,st){
 function buildNudge(d,st,tone){
   const b=brandById(d.brandId)||{}, to=nudgeTo(d,st)||{}, meta=BLOCK_WHY[st.why], creator=to.kind==="creator";
   const first=to.first||"there", sender=senderName(), tgt=nameOf(d), by=fmtShort(addDays(todayISO(),3));
-  const lastSubj=(d.subject||"").replace(/^re:\s*/i,"")||"my earlier note";
+  const lastSubj=(d.sentSubject||d.subject||"").replace(/^re:\s*/i,"")||"my earlier note";
   const what=isLead(d)?("the introduction to "+tgt):("the "+(b.name||"campaign")+" placement with "+tgt);
   const subj=creator?lastSubj:what;
   const ask=meta.ask;
@@ -4498,7 +4551,7 @@ function rowHtml(d){
   const dot=al.length?'<span class="adot '+lv+'" data-a="open" title="'+esc(alTitle)+'">'+(d.suggest?"✉":al.length)+'</span>':'';
   const reach='<div class="reach">'+(em?'<a class="ibtn" data-a="gmail" href="'+esc(gmailHref(d))+'" target="_blank" rel="noopener" title="Open Gmail compose to '+esc(em)+'">✉</a>':'')+(dm.href?'<a class="ibtn" data-a="dm" href="'+esc(dm.href)+'" target="_blank" rel="noopener" title="'+esc(routeKind(d)==="form"?"Open the form (no email for this one)":dm.label)+'">↗</a>':'')+(routeKind(d)==="form"?'<span class="rtag" title="Web form: no email address. Open the form and paste the message.">Form</span>':routeKind(d)==="dm"?'<span class="rtag" title="Chat message: no subject, no email.">DM</span>':'')+(prop?viewBtn(d,"abtn ghost vw","View ↗"):'')+'<button class="ibtn'+(hasDraft(d)?'':' dis')+'" data-a="copy" title="Copy message">⧉</button>'+(em?'<span class="addr" title="'+esc(em)+'">'+esc(em)+'</span>':(dm.href?'<span class="addr">'+esc(hostOf(dm.href))+'</span>':'<span class="addr" style="color:var(--bad)">no contact</span>'))+'</div>';
   const msgTxt=((d.subject?d.subject+" — ":"")+(d.draft||"")).replace(/\s+/g," ").trim();
-  const msg=hasDraft(d)?'<div class="msgp" data-a="open" title="'+esc(msgTxt.slice(0,300))+'">'+(d.draftKind==="reply"?'<span class="rv">Reply · </span>':'')+(d.draftState==="agent"?'<span class="rv">✨ </span>':'')+esc(msgTxt.slice(0,90))+'</div>':'<div class="msgp none" data-a="open">+ write message</div>';
+  const msg=hasDraft(d)?'<div class="msgp" data-a="open" title="'+esc(msgTxt.slice(0,300))+'">'+(d.draftKind==="reply"?'<span class="rv">Reply · </span>':(d.draftKind==="followup"?'<span class="rv">Follow-up · </span>':''))+(d.draftState==="agent"?'<span class="rv">✨ </span>':'')+esc(msgTxt.slice(0,90))+'</div>':((ph==="sent"&&(d.sentDate||d.lastSentDate))?'<div class="msgp none" data-a="open">Sent '+esc(fmtShort(d.lastSentDate||d.sentDate))+(d.followUpDue?' · follow-up '+esc(fmtShort(d.followUpDue)):'')+'</div>':'<div class="msgp none" data-a="open">+ write message</div>');
   let act="";
   if(d.suggest) act='<button class="abtn good" data-a="apply">'+(d.suggest.type==="replied"?"Read reply ✉":d.suggest.type==="sent"?"Confirm sent ✉":d.suggest.type==="bounced"?"Bounced ✉":"Review ✉")+'</button>';
   else if(prop) act='<button class="abtn pri" data-a="accept">Accept</button> <button class="abtn ghost" data-a="reject" title="Reject">✕</button>';
@@ -4770,14 +4823,14 @@ function suggestTemplate(d){ const t=targetForDeal(d), plat=((t.platform||"")+""
   if(t.agencyManaged||AGENCY_DOMAINS.includes(dom)) return "B"; if(/twitch/.test(plat)) return "C"; if(/site|web|news|org|network|editorial|display/.test(plat+" "+typ)) return "D"; return "A"; }
 function mergeTpl(d,key){
   const T=TPL[key]; const b=brandById(d.brandId)||{}, t=targetForDeal(d); const client=(d.ownerType||"").startsWith("Client");
-  const first=((t.contactName||"").trim().split(/\s+/)[0])||"there"; const cs=commsForDeal(d.id).filter(c=>c.direction==="Sent"); const lastSubj=(d.subject||"").replace(/^re:\s*/i,"")||(cs.length?cs[cs.length-1].summary.replace(/\s*\(follow-up.*$/,""):"")||"my earlier note";
+  const first=((t.contactName||"").trim().split(/\s+/)[0])||"there"; const cs=commsForDeal(d.id).filter(c=>c.direction==="Sent"); const lastSubj=(d.sentSubject||d.subject||"").replace(/^re:\s*/i,"")||(cs.length?cs[cs.length-1].summary.replace(/\s*\(follow-up.*$/,""):"")||"my earlier note";
   const what=cleanBlurb(b.whatItIs,b.name), theirs=firstSentence(t.whatTheyDo||"",160).replace(/^([A-Z])([a-z])/,(m,x,y)=>x.toLowerCase()+y), chan=nameOf(d);
   const map={Channel:chan,First:first,Sender:client?(d.ownerName||b.name||"the team"):senderName(),Agency:agencyName()||"my agency",Brand:brandCall(b),BrandWhat:what,
     BrandLine:"We work with "+(brandCall(b)||"a client")+(what?" — "+what:"")+".",
     Reason:theirs?("I came across "+chan+" — "+theirs+". I think there could be a fit."):("I think there could be a fit with what "+chan+" does."),
     Observation:theirs?("I came across "+chan+" — "+theirs+"."):"",LastSubject:lastSubj};
   const rep=(s)=>s.replace(/\{\{(\w+)\}\}/g,(m,k)=>map[k]!==undefined?map[k]:m).replace(/[ \t]+\n/g,"\n").replace(/ {2,}/g," ").replace(/\n{3,}/g,"\n\n");
-  return {subject:rep(T.subject),body:rep(T.body)};
+  const bnm=brandCall(b); return {subject:scrubOld(rep(T.subject),bnm),body:scrubOld(rep(T.body),bnm)};
 }
 function paneHtml(d){
   const I=ix(), t=targetForDeal(d), lead=isLead(d), ph=phaseOf(d), br=I.brand.get(d.brandId)||{}, wv=I.wave.get(d.waveId)||{}, name=nameOf(d);
@@ -4817,13 +4870,13 @@ function paneHtml(d){
    +'<div id="pSent">'+((state.justSent&&state.justSent.id===d.id)?'<div class="sentbar"><span>✓ Marked sent</span><span class="sp"></span><button class="btn small" data-p="undosent">Undo</button><button class="btn small primary" data-p="nextconv">Close and next conversation →</button></div>':'')+'</div>'
    +dyorPaneHtml(d)+gatesPaneHtml(d)+stallPaneHtml(d)+clientPaneHtml(d)
    /* message first: who it goes to, the words, then the send bar */
-   +'<div class="psec" id="pMsg"><h4>Message <span class="sp"></span><select id="pTpl" style="width:auto;font-size:11px;padding:3px 6px">'+tpls.map(k=>'<option value="'+k+'"'+(k===suggestTemplate(d)?" selected":"")+'>'+esc(TPL[k].label)+'</option>').join("")+'</select><button class="btn tiny" data-p="tpl">Insert</button></h4>'
+   +'<div class="psec" id="pMsg"><h4>'+(ph==="sent"?"Follow-up message":((ph==="replied"||ph==="deal")?"Your reply":"Message"))+' <span class="sp"></span><select id="pTpl" style="width:auto;font-size:11px;padding:3px 6px">'+tpls.map(k=>'<option value="'+k+'"'+(k===suggestTemplate(d)?" selected":"")+'>'+esc(TPL[k].label)+'</option>').join("")+'</select><button class="btn tiny" data-p="tpl">Insert</button></h4>'
    +routeBanner(d)
    +(!em?'<div class="fldrow"><label>'+(rk==="none"?"To":"Email (optional)")+'</label><div class="fv"><input type="text" id="pAddEmail" placeholder="'+(t.orderVia?'Found their email? Add it to reach them by email, not the form':(rk==="none"?'Add their email address':'Found their email? Add it to email them instead'))+'" autocomplete="off"><button class="btn cbtn" data-p="addemail" type="button">Save email</button></div></div>':'')
    +(em?'<div class="fldrow"><label>To</label><div class="fv"><span class="addr" title="'+esc(em)+'">'+esc(em)+'</span><button class="btn cbtn" data-p="copyaddr" type="button">⧉ Copy address</button></div></div>':'')
    +'<div class="fldrow"><label>'+(rk==="form"?"Topic":"Subject")+'</label><div class="fv"><input type="text" id="pSubj" data-pf="subject" value="'+esc(d.subject||"")+'" placeholder="'+(rk==="email"?"Subject":(rk==="form"?"Topic, only if the form has a topic box":"Not used for chat messages"))+'"><button class="btn cbtn" data-p="copysubj" type="button">⧉ Copy subject</button></div></div>'
-   +'<textarea id="pBody" class="body" data-pf="draft" placeholder="Write the message — or insert a template, or ask the Alchemist for a first draft.">'+esc(body)+'</textarea>'
-   +'<div class="mini" id="pCount" style="margin-top:4px"></div>'+'<div class="vrow" id="pVoice"></div>'
+   +'<textarea id="pBody" class="body" data-pf="draft" placeholder="'+esc(ph==="sent"?("No follow-up written yet"+(d.followUpDue?" (due "+fmtShort(d.followUpDue)+")":"")+". Insert a template or write one."):"Write the message — or insert a template, or ask the Alchemist for a first draft.")+'">'+esc(body)+'</textarea>'
+   +'<div class="mini" id="pCount" style="margin-top:4px"></div>'+((d.sentLog&&d.sentLog.length)?'<details class="more" style="margin-top:8px"><summary>Already sent · '+d.sentLog.length+' message'+(d.sentLog.length===1?'':'s')+'</summary>'+d.sentLog.slice().reverse().map(x=>'<div class="al info" style="margin-top:6px"><span class="t" style="white-space:pre-wrap"><b>'+esc(fmtShort(x.date))+(x.subject?' · '+esc(x.subject):'')+'</b>\n'+esc(String(x.body||"").slice(0,1500))+'</span></div>').join("")+'</details>':'')+'<div class="vrow" id="pVoice"></div>'
    +'<div class="agent" id="pAgent" style="margin-top:8px"></div><div id="agRes"></div></div>'
    /* reply */
    +'<div class="psec"><h4>Their reply'+(d.repliedDate?' <span class="mini">· '+esc(fmtShort(d.repliedDate))+'</span>':'')+'<span class="sp"></span><button class="btn tiny" data-p="logdm" title="From X, Telegram, LinkedIn, Instagram, Discord… paste the text or a screenshot">💬 Log a DM / screenshot</button></h4>'
@@ -5280,6 +5333,7 @@ const AGENT_RULES=[
  "UPM outreach rules (hard):",
  "- Plain text only: no images, tracking or attachments. No links, except where the campaign instructions below allow the brand's own link once.",
  "- Use the agency and brand names exactly as given in the writing instruction. Never expand, shorten or change them.",
+ "- Never mention any former or previous name of a brand or product (for example \"Content Conveyor Belt\"). Use only the current name.",
  "- Never invent facts, numbers, names, prices or reasons. If something isn't supplied below, leave it out.",
  "- Factual and neutral. No flattery or praise, no view or follower counts, no 'your amazing channel'.",
  "- Never mention our budget, payment terms, markup, or what a client is paying. (Asking THEM about their current deals or discounts is fine.)",
@@ -5289,7 +5343,7 @@ const AGENT_RULES=[
  "- The message must be ready to send exactly as written. Never use square brackets, curly braces or placeholders. If a fact is missing, leave that sentence out."
 ].join("\n");
 function agentErr(e){ const c=e&&e.code; if(c==="not_granted") return "Allow Claude in the permission prompt to use the Alchemist."; if(c==="rate_limited") return "The Alchemist is busy — wait a moment and try again."; return "Alchemist error"+(e&&e.message?": "+String(e.message).slice(0,120):"."); }
-function brandFacts(b){ return ["Brand: "+b.name,b.callAs&&"In messages, always call the brand exactly: "+b.callAs,b.whatItIs&&"What it is: "+b.whatItIs,b.mission&&"Mission: "+b.mission,b.targetAudience&&"Audience: "+b.targetAudience,b.brandTone&&"Tone / voice: "+b.brandTone,b.proofPoints&&"Proof points (the ONLY facts about the brand you may cite): "+b.proofPoints,b.audienceHangouts&&"Where the audience gathers: "+b.audienceHangouts,b.keyMessages&&"Key messages (what may be said): "+b.keyMessages,b.competitors&&"COMPETITORS — never suggest, contact, mention or compare to these: "+b.competitors,b.blockWords&&"Blocked words — never suggest an option whose name, site or niche contains: "+b.blockWords,b.doNotContact&&"Do-not-contact list: "+b.doNotContact].filter(Boolean).join("\n"); }
+function brandFacts(b){ return ["Brand: "+b.name,b.callAs&&"In messages, always call the brand exactly: "+b.callAs,b.whatItIs&&"What it is: "+b.whatItIs,b.mission&&"Mission: "+b.mission,b.targetAudience&&"Audience: "+b.targetAudience,b.brandTone&&"Tone / voice: "+b.brandTone,b.proofPoints&&"Proof points (the ONLY facts about the brand you may cite): "+b.proofPoints,b.audienceHangouts&&"Where the audience gathers: "+b.audienceHangouts,b.keyMessages&&"Key messages (what may be said): "+b.keyMessages,b.competitors&&"COMPETITORS — never suggest, contact, mention or compare to these: "+b.competitors,b.blockWords&&"Blocked words — never suggest an option whose name, site or niche contains: "+b.blockWords,b.doNotContact&&"Do-not-contact list: "+b.doNotContact].filter(Boolean).map(x=>scrubOld(x,b.callAs||b.name)).join("\n"); }
 function targetFacts(d){ const t=targetForDeal(d); const L=[ "Name: "+nameOf(d) ];
   if(isLead(d)){ [["Category",t.category],["What they do",t.whatTheyDo],["Website",t.website],["Contact name",t.contactName],["Notes",t.notes],["Intro type",d.introType]].forEach(([k,v])=>{ if(v) L.push(k+": "+v); }); }
   else { [["Platform",t.platform],["Type",t.type],["Niche",t.niche],["Language",t.language],["How to post",t.howToPost],["Rules / policy",t.rulesNote],["Contact name",t.contactName],["Research notes",t.researchNotes],["Personalisation line supplied by Brad",d.personalisation]].forEach(([k,v])=>{ if(v) L.push(k+": "+v); }); }
