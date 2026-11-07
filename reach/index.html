@@ -2804,7 +2804,9 @@ function render(){
   const brand = state.currentBrandId ? brandById(state.currentBrandId) : null;
   if(state.currentBrandId&&!brand){ state.currentBrandId=null; }
   const title=document.getElementById("pageTitle"), crumb=document.getElementById("pageCrumb"), actions=document.getElementById("topActions");
-  const sec=brand?state.currentSection:state.top;
+  let sec=brand?state.currentSection:state.top;
+  /* Stalled and Deals live inside the Workbench as views, not as separate top tabs */
+  if(sec==="stalled"||sec==="deals"){ state.wb.view=sec; state.wb.active=null; if(brand) state.currentSection="work"; else state.top="work"; sec="work"; try{ saveWb(); }catch(e){} }
   const isWork=(sec==="work");
   view.className=isWork?"wbmode":"pagemode";
   if(isWork && !brand && !state.brands.length){ title.textContent="Welcome"; crumb.textContent="new workspace"; actions.innerHTML=""; view.className="pagemode"; view.innerHTML=renderCommandCenter()+setupChecklist()+requestAccessCard(); wireCommandCenter(); wireSetupChecklist(); wireRequestAccess(); return; }
@@ -4111,7 +4113,7 @@ function wireRequestAccess(){ const b=document.getElementById("reqAccBtn"); if(!
    The same tabs serve "All brands" and a single brand; the brand switcher is the only
    place other brands appear, and it is absent for client viewers (see client.js).
    ===================================================================== */
-const TAB_DEFS=[["work","Workbench"],["stalled","Stalled"],["deals","Deals"],["options","Options"],["requests","Requests"],["knowledge","Brand knowledge"],["overview","Brands"]];
+const TAB_DEFS=[["work","Workbench"],["options","Options"],["requests","Requests"],["knowledge","Brand knowledge"],["overview","Brands"]];
 const SEC_OF_TAB={work:"work",stalled:"stalled",deals:"deals",options:"options",requests:"cov_requests",knowledge:"knowledge",overview:"overview"};
 const TOP_OF_TAB={work:"work",stalled:"stalled",deals:"deals",options:"options",requests:"requests",knowledge:"knowledge",overview:"brands"};
 function curTab(){ const sec=state.currentBrandId?state.currentSection:state.top; return ({work:"work",stalled:"stalled",deals:"deals",options:"options",cov_requests:"requests",requests:"requests",knowledge:"knowledge",overview:"overview",brands:"overview"})[sec]||"work"; }
