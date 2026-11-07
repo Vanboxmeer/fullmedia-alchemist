@@ -1883,7 +1883,10 @@ Deno.serve(async (req: Request) => {
     const thumbDataUri = `data:image/png;base64,${encodeBase64(thumbBuf)}`;
 
     const { data: existing } = await supabase.from('content_calendar').select('media_urls').eq('sku', sku).single();
-    const merged = Array.from(new Set([...((existing?.media_urls as string[]) || []).filter((u: string) => u !== publicUrl), publicUrl]));
+    // One image per slide: drop any earlier URL for this slide (bare or ?v= cache-busted), then keep slide order.
+    const basePathOf = (u: string) => String(u).split('?')[0];
+    const slideNumOf = (u: string) => { const m = basePathOf(u).match(/card_(\d+)\.png$/); return m ? parseInt(m[1], 10) : 99; };
+    const merged = Array.from(new Set([...((existing?.media_urls as string[]) || []).filter((u: string) => basePathOf(u) !== publicUrl), publicUrl])).sort((x, y) => slideNumOf(x) - slideNumOf(y));
     const patch: Record<string, unknown> = { media_urls: merged };
     patch[slideNum === 1 ? 'thumb_data_uri' : slideNum === 2 ? 'thumb_data_uri_2' : 'thumb_data_uri_3'] = thumbDataUri;
     const { error: dbErr } = await supabase.from('content_calendar').update(patch).eq('sku', sku);

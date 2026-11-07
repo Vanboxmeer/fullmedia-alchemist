@@ -1534,6 +1534,8 @@ async function loadBrand(brand) {
   S.brandData = bd;
   applyFreeDefaults();
   S.posts = (bd.posts || []).filter((p) => String(p.status || '').toLowerCase() !== 'archived');
+  /* one picture per slide: older redos could leave the same card twice (with and without a cache tag) */
+  S.posts.forEach((p) => { if (!Array.isArray(p.media_urls)) return; const by = new Map(); const out = []; p.media_urls.forEach((u) => { const m = String(u).split('?')[0].match(/card_(\d+)\.png$/); if (!m) { out.push(u); return; } const n = +m[1]; const cur = by.get(n); if (cur === undefined) { by.set(n, out.length); out.push(u); } else if (/[?&]v=/.test(String(u))) out[cur] = u; }); if (out.length !== p.media_urls.length) p.media_urls = out; });
   S.campaigns = (camps.campaigns || []).filter((c) => String(c.status || '').toLowerCase() !== 'archived');
   // 2026-10-11: Brad: "the calendar is showing old content that was deleted".
   // Posts of archived campaigns (and old posts with no campaign) are kept in
