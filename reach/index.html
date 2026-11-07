@@ -564,7 +564,11 @@ details.more[open]>summary{margin-bottom:8px}
 .conncard .cd{font-size:13px;line-height:1.55;color:var(--fg-dim);margin-top:6px}
 .conncard .cp{font-size:12px;line-height:1.5;color:var(--fg-faint);margin-top:6px}
 /* Automation window (2026-11-05): scoped so the global .modal input{width:100%} rule can no longer stretch checkboxes */
-.au{display:grid;gap:14px}
+.au{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0;max-width:100%}
+.au *{box-sizing:border-box;min-width:0}
+.au .step,.au .au-top,.au .fold{max-width:100%;overflow-wrap:anywhere}
+.au .au-top .sw{min-width:48px}
+#modalBox .mbody:has(.au){overflow-x:hidden}
 .au .au-top{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
 .au .au-top.on{border-color:var(--good);background:var(--good-soft)}
 .au .au-state b{font-size:15px;color:var(--fg)}
@@ -601,7 +605,7 @@ details.more[open]>summary{margin-bottom:8px}
 .au .lim label{margin:0;flex:0 0 auto;font-size:12px}
 .au .lim input{width:84px;margin-top:4px}
 .au .lim select{width:auto;margin-top:4px}
-.au .list{max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:4px}
+.au .list{max-height:min(260px,34vh);overflow:auto;border:1px solid var(--border);border-radius:10px;padding:4px}
 .au .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .au .bar .mini{margin-left:4px}
 .au .fine{font-size:12.5px;color:var(--fg-dim);line-height:1.5}
@@ -6064,7 +6068,7 @@ async function openAutomation(){
   const refreshRun=()=>{ const el=document.getElementById("auRunState"), n4=document.getElementById("auN4"); if(!el) return; const on=document.getElementById("aOn").checked; const AS=apSummary(); const nAp=AS.total; const hasKey=!!body.querySelector("[data-akrev]");
     let msg,ok=false; if(!pfOk()) msg="First confirm the mail account under Right accounts."; else if(!hasKey) msg="First connect Claude (open Connect Claude below)."; else if(!nAp) msg="Next: select at least one message above."; else if(!on) msg="Next: switch Automation ON at the top, then send the message above in Claude."; else { ok=true; msg="✓ Ready. "+AS.text+". Now send the message above in your Claude project chat."; }
     el.innerHTML=ok?'<span class="pill p-good">'+esc(msg)+'</span>':'<span class="pill p-warn">'+esc(msg)+'</span>'; if(n4){ n4.classList.toggle("ok",ok); n4.textContent=ok?"✓":"•"; } };
-  const paint=()=>{ const okp=pfOk(); const nc=document.getElementById("auNC"); if(nc){ nc.classList.toggle("ok",okp); nc.textContent=okp?"✓":"!"; } const cm=document.getElementById("auCM"); if(cm) cm.textContent=okp?"Confirmed":"Needed before sending"; const aOnEl=document.getElementById("aOn"); if(aOnEl.checked&&!okp){ aOnEl.checked=false; if(cm) cm.textContent="Confirm this first, then switch Automation on"; } const on=document.getElementById("aOn").checked; const top=document.getElementById("auTop"); top.classList.toggle("on",on); document.getElementById("auTitle").textContent=on?"Automation is ON":"Automation is OFF"; document.getElementById("auSub").textContent=on?"Claude sends the messages approved in “Choose what it may send” below, one at a time.":"Nothing is handed to Claude until you switch this on."; refreshRun();
+  const paint=()=>{ const okp=pfOk(); const nc=document.getElementById("auNC"); if(nc){ nc.classList.toggle("ok",okp); nc.textContent=okp?"✓":"!"; } const cm=document.getElementById("auCM"); if(cm) cm.textContent=okp?"Confirmed":"Needed before sending"; const aOnEl=document.getElementById("aOn"); if(aOnEl.checked&&!okp){ aOnEl.checked=false; if(cm) cm.textContent="Confirm this first, then switch Automation on"; } const on=document.getElementById("aOn").checked; const top=document.getElementById("auTop"); top.classList.toggle("on",on); document.getElementById("auTitle").textContent=on?"Automation is ON":"Automation is OFF"; document.getElementById("auSub").textContent=on?"Claude sends what is selected below, one at a time.":"Nothing is handed to Claude until you switch this on."; refreshRun();
     const nb=body.querySelectorAll("[data-abr]:checked").length, n1=document.getElementById("auN1"); if(n1){ n1.classList.toggle("ok",nb>0); n1.textContent=nb>0?"✓":"•"; } };
   const save=async()=>{ const brands={}; body.querySelectorAll("[data-abr]").forEach(c=>{ if(c.checked) brands[c.dataset.abr]=true; });
     const m=document.getElementById("aSaved"); if(m) m.textContent="Saving…";
