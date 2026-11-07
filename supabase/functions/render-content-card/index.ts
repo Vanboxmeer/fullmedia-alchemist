@@ -1781,6 +1781,22 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, hero_qr_box: 190, hero_qr_pad: 18, detail_qr_box: 190, detail_qr_pad: 18, match: true });
     }
 
+    // Alchemist card engine first. The classic drawing below is only the fallback:
+    // for a brand that chose the classic cards (render-card-v2 answers use_classic),
+    // or when v2 is unavailable. Without this every redo came out as an old template
+    // with no picture.
+    if (body.sku && !body.classic_only) {
+      try {
+        const v2 = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/render-card-v2`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-cc-key': CC_KEY },
+          body: JSON.stringify(body),
+        });
+        const v2json = await v2.json().catch(() => null);
+        if (v2.ok && v2json && v2json.ok && !v2json.use_classic) return json(v2json);
+      } catch (_e) { /* fall through to the classic card */ }
+    }
+
     const {
       sku, slide, brand,
       wheel_name, subject_name,
