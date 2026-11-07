@@ -4742,7 +4742,7 @@ function bulkDo(a){
   if(a==="sent"){ if(bulkConfirm!=="sent"){ bulkConfirm="sent"; renderBulk(); return; } bulkConfirm=""; doMarkSent.skipped=[]; ids.forEach(id=>doMarkSent(id,undefined,{bulk:true})); const gs=doMarkSent.skipped.length; doMarkSent.skipped=[]; w.sel={}; toast((n-gs)+" marked sent"+(gs?" · "+gs+" skipped — open checklist items (open them one by one)":"")); renderBulk(); return; }
   if(a==="fu"){ const v=document.getElementById("bFu").value; if(!v){ toast("Pick a date first"); return; } ids.forEach(id=>{ patchDeal(id,{followUpDue:v}); syncRow(id); }); toast("Follow-up set for "+n+" rows"); return; }
   if(a==="accept"){ const acc=ids.filter(id=>ix().deal.get(id).reviewState==="proposed"); acc.forEach(id=>acceptProposed(id,true)); w.sel={}; renderBulk(); acceptNext(acc); return; }
-  if(a==="acceptready"){ const acc=ids.filter(id=>ix().deal.get(id).reviewState==="proposed"); let k=0,left=0; acc.forEach(id=>{ const had=hasDraft(ix().deal.get(id)); acceptProposed(id,true); if(had){ markReady(id); k++; } else left++; }); w.sel={}; renderBulk(); toast("Accepted "+acc.length+" and marked "+k+" Ready to send."+(left?" "+left+" still need a draft.":"")+(k?" Open Automation to send them.":"")); return; }
+  if(a==="acceptready"){ const acc=ids.filter(id=>ix().deal.get(id).reviewState==="proposed"); let k=0,left=0; let wait=0; acc.forEach(id=>{ const had=hasDraft(ix().deal.get(id)); acceptProposed(id,true); if(had){ markReady(id); k++; } else if(pendingDraft.has(id)){ patchDeal(id,{readyAfterDraft:true}); wait++; } else left++; }); w.sel={}; renderBulk(); toast("Accepted "+acc.length+" and marked "+k+" Ready to send."+(wait?" "+wait+" more will be marked ready as soon as their draft is written.":"")+(left?" "+left+" still need a draft.":"")+(k?" Open Automation to send them.":"")); return; }
   if(a==="reject"){ ids.forEach(id=>{ if(ix().deal.get(id).reviewState==="proposed") rejectProposed(id); }); w.sel={}; renderBulk(); return; }
   if(a==="remove"){ if(bulkConfirm!=="remove"){ bulkConfirm="remove"; renderBulk(); return; } bulkConfirm=""; ids.forEach(id=>{ deleteDoc("deals",id); }); w.sel={}; if(ids.includes(w.active)) w.active=null; toast("Removed "+n+" rows"); render(); return; }
 }
@@ -5457,7 +5457,7 @@ async function runSample(prompt,tier,onStatus){
   if(gap(out)){ out=await aiJson(prompt+"\n\nIMPORTANT: your last answer contained a [bracket] or placeholder. The message must be ready to send exactly as written. Rewrite it with no square brackets or placeholders; if a fact is missing, leave that sentence out.",{tier:tier||"quick",cache:false,feature:"draft"}); if(gap(out)) throw {code:"gaps",message:"the Alchemist left a gap in the draft — try again"}; }
   return out;
 }
-const agentBusy=new Set();
+const agentBusy=new Set(); const pendingDraft=new Set(); /* rows whose first draft is still being written by a Find run */
 function draftPrompt(d,extra){
   const b=brandById(d.brandId)||{}; const tg=templateGuide(d);
   return AGENT_RULES+"\n\n"+voiceOf(d)+"\n\nBRAND\n"+brandFacts(b)+"\n\nTARGET\n"+targetFacts(d)+campaignBlock(d)+priorContactBlock(d)+"\n\nWHAT TO WRITE\n"+tg.text+deliveryNote(d)+(extra?("\n\nEXTRA INSTRUCTION\n"+extra):"")+"\n\nReturn ONLY JSON: {\"subject\": string (empty string for a DM/no-subject channel), \"body\": string, \"notes\": string (one short line: what you used, or what was missing so nothing was invented)}"; }
@@ -5473,6 +5473,7 @@ async function agentDraft(id,opts){
     const out=await runSample(draftPrompt(d),"default");
     const subject=(out.subject||"").trim(), bodyTxt=(out.body||"").trim(); if(!bodyTxt) throw {code:"empty",message:"empty draft"};
     patchDeal(id,{subject,draft:bodyTxt,draftState:"agent",draftKind:"",template:d.template||""});
+    { const cur=ix().deal.get(id); if(cur&&cur.readyAfterDraft){ patchDeal(id,{readyAfterDraft:false}); if(cur.reviewState!=="proposed"&&!hasGaps(cur)) markReady(id); } }
     afterRowChange(id); if(state.wb.active===id) renderPane("msg");
     if(!opts.quiet) toast("Draft ready — "+nameOf(d)+(out.notes?" · "+String(out.notes).slice(0,80):""));
   }catch(e){ toast(agentErr(e)); if(row) row.textContent="✨ Draft"; if(res) res.innerHTML=""; }
@@ -5883,7 +5884,8 @@ async function runResearch(r,ctl){
   scheduleRender();
   if(newIds.length&&!ctl.signal.aborted&&aiAvailable()){
     let done=0; ctl.log("Drafting a first message for each (you review before anything is sent)…","spin");
-    await pmap(newIds,2,async(id)=>{ if(ctl.signal.aborted) return; await agentDraft(id,{quiet:true}); done++; });
+    newIds.forEach(id=>pendingDraft.add(id));
+    await pmap(newIds,2,async(id)=>{ if(ctl.signal.aborted){ pendingDraft.delete(id); return; } try{ await agentDraft(id,{quiet:true}); done++; } finally{ pendingDraft.delete(id); const cur=ix().deal.get(id); if(cur&&cur.readyAfterDraft&&!hasDraft(cur)) patchDeal(id,{readyAfterDraft:false}); } });
     ctl.unspin(); ctl.log("Drafted "+done+" of "+newIds.length+" messages.");
   }
   const dr=dropped.length?(" · "+dropped.length+" dropped ("+Object.keys(reasons).map(k=>reasons[k]+" "+k).join("; ")+")"):"";
