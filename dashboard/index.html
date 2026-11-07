@@ -7119,7 +7119,10 @@ function requiredPlatforms(p) {
   // sent to a scheduler), so adding a handle later never reopens old posts.
   // Today's and future posts (and past posts nothing happened on) follow the
   // brand's current accounts as before.
-  if (p && p.scheduled_date && String(p.scheduled_date).slice(0, 10) < todayYmd()) {
+  // 2026-11-08: only OLD posts are frozen (older than RELEVANT_DAYS). A post from the last week that
+  // reached one account is not "Posting complete" while its other accounts are still open
+  // (it was showing complete after 1 of 4).
+  if (p && p.scheduled_date && !stillRelevant({ scheduled_date: p.scheduled_date })) {
     const touched = PLAT_ORDER.filter((k) => isPostedOn(p, k) || schedOf(p, k));
     if (touched.length) return touched.map((k) => PLAT_NAME[k]);
   }
