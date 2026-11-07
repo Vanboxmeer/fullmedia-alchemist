@@ -1461,7 +1461,25 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
     try { return JSON.parse(t); } catch (e) {}
     var a = t.search(/[\[{]/);
     if (a >= 0) { var close = t[a] === "{" ? "}" : "]", z = t.lastIndexOf(close); if (z > a) { try { return JSON.parse(t.slice(a, z + 1)); } catch (e) {} } }
+    var fixed = repairJson(t); if (fixed !== undefined) return fixed;
     throw { code: "bad_json", message: "The AI reply wasn't valid JSON" };
+  }
+  /* a long answer cut off at the token limit: keep every complete item and close the brackets */
+  function repairJson(t) {
+    var a = t.search(/[\[{]/); if (a < 0) return undefined; t = t.slice(a);
+    var stack = [], str = false, esc = false, snaps = [];
+    for (var i = 0; i < t.length; i++) {
+      var ch = t[i];
+      if (str) { if (esc) esc = false; else if (ch === "\\") esc = true; else if (ch === '"') str = false; continue; }
+      if (ch === '"') str = true;
+      else if (ch === "{" || ch === "[") stack.push(ch);
+      else if (ch === "}" || ch === "]") { stack.pop(); if (stack.length) snaps.push([i, stack.slice()]); }
+    }
+    for (var k = snaps.length - 1, tries = 0; k >= 0 && tries < 40; k--, tries++) {
+      var sn = snaps[k], cut = t.slice(0, sn[0] + 1).replace(/,\s*$/, ""), closers = sn[1].slice().reverse().map(function (c) { return c === "{" ? "}" : "]"; }).join("");
+      try { return JSON.parse(cut + closers); } catch (e) {}
+    }
+    return undefined;
   }
   /* a per-minute limit is temporary: wait and retry quietly instead of ending the whole Find run */
   function withRetry(fn) {
@@ -1500,7 +1518,7 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
       var guard = 0;
       function step() {
         if (++guard > 14) throw { code: "error", message: "The Alchemist used too many steps." };
-        var body = { tier: opts.modelTier || "quick", feature: opts.feature || (tools.length ? "agent-tools" : "json"), system: system, messages: messages, max_tokens: tools.length ? 6000 : 4096 };
+        var body = { tier: opts.modelTier || "quick", feature: opts.feature || (tools.length ? "agent-tools" : "json"), system: system, messages: messages, max_tokens: tools.length ? 8000 : 4096 };
         if (defs.length) body.tools = defs;
         return callAI(body, opts.signal).then(function (r) {
           var blocks = r.content || [], uses = blocks.filter(function (b) { return b.type === "tool_use"; });
@@ -5833,16 +5851,19 @@ async function runResearch(r,ctl){
   if(ctl.setStat) ctl.setStat({want:count,found:0,cap:run.maxCalls,calls:0});
   ctl.log("Connecting to web research…","spin"); const tools=await connTools("web",run); ctl.unspin();
   const found=[], dropped=[], reasons={}; const runSeen=new Set(); const seen=(ix().byBrand.get(brand.id)||[]).map(d=>nameOf(d)).filter(Boolean); (ix().byBrand.get(brand.id)||[]).forEach(d=>{ const t=targetForDeal(d)||{}; [t.website,t.contactLink].forEach(u=>{ const h=urlKey(u); if(h) seen.push(h); }); }); let pass=0;
-  while(found.length<count&&pass<5&&!ctl.signal.aborted){
-    pass++; ctl.log("Round "+pass+": looking for "+(count-found.length)+" "+(found.length?"more ":"")+"…","spin");
-    let out; try{ out=await agentWithTools(researchPrompt(r,brand,count-found.length,found.map(f=>f.name),seen,pass),tools,ctl,"web",run,"complex"); }
-    catch(e){ if(e&&e.code==="cancelled") break; if(found.length) { ctl.unspin(); ctl.log("Stopped early: "+connErr(e,"web"),"warn"); break; } throw e; }
+  const maxPass=Math.min(10,Math.ceil(count/8)+3); let badJson=0;
+  while(found.length<count&&pass<maxPass&&!ctl.signal.aborted){
+    pass++; const ask=Math.min(count-found.length,8); ctl.log("Round "+pass+": looking for "+ask+" "+(found.length?"more ":"")+"…","spin");
+    let out; try{ out=await agentWithTools(researchPrompt(r,brand,ask,found.map(f=>f.name),seen,pass),tools,ctl,"web",run,"complex"); }
+    catch(e){ if(e&&e.code==="cancelled") break;
+      if(e&&(e.code==="bad_json"||e.code==="invalid_json")&&badJson<3){ badJson++; ctl.unspin(); ctl.log("The reply was cut off or malformed — trying again with a different angle.","warn"); continue; }
+      if(found.length) { ctl.unspin(); ctl.log("Stopped early: "+connErr(e,"web"),"warn"); break; } throw e; }
     ctl.unspin();
     const cands=Array.isArray(out.candidates)?out.candidates:[]; let good=0;
     await badPre(cands);
     for(const c of cands){ if(found.length>=count) break; const v=verifyCandidate(c,run,r,brand,{}); const dk=v.ok?candKeys(v):[]; const dupRun=v.ok&&(dk.some(x=>runSeen.has(x))||found.some(f=>squash(f.name)===squash(v.name))); if(v.ok&&!dupRun){ dk.forEach(x=>runSeen.add(x)); found.push(v); good++; if(ctl.setStat) ctl.setStat({found:found.length}); ctl.log("✓ "+v.name+" · "+(v.rulesNote&&r.mode==="communities"?v.rulesNote:v.email?v.email:({dm:"open DMs/profile",form:"contact form",telegram:"Telegram",discord:"Discord",reddit:"subreddit modmail"}[v.via]||"contact route")),"ok"); } else { const w=v.why||"same name, email or website as another result in this run"; reasons[w]=(reasons[w]||0)+1; if(v.name) seen.push(v.name); dropped.push(v.name||"?"); ctl.log("✗ "+(v.name||"(unnamed)")+" — "+w,"dim"); } }
     ctl.log("Round "+pass+": "+good+" verified of "+cands.length+" suggested ("+run.calls+" lookups so far).");
-    if(out&&out.note&&!good) ctl.log("Alchemist note: "+String(out.note).slice(0,220),"dim"); if(!good&&pass>=4) break;
+    if(out&&out.note&&!good) ctl.log("Alchemist note: "+String(out.note).slice(0,220),"dim"); if(!good&&pass>=maxPass-1&&pass>=5) break;
   }
   /* write results */
   const wave=ix().wave.get(r.waveId); const now=Date.now(); const newIds=[];
@@ -6120,7 +6141,12 @@ function setupChecklist(){
     +'<p class="mini" style="margin:10px 0 0">Every message waits for your confirmation. Nothing is sent from this tool on its own.</p></div>'; }
 function wireSetupChecklist(){ const b=document.getElementById("chkConn"); if(b) b.addEventListener("click",()=>openConnections()); }
 /* split a many-channel brief into rounds so each round digs one kind of route instead of skimming everything */
+const ANG_WHERE=["United States","United Kingdom","Canada","Australia / New Zealand","Germany / Austria / Switzerland","Netherlands / Belgium","Nordics","Spain / Portugal / Latin America","France","Italy","India","Singapore / Southeast Asia","UAE / Middle East","South Africa","Poland / Eastern Europe","Ireland"];
+const ANG_HOW=["curated directories and rankings (Clutch, Sortlist, UpCity, DesignRush, Agency Spotter and similar)","'best X in <city>' lists and local business listings for a specific city","freelancer and creator marketplaces and portfolios (Upwork, Contra, Fiverr Pro, Behance)","recommendation threads on Reddit, Indie Hackers, Hacker News and niche forums","individual bios and 'about / meet the team' pages with a stated business contact","newsletters, podcasts and community member lists in the niche","LinkedIn and X bios that state a business email or open DMs","a specific vertical niche (e-commerce, local services, SaaS, hospitality, fitness, real estate, creators) and the small shops that serve it"];
+function angleFor(pass){ const pick=a=>a[Math.floor(Math.random()*a.length)]; return "\nSEARCH ANGLE FOR THIS ROUND (so repeat runs do not walk the same path): lean on "+pick(ANG_HOW)+"; if the brief does not limit geography, focus on "+pick(ANG_WHERE)+". Do not just re-run the obvious first-page searches. Every search query must be new and specific; avoid the generic head terms.\n"; }
 function focusFor(r,pass){
+  return focusFor0(r,pass)+angleFor(pass); }
+function focusFor0(r,pass){
   const m=String((r&&r.brief)||"").match(/Channel types?: ([^\n]*)/i); if(!m) return "";
   const n=m[1].split(",").length; if(n<4) return "";
   const F=["news / mod sites, newsletters, podcasts, guest-post pages and tip / story submission forms (email or form routes)","community routes: Discord servers, Telegram channels and groups, subreddits with a modmail route","individual creators and accounts on X, TikTok, Instagram, Facebook, Twitch and YouTube whose profile shows open DMs or a business contact"];
