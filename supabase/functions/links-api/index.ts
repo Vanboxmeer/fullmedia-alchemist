@@ -74,7 +74,7 @@ async function status(client: string, brand: string, days = 30) {
   const s: any = st.data || {};
   return {
     ok: true, eligible: inf.eligible,
-    settings: { tag_urls: s.tag_urls !== false, short_enabled: s.short_enabled === true },
+    settings: { tag_urls: s.tag_urls === true, short_enabled: s.short_enabled === true },
     active: { tag: inf.tag, short: inf.short, host: inf.host },
     domain: dom.data || null, dnsTarget: CNAME_TARGET, domainsReady: !!VT,
     stats: stats.data || { total: 0, links: 0, top: [], byNetwork: {}, byCampaign: {} },
