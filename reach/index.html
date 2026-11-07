@@ -260,6 +260,7 @@ th.sortable:hover{color:var(--fg)}
 .rvrow .rvk{color:var(--fg-faint);font-weight:600}
 .rvrow .rvv{color:var(--fg);white-space:pre-wrap}
 /* brief + scope cards on overview */
+.dnideas{display:flex;flex-wrap:wrap;gap:6px}.dnadd{display:flex;gap:8px;align-items:center;margin-top:8px}.dnboxes[hidden]{display:none}.dnboxes{display:flex;flex-direction:column;gap:6px;margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:var(--radius)}.dnchk{display:flex;align-items:center;gap:8px;font-size:13px}.dnlist{margin-top:14px;display:flex;flex-direction:column;gap:10px}.dnrow{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--border);border-radius:var(--radius)}.dnrow.off{opacity:.55}.dnmain{flex:1;min-width:0}.dntxt{width:100%;resize:vertical}
 .briefcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:6px 16px;margin-bottom:16px}
 .brow{display:grid;grid-template-columns:120px 1fr;gap:12px;padding:9px 0;border-top:1px solid var(--border);font-size:12.5px;line-height:1.5}
 .brow:first-child{border-top:none}
@@ -2795,10 +2796,11 @@ function render(){
     if(sec==="options"){ renderOptionsPage(); return; }
     if(sec==="requests"){ renderRequestsPage(null); return; }
     if(sec==="stalled"){ renderStalledPage(null); return; }
+    if(sec==="knowledge"){ renderKnowledgePage(null); return; }
     title.textContent="Brands"; crumb.textContent=state.brands.length+" brands · all pipelines";
     actions.innerHTML=""; view.innerHTML=renderCommandCenter(); wireCommandCenter(); return;
   }
-  const map={ overview:renderOverview, cov_requests:(b)=>renderRequestsPage(b), deals:()=>renderDealsPage(), options:()=>renderOptionsPage(), stalled:(b)=>renderStalledPage(b) };
+  const map={ overview:renderOverview, cov_requests:(b)=>renderRequestsPage(b), deals:()=>renderDealsPage(), options:()=>renderOptionsPage(), stalled:(b)=>renderStalledPage(b), knowledge:(b)=>renderKnowledgePage(b) };
   (map[sec]||renderOverview)(brand);
 }
 
@@ -4091,10 +4093,10 @@ function wireRequestAccess(){ const b=document.getElementById("reqAccBtn"); if(!
    The same tabs serve "All brands" and a single brand; the brand switcher is the only
    place other brands appear, and it is absent for client viewers (see client.js).
    ===================================================================== */
-const TAB_DEFS=[["work","Workbench"],["stalled","Stalled"],["deals","Deals"],["options","Options"],["requests","Requests"],["overview","Brands"]];
-const SEC_OF_TAB={work:"work",stalled:"stalled",deals:"deals",options:"options",requests:"cov_requests",overview:"overview"};
-const TOP_OF_TAB={work:"work",stalled:"stalled",deals:"deals",options:"options",requests:"requests",overview:"brands"};
-function curTab(){ const sec=state.currentBrandId?state.currentSection:state.top; return ({work:"work",stalled:"stalled",deals:"deals",options:"options",cov_requests:"requests",requests:"requests",overview:"overview",brands:"overview"})[sec]||"work"; }
+const TAB_DEFS=[["work","Workbench"],["stalled","Stalled"],["deals","Deals"],["options","Options"],["requests","Requests"],["knowledge","Brand knowledge"],["overview","Brands"]];
+const SEC_OF_TAB={work:"work",stalled:"stalled",deals:"deals",options:"options",requests:"cov_requests",knowledge:"knowledge",overview:"overview"};
+const TOP_OF_TAB={work:"work",stalled:"stalled",deals:"deals",options:"options",requests:"requests",knowledge:"knowledge",overview:"brands"};
+function curTab(){ const sec=state.currentBrandId?state.currentSection:state.top; return ({work:"work",stalled:"stalled",deals:"deals",options:"options",cov_requests:"requests",requests:"requests",knowledge:"knowledge",overview:"overview",brands:"overview"})[sec]||"work"; }
 function goTab(t){ if(t==="options"){ OPT_PROFILE=null; LEAD_PROFILE=null; } if(state.currentBrandId) goSection(SEC_OF_TAB[t]||"work"); else goTop(TOP_OF_TAB[t]||"work"); }
 function setScope(id){
   const t=curTab(); state.currentBrandId=id||null; setBrandNav(id||null); state.currentWaveId=null; state.addTargetToWave=null; state.wb.wave=""; state.wb.active=null; state.wb.sel={};
@@ -4107,7 +4109,7 @@ function tabBadge(t,scopeId){
   if(t==="stalled") return stallHotCount(scopeId);
   if(t==="requests") return state.requests.filter(r=>(r.status==="pending"||r.status==="working")&&(!scopeId||r.brandId===scopeId||!r.brandId)).length;
   return 0; }
-const TAB_ICON={work:'<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6H3v-6z"/>',stalled:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',deals:'<path d="M3 8h18v12H3z"/><path d="M8 8V5h8v3"/><path d="M3 13h18"/>',options:'<path d="M4 6h16M4 12h16M4 18h10"/>',requests:'<path d="M4 5h16v11H9l-5 4z"/>',overview:'<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>'};
+const TAB_ICON={work:'<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6H3v-6z"/>',stalled:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',deals:'<path d="M3 8h18v12H3z"/><path d="M8 8V5h8v3"/><path d="M3 13h18"/>',options:'<path d="M4 6h16M4 12h16M4 18h10"/>',requests:'<path d="M4 5h16v11H9l-5 4z"/>',knowledge:'<path d="M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3z"/><path d="M8 4v13M11 8h5M11 11h5"/>',overview:'<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>'};
 function renderSidebar(){
   const top=document.getElementById("tabs"); if(!top) return;
   const mt=document.getElementById("mtabs");
@@ -5298,6 +5300,52 @@ function blockHit(brand,o){
   const bw=kbList(brand.blockWords).find(t=>kbHas(t,loose)); if(bw) return {kind:"blocked word",term:bw};
   return null;
 }
+
+/* =====================================================================
+   BRAND KNOWLEDGE TAB + DRAFTING NOTES
+   Plain-language notes the Alchemist follows in every draft ("stop saying…", "mention more…", "make drafts shorter"),
+   for all campaigns or only the ones you pick. Stored on the brand as draftNotes:[{id,text,on,waves:[]}] (empty waves = all).
+   ===================================================================== */
+const DN_IDEAS=[["Make drafts shorter","Keep every draft under 80 words."],["Make drafts longer","Write fuller drafts of 150 to 200 words with a little more context about the brand."],["Stop saying…","Never say: "],["Mention more…","Always mention: "],["Tone","Sound warmer and more casual, like a person, not a company."]];
+function dnScopeLabel(b,n){ const ws=(n.waves||[]).map(id=>(state.waves.find(w=>w.id===id)||{}).name).filter(Boolean); return (!n.waves||!n.waves.length)?"All campaigns":(ws.length?ws.join(", "):"Selected campaigns (none left)"); }
+function dnSave(b,list){ patchDoc("brands",b.id,{draftNotes:list}); }
+function dnWaveBoxes(b,sel,pref){ const ws=state.waves.filter(w=>w.brandId===b.id).sort((x,y)=>(y.createdAt||0)-(x.createdAt||0));
+  return ws.length?ws.map(w=>'<label class="dnchk"><input type="checkbox" data-w="'+esc(w.id)+'"'+(sel.includes(w.id)?" checked":"")+'> '+esc(w.name||"Campaign")+' <span class="mini">'+esc(w.pipelineType==="lead"?"leads":"coverage")+'</span></label>').join(""):'<div class="mini">No campaigns yet.</div>'; }
+function renderKnowledgePage(brand){
+  const t=document.getElementById("pageTitle"), c=document.getElementById("pageCrumb"), a=document.getElementById("topActions"), v=document.getElementById("view");
+  a.innerHTML="";
+  if(!brand){ t.textContent="Brand knowledge"; c.textContent="pick a brand";
+    v.innerHTML='<div class="briefcard" style="padding:16px"><div class="kbtitle" style="margin-bottom:6px">Pick a brand</div><div class="mini" style="margin-bottom:10px">Brand knowledge and drafting notes belong to one brand.</div>'+(state.brands.length?state.brands.map(x=>'<button class="btn" style="margin:0 6px 6px 0" data-kb="'+esc(x.id)+'">'+esc(x.name)+'</button>').join(""):'<div class="mini">No brands yet.</div>')+'</div>';
+    v.querySelectorAll("[data-kb]").forEach(el=>el.addEventListener("click",()=>setScope(el.dataset.kb))); return; }
+  t.textContent=brand.name+" — brand knowledge"; c.textContent="what the Alchemist knows and how it should write";
+  const notes=dnList(brand);
+  const rows=notes.map((n,i)=>'<div class="dnrow'+(n.on===false?" off":"")+'" data-i="'+i+'"><input type="checkbox" class="dnon" '+(n.on===false?"":"checked")+' title="On / off"><div class="dnmain"><textarea class="dntxt" rows="2">'+esc(n.text||"")+'</textarea><div class="mini">Applies to: <b>'+esc(dnScopeLabel(brand,n))+'</b> · <button class="lnk dnscope" type="button">Change</button> · <button class="lnk dndel" type="button">Delete</button></div></div></div>').join("");
+  const wl=state.waves.filter(w=>w.brandId===brand.id);
+  v.innerHTML='<div class="briefcard" style="padding:16px"><div class="kbhead"><div class="kbtitle">Drafting notes for the Alchemist</div></div>'
+    +'<div class="mini" style="margin-bottom:10px">Tell the Alchemist how to write. It follows every note that applies when it writes or rewrites a draft. Existing drafts change only when you redraft them.</div>'
+    +'<div class="dnideas">'+DN_IDEAS.map((x,i)=>'<button class="btn tiny" type="button" data-idea="'+i+'">'+esc(x[0])+'</button>').join("")+'</div>'
+    +'<textarea id="dnNew" rows="2" placeholder="e.g. Stop saying “reach out”. Mention the free tier more. Keep drafts under 80 words." style="width:100%;margin-top:8px"></textarea>'
+    +'<div class="dnadd"><select id="dnScope"><option value="all">All campaigns</option>'+(wl.length?'<option value="some">Selected campaigns…</option>':'')+'</select><button class="btn primary" id="dnAdd" type="button">Add note</button></div>'
+    +'<div id="dnBoxes" class="dnboxes" hidden>'+dnWaveBoxes(brand,[])+'</div>'
+    +(notes.length?'<div class="dnlist">'+rows+'</div>':'<div class="mini" style="margin-top:12px">No notes yet. Notes you add are used from the next draft on.</div>')+'</div>'
+    +knowledgeCardHTML(brand);
+  const sc=document.getElementById("dnScope"), bx=document.getElementById("dnBoxes");
+  sc.addEventListener("change",()=>{ bx.hidden=sc.value!=="some"; });
+  v.querySelectorAll("[data-idea]").forEach(el=>el.addEventListener("click",()=>{ const x=DN_IDEAS[el.dataset.idea]; const ta=document.getElementById("dnNew"); ta.value=x[1]; ta.focus(); try{ ta.setSelectionRange(ta.value.length,ta.value.length); }catch(e){} }));
+  document.getElementById("dnAdd").addEventListener("click",()=>{ const ta=document.getElementById("dnNew"); const txt=ta.value.trim(); if(!txt){ toast("Write the note first"); return; }
+    let waves=[]; if(sc.value==="some"){ waves=Array.from(bx.querySelectorAll("input:checked")).map(x=>x.dataset.w); if(!waves.length){ toast("Tick at least one campaign, or choose All campaigns"); return; } }
+    dnSave(brand,notes.concat([{id:uid("dn"),text:txt,on:true,waves:waves,at:Date.now()}])); toast("Note added — the Alchemist uses it from the next draft"); renderKnowledgePage(brand); });
+  v.querySelectorAll(".dnrow").forEach(r=>{ const i=Number(r.dataset.i);
+    r.querySelector(".dnon").addEventListener("change",e=>{ const l=dnList(brand).slice(); l[i]=Object.assign({},l[i],{on:e.target.checked}); dnSave(brand,l); r.classList.toggle("off",!e.target.checked); });
+    r.querySelector(".dntxt").addEventListener("change",e=>{ const l=dnList(brand).slice(); const txt=e.target.value.trim(); if(!txt){ l.splice(i,1); } else l[i]=Object.assign({},l[i],{text:txt}); dnSave(brand,l); if(!txt) renderKnowledgePage(brand); else toast("Saved"); });
+    r.querySelector(".dndel").addEventListener("click",()=>{ const l=dnList(brand).slice(); const gone=l.splice(i,1)[0]; dnSave(brand,l); renderKnowledgePage(brand); toast("Note deleted","Undo",()=>{ const l2=dnList(brand).slice(); l2.splice(i,0,gone); dnSave(brand,l2); renderKnowledgePage(brand); }); });
+    r.querySelector(".dnscope").addEventListener("click",()=>{ const n=dnList(brand)[i]; const sel=n.waves||[];
+      openModal('<h3 style="margin:0 0 8px">Where does this note apply?</h3><label class="dnchk"><input type="radio" name="dnw" value="all"'+(sel.length?"":" checked")+'> All campaigns</label><label class="dnchk"><input type="radio" name="dnw" value="some"'+(sel.length?" checked":"")+'> Only these campaigns</label><div class="dnboxes" id="dnMB">'+dnWaveBoxes(brand,sel)+'</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn" id="dnMc" type="button">Cancel</button><button class="btn primary" id="dnMs" type="button">Save</button></div>');
+      document.getElementById("dnMc").addEventListener("click",closeModal);
+      document.getElementById("dnMs").addEventListener("click",()=>{ const all=document.querySelector('input[name=dnw][value=all]').checked; const w=all?[]:Array.from(document.querySelectorAll("#dnMB input:checked")).map(x=>x.dataset.w); if(!all&&!w.length){ toast("Tick at least one campaign"); return; } const l=dnList(brand).slice(); l[i]=Object.assign({},l[i],{waves:w}); dnSave(brand,l); closeModal(); renderKnowledgePage(brand); }); });
+  });
+  v.querySelectorAll("[data-editbrand]").forEach(el=>el.addEventListener("click",()=>openEditBrandModal(brand)));
+}
 function kbMissing(b){ return KB_FIELDS.filter(f=>f.need&&!String(b[f.k]||"").trim()); }
 function knowledgeCardHTML(b){
   function row(l,v){ return v&&String(v).trim()?'<div class="brow"><div class="bk">'+l+'</div><div class="bv">'+esc(v)+'</div></div>':''; }
@@ -5350,7 +5398,13 @@ function targetFacts(d){ const t=targetForDeal(d); const L=[ "Name: "+nameOf(d) 
   return L.join("\n"); }
 function waveOf(d){ return ix().wave.get(d.waveId)||{}; }
 function organicOf(d){ return !isLead(d)&&waveOf(d).mode==="organic"; }
-function campaignBlock(d){ const w=waveOf(d), b=brandById(d.brandId)||{}; if(!organicOf(d)&&!(w.message||"").trim()) return "";
+function dnList(b){ return Array.isArray(b&&b.draftNotes)?b.draftNotes:[]; }
+function dnApplies(n,d){ return !!(n&&n.on!==false&&String(n.text||"").trim()&&(!n.waves||!n.waves.length||n.waves.includes(d.waveId))); }
+function notesBlock(d){ const b=brandById(d.brandId)||{}; const L=dnList(b).filter(n=>dnApplies(n,d)).map(n=>"- "+String(n.text).trim().replace(/\s+/g," "));
+  return L.length?"\n\nOWNER'S DRAFTING NOTES (set by the brand owner: follow every one. They override the default length and style rules above, but never the hard rules about facts, links, money and names):\n"+L.join("\n"):""; }
+function campaignBlock(d){ return campaignBlock0(d)+notesBlock(d); }
+function lastSentOf(d){ const l=(d.sentLog||[]).slice(-1)[0], ph=phaseOf(d); if(l&&(ph==="sent"||ph==="replied"||ph==="deal")) return {subject:l.subject||d.sentSubject||d.subject||"",body:l.body||""}; return {subject:d.subject||"",body:d.draft||""}; }
+function campaignBlock0(d){ const w=waveOf(d), b=brandById(d.brandId)||{}; if(!organicOf(d)&&!(w.message||"").trim()) return "";
   return "\n\nCAMPAIGN INSTRUCTIONS ("+(w.name||"this campaign")+")\n"+(organicOf(d)?"This is an ORGANIC campaign: the client has no paid budget this round. Never ask for rates or offer payment or sponsorship. You may name the project.\n":"")+((w.message||"").trim()?"Campaign message"+(w.messageAt?" (status as of "+new Date(w.messageAt).toISOString().slice(0,10)+")":"")+" — the ONLY source for project status/news you may state, say it in your own plain words, never present it as older or newer than its date:\n"+w.message.trim()+"\n":"")+(organicOf(d)&&b.officialSite?"You may include the project's link once, as plain text: "+b.officialSite+"\n":""); }
 function voiceOf(d){ const b=brandById(d.brandId)||{}; const client=(d.ownerType||"").startsWith("Client");
   if(isCommunity(d)) return "Write as a real person connected to "+brandCall(b)+", posting in a community. Human and transparent, no marketing voice.";
@@ -5454,7 +5508,7 @@ async function analyseReply(id,text,o){
   if(!text&&!imgs.length){ toast("Paste their reply first"); return; }
   if(!aiAvailable()){ if(text) logReply(id,text,{},chan); else toast("The Alchemist isn't available here — paste the text instead"); return; }
   const b=brandById(d.brandId)||{}; const res=document.getElementById("agRes"); if(res) res.innerHTML='<div class="agres"><span class="spin"></span> Reading their reply…</div>';
-  const prompt=AGENT_RULES+"\n\nYou are handling a REPLY from an outreach target. "+voiceOf(d)+"\n\nBRAND\n"+brandFacts(b)+"\n\nTARGET\n"+targetFacts(d)+campaignBlock(d)+convoBlock(d,o.context)+"\n\nCHANNEL: "+chan+(isMail?"":" — this is a chat / DM, so any reply must be short and conversational (under 70 words), with no subject line and no signature block.")+"\n\nOUR LAST MESSAGE\nSubject: "+(d.subject||"")+"\n\n"+(d.draft||"")+"\n\nTHEIR LATEST MESSAGE (verbatim)\n"+(text||"(it is in the attached screenshot — read it carefully and copy it exactly into \"transcript\")")+"\n\nTASKS\n1. Extract facts exactly as written: any quoted rate (keep their currency and wording), lead time, conditions, anything they asked us for.\n2. Classify: quote | interested | declined | bounce | question | other.\n3. Draft our reply, using the conversation so far so nothing is repeated or contradicted. Do NOT negotiate in the first reply. If they quoted a dedicated-video price, thank them and ask whether there is a lower rate for an integration/mention and a package rate for 2-3 videos. If they declined, thank them briefly. If they asked questions, answer only from brand facts, otherwise say we'll come back. Never discuss budget, payment terms or markup.\n\nReturn ONLY JSON: {\"classification\": string, \"summary\": string (one line), \"rate\": {\"amount\": string (as written, e.g. \"$450 / video\"), \"note\": string} or null, \"leadTime\": string, \"conditions\": string, \"replySubject\": string (empty for a DM), \"replyBody\": string, \"transcript\": string (only when a screenshot was attached: their message exactly as written, else empty)}";
+  const prompt=AGENT_RULES+"\n\nYou are handling a REPLY from an outreach target. "+voiceOf(d)+"\n\nBRAND\n"+brandFacts(b)+"\n\nTARGET\n"+targetFacts(d)+campaignBlock(d)+convoBlock(d,o.context)+"\n\nCHANNEL: "+chan+(isMail?"":" — this is a chat / DM, so any reply must be short and conversational (under 70 words), with no subject line and no signature block.")+"\n\nOUR LAST MESSAGE\nSubject: "+lastSentOf(d).subject+"\n\n"+lastSentOf(d).body+"\n\nTHEIR LATEST MESSAGE (verbatim)\n"+(text||"(it is in the attached screenshot — read it carefully and copy it exactly into \"transcript\")")+"\n\nTASKS\n1. Extract facts exactly as written: any quoted rate (keep their currency and wording), lead time, conditions, anything they asked us for.\n2. Classify: quote | interested | declined | bounce | question | other.\n3. Draft our reply, using the conversation so far so nothing is repeated or contradicted. Do NOT negotiate in the first reply. If they quoted a dedicated-video price, thank them and ask whether there is a lower rate for an integration/mention and a package rate for 2-3 videos. If they declined, thank them briefly. If they asked questions, answer only from brand facts, otherwise say we'll come back. Never discuss budget, payment terms or markup.\n\nReturn ONLY JSON: {\"classification\": string, \"summary\": string (one line), \"rate\": {\"amount\": string (as written, e.g. \"$450 / video\"), \"note\": string} or null, \"leadTime\": string, \"conditions\": string, \"replySubject\": string (empty for a DM), \"replyBody\": string, \"transcript\": string (only when a screenshot was attached: their message exactly as written, else empty)}";
   try{
     const out=await aiJson(prompt,{tier:"default",cache:false,feature:"draft",images:imgs.length?imgs:undefined});
     const said=text||String(out.transcript||"").trim();
