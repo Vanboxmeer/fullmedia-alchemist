@@ -5336,11 +5336,11 @@ function refreshPostedRow(card, p) {
 function stageLabel(p, st) {
   if (st !== 'Posted') return st;
   const miss = missingAccounts(p);
-  if (miss.length && needsFinishing(p)) return 'Still to post: ' + miss.join(', ');
+  if (miss.length && needsFinishing(p)) return 'Partly posted · still to post: ' + miss.join(', ');
   const pc = postedCount(p);
   if (allPosted(p)) return 'Posting complete';
   const sched = schedKeys(p).filter((k) => !isPostedOn(p, k)).length;
-  return `Posted ${pc.done} of ${pc.of}${sched && !miss.length ? ' · rest sent to scheduler' : ''}`;
+  return `Partly posted · ${pc.done} of ${pc.of}${sched && !miss.length ? ' · rest sent to scheduler' : ''}`;
 }
 function wirePostedRow(card, p) {
   const box = $('[data-pr]', card); if (!box) return;
