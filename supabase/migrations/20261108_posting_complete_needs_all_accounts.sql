@@ -60,10 +60,10 @@ begin
 
   -- Every account the post is meant for must be posted (recent posts only).
   if posted > 0 and posted = active and (new.scheduled_date is null or new.scheduled_date >= current_date - 7) then
-    select array(select lower(btrim(x)) from unnest(b.default_platforms) x) into own
+    select array(select lower(btrim(x)) from jsonb_array_elements_text(b.default_platforms) x) into own
       from cc_brands b where b.name = new.brand limit 1;
     if own is not null and coalesce(array_length(own, 1), 0) > 0 then
-      select array(select lower(btrim(x)) from unnest(c.target_platforms) x) into camp
+      select array(select lower(btrim(x)) from jsonb_array_elements_text(c.target_platforms) x) into camp
         from cc_campaigns c where c.id = new.campaign_id limit 1;
       req := array(select o from unnest(own) o where camp is not null and o = any(camp));
       if coalesce(array_length(req, 1), 0) = 0 then req := own; end if;

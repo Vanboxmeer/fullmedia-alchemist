@@ -157,13 +157,13 @@ function flat(r: any) {
   });
 }
 
-type Item = { id: string; brandId: string; brand: string; name: string; kind: "first" | "followup" | "manual" | "blocked"; route: Route; subject: string; hasDraft: boolean; approved: boolean; flag: any; dueDate: string; followUps: number; ph: string; reason: string; sent: string; lastSent: string; via: string };
+type Item = { id: string; brandId: string; brand: string; name: string; kind: "first" | "followup" | "manual" | "blocked"; route: Route; subject: string; hasDraft: boolean; approved: boolean; flag: any; dueDate: string; followUps: number; ph: string; reason: string; sent: string; lastSent: string; via: string; notes: string; sentSubject: string };
 
 function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, today: string): Item | null {
   const r = flat(raw), d = r.data || {}, ph = phaseOf(r);
   const t = tmap.get(r.target_id) || {}, b = bmap.get(r.brand_id) || {};
   const draft = clean(d.draft, 8000);
-  const base = { id: r.id, brandId: r.brand_id, brand: clean(b.name, 80), name: clean(t.name || r.target_name, 120), subject: clean(d.subject, 200), hasDraft: !!draft, approved: !!d.autoOk, flag: d.agentFlag || null, followUps: Number(d.followUps) || 0, ph, dueDate: clean(d.followUpDue, 10), sent: clean(d.sentDate, 10), lastSent: clean(d.lastSentDate, 10), via: clean(d.sentVia, 10) };
+  const base = { id: r.id, brandId: r.brand_id, brand: clean(b.name, 80), name: clean(t.name || r.target_name, 120), subject: clean(d.subject, 200), hasDraft: !!draft, approved: !!d.autoOk, flag: d.agentFlag || null, followUps: Number(d.followUps) || 0, ph, dueDate: clean(d.followUpDue, 10), sent: clean(d.sentDate, 10), lastSent: clean(d.lastSentDate, 10), via: clean(d.sentVia, 10), sentSubject: clean(d.sentSubject, 200), notes: ((Array.isArray(b.draftNotes) ? b.draftNotes : Array.isArray(b.data?.draftNotes) ? b.data.draftNotes : []) as any[]).filter((n) => n && n.on !== false && String(n.text || "").trim() && (!n.waves || !n.waves.length || n.waves.includes(d.waveId))).map((n) => "- " + clean(n.text, 300)).join("\n").slice(0, 1500) };
   const route = routeOf(r, t, b);
   const snoozed = d.stallSnooze && String(d.stallSnooze).slice(0, 10) > today;
   if (ph === "ready") {
@@ -223,7 +223,7 @@ function taskOf(it: Item, r: any, t: any, sig: string, today: string, sendFrom: 
       : { ...common, action: "submit_web_form", url: it.route.link, message: body, subject: it.subject || undefined, notes: clean(t?.data?.howToPost, 300) || undefined, instructions: "Open the page, fill the form using only this message and the brand details the user's Reach profile gives (never invent details). If the form needs a CAPTCHA, a login, a payment, or fields you cannot fill from this information, STOP and call reach_flag_for_user. After submitting, call reach_report_result with outcome \"submitted\" and the confirmation text on the page as evidence." };
   }
   const n = it.followUps + 1;
-  return { ...common, action: "send_followup", to: it.route.to, followUpNumber: n, originalSubject: it.subject, firstSentOn: clean(d.sentDate, 10), gmailThread: clean(d.gmailThread, 200) || undefined, instructions: "First open the original thread. If the person has replied, do NOT send anything: call reach_report_result with outcome \"replied_seen\" and a short quote. Otherwise write and send follow-up " + n + " in the same thread. " + FOLLOWUP_RULES + " Pass the text you sent as 'message' in reach_report_result (outcome \"sent\")." + LINKS.replace("exactly as given", "with real <a href> anchors for any links") + ACCT };
+  return { ...common, action: "send_followup", to: it.route.to, followUpNumber: n, originalSubject: it.sentSubject || it.subject, ownerDraftingNotes: it.notes || undefined, firstSentOn: clean(d.sentDate, 10), gmailThread: clean(d.gmailThread, 200) || undefined, instructions: "First open the original thread. When you write the follow-up, obey every line of ownerDraftingNotes (if present); they override your default style. If the person has replied, do NOT send anything: call reach_report_result with outcome \"replied_seen\" and a short quote. Otherwise write and send follow-up " + n + " in the same thread. " + FOLLOWUP_RULES + " Pass the text you sent as 'message' in reach_report_result (outcome \"sent\")." + LINKS.replace("exactly as given", "with real <a href> anchors for any links") + ACCT };
 }
 
 async function todayCount(client: string) {
