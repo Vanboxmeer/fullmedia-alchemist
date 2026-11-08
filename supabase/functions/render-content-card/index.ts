@@ -155,7 +155,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, content-type, x-cc-key',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-const CC_KEY = 'sq-ccb-9f3a1e7c2b6d4058a1c3e9f7b2d6a4c8';
+// Server key comes from the CC_KEY Edge secret (never written in code).
+const CC_KEY = (Deno.env.get('CC_KEY') || '').trim();
 const DEFAULT_WIZARD_URL = 'https://spinquest.app/wizard.png';
 const DEFAULT_LOGO_URL = 'https://spinquest.app/logo-wheel-white.svg';
 
@@ -1719,7 +1720,7 @@ async function buildClosingSvg(opts: {
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   const key = req.headers.get('x-cc-key');
-  if (key !== CC_KEY) return json({ error: 'unauthorized' }, 401);
+  if (!CC_KEY || key !== CC_KEY) return json({ error: 'unauthorized' }, 401);
 
   try {
     const body = await req.json();

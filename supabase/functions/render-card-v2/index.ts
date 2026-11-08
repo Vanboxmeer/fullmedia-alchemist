@@ -22,7 +22,8 @@ import { buildCard, requiredFonts, FONT_LIBRARY, PRESETS, nearestWeight, mix, is
 // Auth: x-cc-key for server callers (render). A signed-in user with a grant
 // on the brand may call {preview:true}, which renders and returns the PNG
 // without writing anything.
-const CC_KEY = 'sq-ccb-9f3a1e7c2b6d4058a1c3e9f7b2d6a4c8';
+// Server key comes from the CC_KEY Edge secret (never written in code).
+const CC_KEY = (Deno.env.get('CC_KEY') || '').trim();
 const ADMIN_EMAILS = ['spinquest.app@gmail.com', 'watchcrypto.media@gmail.com', 'brad@unitedpress.media', 'vanboxmeer.bradley@gmail.com'];
 const W = 1080, H = 1350;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -350,7 +351,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}));
     const supabase = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const brand = typeof body.brand === 'string' ? body.brand.trim() : '';
-    const serverCall = req.headers.get('x-cc-key') === CC_KEY;
+    const serverCall = !!CC_KEY && req.headers.get('x-cc-key') === CC_KEY;
     const preview = body.preview === true;
     if (!serverCall) {
       if (!preview || !brand || !(await userCanUseBrand(req, supabase, brand))) return json({ error: 'unauthorized' }, 401);
