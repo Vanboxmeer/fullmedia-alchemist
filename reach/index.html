@@ -3417,7 +3417,7 @@ function sentArchivePatch(d,when){
 function followUpDraftPatch(d){
   const n=d.followUps||0, key=isLead(d)?"LF":(n>=1?"F2":"F1"); const m=mergeTpl(d,key);
   return {draft:m.body,subject:routeKind(d)==="email"?m.subject:(d.subject||""),draftKind:"followup",draftState:"",draftFu:n,fuv:1}; }
-function followUpCandidate(d){ return phaseOf(d)==="sent"&&dueNow(d)&&(d.followUps||0)<2&&routeKind(d)!=="none"; }
+function followUpCandidate(d){ return !d.manualOnly&&phaseOf(d)==="sent"&&dueNow(d)&&(d.followUps||0)<2&&routeKind(d)!=="none"; }
 let reconT=0, reconBusy=false, reconTry=0;
 function scheduleReconcile(){ clearTimeout(reconT); reconT=setTimeout(reconcileDrafts,1800); }
 async function reconcileDrafts(){
@@ -4577,7 +4577,7 @@ function rowHtml(d){
   const dot=al.length?'<span class="adot '+lv+'" data-a="open" title="'+esc(alTitle)+'">'+(d.suggest?"✉":al.length)+'</span>':'';
   const reach='<div class="reach">'+(em?'<a class="ibtn" data-a="gmail" href="'+esc(gmailHref(d))+'" target="_blank" rel="noopener" title="Open Gmail compose to '+esc(em)+'">✉</a>':'')+(dm.href?'<a class="ibtn" data-a="dm" href="'+esc(dm.href)+'" target="_blank" rel="noopener" title="'+esc(routeKind(d)==="form"?"Open the form (no email for this one)":dm.label)+'">↗</a>':'')+(routeKind(d)==="form"?'<span class="rtag" title="Web form: no email address. Open the form and paste the message.">Form</span>':routeKind(d)==="dm"?'<span class="rtag" title="Chat message: no subject, no email.">DM</span>':'')+(prop?viewBtn(d,"abtn ghost vw","View ↗"):'')+'<button class="ibtn'+(hasDraft(d)?'':' dis')+'" data-a="copy" title="Copy message">⧉</button>'+(em?'<span class="addr" title="'+esc(em)+'">'+esc(em)+'</span>':(dm.href?'<span class="addr">'+esc(hostOf(dm.href))+'</span>':'<span class="addr" style="color:var(--bad)">no contact</span>'))+'</div>';
   const msgTxt=((d.subject?d.subject+" — ":"")+(d.draft||"")).replace(/\s+/g," ").trim();
-  const msg=hasDraft(d)?'<div class="msgp" data-a="open" title="'+esc(msgTxt.slice(0,300))+'">'+(d.draftKind==="reply"?'<span class="rv">Reply · </span>':(d.draftKind==="followup"?'<span class="rv">Follow-up · </span>':''))+(d.draftState==="agent"?'<span class="rv">✨ </span>':'')+esc(msgTxt.slice(0,90))+'</div>':((ph==="sent"&&(d.sentDate||d.lastSentDate))?'<div class="msgp none" data-a="open">Sent '+esc(fmtShort(d.lastSentDate||d.sentDate))+(d.followUpDue?' · follow-up '+esc(fmtShort(d.followUpDue)):'')+'</div>':'<div class="msgp none" data-a="open">+ write message</div>');
+  const msg=hasDraft(d)?'<div class="msgp" data-a="open" title="'+esc(msgTxt.slice(0,300))+'">'+(d.draftKind==="reply"?'<span class="rv">Reply · </span>':(d.draftKind==="followup"?'<span class="rv">Follow-up · </span>':''))+(d.manualOnly?'<span class="rv">Manual only · </span>':'')+(d.draftState==="agent"?'<span class="rv">✨ </span>':'')+esc(msgTxt.slice(0,90))+'</div>':((ph==="sent"&&(d.sentDate||d.lastSentDate))?'<div class="msgp none" data-a="open">Sent '+esc(fmtShort(d.lastSentDate||d.sentDate))+(d.followUpDue?' · follow-up '+esc(fmtShort(d.followUpDue)):'')+'</div>':'<div class="msgp none" data-a="open">+ write message</div>');
   let act="";
   if(d.suggest) act='<button class="abtn good" data-a="apply">'+(d.suggest.type==="replied"?"Read reply ✉":d.suggest.type==="sent"?"Confirm sent ✉":d.suggest.type==="bounced"?"Bounced ✉":"Review ✉")+'</button>';
   else if(prop) act='<button class="abtn pri" data-a="accept">Accept</button> <button class="abtn ghost" data-a="reject" title="Reject">✕</button>';
@@ -4746,7 +4746,7 @@ function bulkDo(a){
   if(a==="sent"){ if(bulkConfirm!=="sent"){ bulkConfirm="sent"; renderBulk(); return; } bulkConfirm=""; doMarkSent.skipped=[]; ids.forEach(id=>doMarkSent(id,undefined,{bulk:true})); const gs=doMarkSent.skipped.length; doMarkSent.skipped=[]; w.sel={}; toast((n-gs)+" marked sent"+(gs?" · "+gs+" skipped — open checklist items (open them one by one)":"")); renderBulk(); return; }
   if(a==="fu"){ const v=document.getElementById("bFu").value; if(!v){ toast("Pick a date first"); return; } ids.forEach(id=>{ patchDeal(id,{followUpDue:v}); syncRow(id); }); toast("Follow-up set for "+n+" rows"); return; }
   if(a==="accept"){ const acc=ids.filter(id=>ix().deal.get(id).reviewState==="proposed"); acc.forEach(id=>acceptProposed(id,true)); w.sel={}; renderBulk(); acceptNext(acc); return; }
-  if(a==="acceptready"){ const acc=ids.filter(id=>ix().deal.get(id).reviewState==="proposed"); let k=0,left=0; let wait=0; acc.forEach(id=>{ const had=hasDraft(ix().deal.get(id)); acceptProposed(id,true); if(had){ markReady(id); k++; } else if(pendingDraft.has(id)){ patchDeal(id,{readyAfterDraft:true}); wait++; } else left++; }); w.sel={}; renderBulk(); toast("Accepted "+acc.length+" and marked "+k+" Ready to send."+(wait?" "+wait+" more will be marked ready as soon as their draft is written.":"")+(left?" "+left+" still need a draft.":"")+(k?" Open Automation to send them.":"")); return; }
+  if(a==="acceptready"){ const acc=ids.filter(id=>{ const dd=ix().deal.get(id); return dd.reviewState==="proposed"&&!dd.manualOnly; }); let k=0,left=0; let wait=0; acc.forEach(id=>{ const had=hasDraft(ix().deal.get(id)); acceptProposed(id,true); if(had){ markReady(id); k++; } else if(pendingDraft.has(id)){ patchDeal(id,{readyAfterDraft:true}); wait++; } else left++; }); w.sel={}; renderBulk(); toast("Accepted "+acc.length+" and marked "+k+" Ready to send."+(wait?" "+wait+" more will be marked ready as soon as their draft is written.":"")+(left?" "+left+" still need a draft.":"")+(k?" Open Automation to send them.":"")); return; }
   if(a==="reject"){ ids.forEach(id=>{ if(ix().deal.get(id).reviewState==="proposed") rejectProposed(id); }); w.sel={}; renderBulk(); return; }
   if(a==="remove"){ if(bulkConfirm!=="remove"){ bulkConfirm="remove"; renderBulk(); return; } bulkConfirm=""; ids.forEach(id=>{ deleteDoc("deals",id); }); w.sel={}; if(ids.includes(w.active)) w.active=null; toast("Removed "+n+" rows"); render(); return; }
 }
@@ -4893,6 +4893,9 @@ function paneHtml(d){
    +'<div class="pscroll" id="pScroll"><div class="pb" data-deal="'+d.id+'">'
    +(wbMoved.has(d.id)?'<div class="al info"><span class="t">This row no longer matches the current tab, so it will leave the list when you move on. Keep working here.</span></div>':'')
    +(al.length?'<div class="psec"><div class="alist" id="pAlerts">'+alertRows+'</div></div>':'<div id="pAlerts"></div>')
+   +(d.manualOnly
+     ?'<div class="psec"><div class="al good"><span class="t"><b>Manual only.</b> Left out of Automation, bulk drafting, Accept + approve and automatic follow-ups. You send this one yourself. <button class="btn tiny" data-p="manualonly" type="button">Turn off</button></span></div></div>'
+     :'<div class="psec"><div class="mini" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn tiny" data-p="manualonly" type="button" title="Keeps this one out of every automated batch">Manual only</button><span>Keep this one out of every automated batch.</span></div></div>')
    +'<div id="pSent">'+((state.justSent&&state.justSent.id===d.id)?'<div class="sentbar"><span>✓ Marked sent</span><span class="sp"></span><button class="btn small" data-p="undosent">Undo</button><button class="btn small primary" data-p="nextconv">Close and next conversation →</button></div>':'')+'</div>'
    +dyorPaneHtml(d)+gatesPaneHtml(d)+stallPaneHtml(d)+clientPaneHtml(d)
    /* message first: who it goes to, the words, then the send bar */
@@ -5224,6 +5227,7 @@ function paneClick(e){
     case "approve": return markReady(id);
     case "accept": return acceptProposed(id);
     case "reject": return rejectProposed(id);
+    case "manualonly": { const dd=ix().deal.get(id); if(!dd) return; const on=!dd.manualOnly; patchDeal(id,on?{manualOnly:true,autoOk:false,autoHold:true,readyAfterDraft:false}:{manualOnly:false,autoHold:false}); if(on){ (async()=>{ try{ const R=await reachApi(); if(R&&R.agent) await R.agent("approve",{ids:[id],on:false}); }catch(e){} })(); } toast(on?"Marked Manual only. It will never be included in automation.":"Manual only turned off."); afterRowChange(id); return; }
     case "applysuggest": return applySuggest(id);
     case "dismisssuggest": return dismissSuggest(id);
     case "closeout": return applyStatus(id,isLead(d)?"Lost":"Declined");
@@ -5485,7 +5489,7 @@ async function agentDraft(id,opts){
   finally{ agentBusy.delete(id); }
 }
 async function bulkDraft(ids,force){
-  const todo=ids.filter(id=>{ const d=ix().deal.get(id); return d&&!d.sentDate&&(force?(!hasDraft(d)||d.draftState==="agent"):!hasDraft(d)); }); const skipped=ids.length-todo.length;
+  const todo=ids.filter(id=>{ const d=ix().deal.get(id); return d&&!d.manualOnly&&!d.sentDate&&(force?(!hasDraft(d)||d.draftState==="agent"):!hasDraft(d)); }); const skipped=ids.length-todo.length;
   if(!aiAvailable()){ toast("The Alchemist isn't available in this view"); return; }
   if(!todo.length){ toast(force?"Nothing to redraft — these are sent or hand-edited":"All selected rows already have a message"); return; }
   let done=0; toast("Drafting 0/"+todo.length+"…");
@@ -7166,7 +7170,7 @@ function openHoldModal(sc,id){
 function openHoldNotes(sc,id){
   const o=holdTarget(sc,id); if(!o) return;
   const rows=(ix().byBrand.get(sc==="brand"?id:o.brandId)||[]).filter(d=>(sc==="brand"||d.waveId===id)&&isOpen(phaseOf(d))&&inConversation(d));
-  const todo=rows.filter(d=>!hasDraft(d)), keep=rows.length-todo.length; const key=o.status==="Paused"?"X1":"X2";
+  const todo=rows.filter(d=>!hasDraft(d)&&!d.manualOnly), keep=rows.length-todo.length; const key=o.status==="Paused"?"X1":"X2";
   openModal('<div class="mhead"><div><h3>Polite notes — '+esc(o.name)+'</h3><div class="ikstep">'+esc(o.status)+' · '+rows.length+' open conversation'+(rows.length===1?"":"s")+'</div></div><button class="iconbtn" id="mClose">&times;</button></div><div class="mbody">'
    +'<p style="font-size:13px;line-height:1.6;margin:0 0 10px">These people have replied to us. Going quiet on them wastes goodwill we want for other brands and campaigns, so each gets a short, courteous note that says where things stand and keeps the door open. They are saved as <b>drafts only</b>.</p>'
    +'<div class="al info"><span class="t"><b>Template:</b> '+esc(TPL[key].label)+'</span></div><pre class="tplprev" style="white-space:pre-wrap;font-size:12px;margin:8px 0;padding:8px;border:1px solid var(--border);border-radius:8px">'+esc(TPL[key].body)+'</pre>'

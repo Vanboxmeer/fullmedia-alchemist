@@ -165,6 +165,7 @@ function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, toda
   const draft = clean(d.draft, 8000);
   const base = { id: r.id, brandId: r.brand_id, brand: clean(b.name, 80), name: clean(t.name || r.target_name, 120), subject: clean(d.subject, 200), hasDraft: !!draft, approved: !!d.autoOk, flag: d.agentFlag || null, followUps: Number(d.followUps) || 0, ph, dueDate: clean(d.followUpDue, 10), sent: clean(d.sentDate, 10), lastSent: clean(d.lastSentDate, 10), via: clean(d.sentVia, 10), sentSubject: clean(d.sentSubject, 200), notes: ((Array.isArray(b.draftNotes) ? b.draftNotes : Array.isArray(b.data?.draftNotes) ? b.data.draftNotes : []) as any[]).filter((n) => n && n.on !== false && String(n.text || "").trim() && (!n.waves || !n.waves.length || n.waves.includes(d.waveId))).map((n) => "- " + clean(n.text, 300)).join("\n").slice(0, 1500) };
   const route = routeOf(r, t, b);
+  if (d.manualOnly && (ph === "ready" || ph === "sent")) return { ...base, kind: "manual", route, reason: "Marked Manual only. You send this one yourself." };
   const snoozed = d.stallSnooze && String(d.stallSnooze).slice(0, 10) > today;
   if (ph === "ready") {
     // never send a first message to a row that already shows it was contacted
