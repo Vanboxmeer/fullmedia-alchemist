@@ -3898,6 +3898,56 @@ async function vRecord(drawAt, total, onProg, ctl) {
   const type = String(rec.mimeType || mime || 'video/webm').split(';')[0];
   return { blob: new Blob(chunks, { type }), ext: /mp4/.test(type) ? 'mp4' : 'webm' };
 }
+/* Premium AI clips (2026-11-08): one 5-second AI-animated clip per slide, made by a model on fal.ai via alchemist-video-ai.
+   Included clips per month follow the plan (cc_plans.videos_included_monthly); more cost credits. The panel stays hidden until the function is live. */
+async function vsAiPanel(el, s, p, slides) {
+  const box = $('#vsAi', el); if (!box) return;
+  let info = null;
+  try { info = await api('alchemist-video-ai', { body: { action: 'get', brand: S.brand, sku: p.sku } }); } catch (e) { info = null; }
+  if (!info || info.ok !== true) return;
+  const jobs = info.jobs || {}, timers = {};
+  const dl = async (url, name) => {
+    try { const r = await fetch(url); if (!r.ok) throw 0; vDownload(await r.blob(), name); } catch (e) { window.open(url, '_blank', 'noopener'); }
+  };
+  const paint = () => {
+    const costNote = info.left > 0 ? 'included in your plan' : `${info.extra_credits} credits`;
+    box.hidden = false;
+    box.innerHTML = `<div class="vp-h" style="margin-top:0">Premium: AI-animated clips</div>
+      <p class="muted small" style="margin:4px 0 10px">${info.on ? `Each slide becomes a 5-second AI video clip. Your plan includes ${info.included} a month (${info.left} left); more cost ${info.extra_credits} credits each. Join the clips in your video editor, or use the video above for the text and stickers.` : 'Premium AI clips aren’t switched on yet.'}</p>
+      ${info.on ? slides.map((x) => { const j = jobs[x.n] || {}; return `<div class="row" style="gap:10px;align-items:center;margin:6px 0;flex-wrap:wrap"><b style="min-width:64px">Slide ${x.n}</b>
+        ${j.state === 'done' && j.video_url ? `<video src="${esc(j.video_url)}" muted playsinline loop controls style="height:120px;border-radius:10px;background:#000"></video><button type="button" class="btn btn-sm btn-ghost" data-dl="${x.n}">Download clip</button>`
+          : j.state === 'running' ? '<span class="muted small">Making it… about a minute or two.</span>'
+          : `<button type="button" class="btn btn-sm btn-ghost" data-go="${x.n}">${icons.spark} Animate (${costNote})</button>${j.state === 'failed' && j.error ? `<span class="muted small">${esc(j.error)}</span>` : ''}`}</div>`; }).join('') : ''}`;
+    $$('[data-go]', box).forEach((b) => b.onclick = () => start(+b.dataset.go));
+    $$('[data-dl]', box).forEach((b) => b.onclick = () => { const j = jobs[b.dataset.dl]; if (j && j.video_url) dl(j.video_url, (String(p.sku) + '-slide-' + b.dataset.dl + '.mp4')); });
+  };
+  const poll = (n) => {
+    clearTimeout(timers[n]);
+    timers[n] = setTimeout(async () => {
+      if (!document.body.contains(box)) return;
+      try {
+        const r = await api('alchemist-video-ai', { body: { action: 'status', brand: S.brand, sku: p.sku, slide: n } });
+        const j = r && r.job; if (!j) return;
+        if (j.state === 'running') { poll(n); return; }
+        jobs[n] = j; paint();
+        if (j.state === 'failed') toast(j.error || 'That clip could not be made. You were not charged.', 'info', 8000);
+      } catch (e) { if (e.status !== 401) poll(n); }
+    }, 6000);
+  };
+  async function start(n) {
+    const cost = info.left > 0 ? 'It uses one of your plan’s included videos.' : `It costs ${info.extra_credits} credits.`;
+    if (!await confirmDialog(`Make an AI clip from slide ${n}? ${cost}`, 'Make it')) return;
+    try {
+      const r = await api('alchemist-video-ai', { body: { action: 'start', brand: S.brand, sku: p.sku, slide: n } });
+      jobs[n] = { state: 'running' };
+      if (r.included) { info.left = Math.max(0, info.left - 1); info.used += 1; }
+      else if (r.credits && S.brandData && S.brandData.subscription && S.brandData.subscription.credits_left != null) S.brandData.subscription.credits_left = Math.max(0, Number(S.brandData.subscription.credits_left) - r.credits);
+      paint(); poll(n);
+    } catch (e) { if (e.status !== 401) toast(e.message, 'err', 9000); }
+  }
+  paint();
+  Object.keys(jobs).forEach((n) => { if (jobs[n] && jobs[n].state === 'running') poll(+n); });
+}
 async function openVideoStudio(p, mode) {
   closeMenus();
   const media = (p.media_urls || []).map((u) => String(u)).slice(0, 4);
@@ -3912,7 +3962,7 @@ async function openVideoStudio(p, mode) {
       <p class="muted small" style="margin:0">${isVid ? 'Your brand’s colours, typeface and logo, this post’s pictures and the video plan’s timing, drawn into a 9:16 video right here. Nothing is uploaded. The video has no sound; add a track in TikTok, Reels or Shorts.' : 'Vertical 9:16 slides with empty spots for text and stickers, ready to finish in TikTok, Reels, Shorts or CapCut. Nothing is uploaded or stored.'}</p>
       <div class="vs-stage"><canvas id="vsCv" width="360" height="640"></canvas><video id="vsVid" controls playsinline hidden></video></div>
       ${isVid ? '<div class="progress-line" id="vsBar" hidden><div></div></div>' : '<div class="seg" id="vsSl" role="group" aria-label="Slide"></div>'}
-      <div class="notice" id="vsPlan"></div></div>`,
+      <div class="notice" id="vsPlan"></div>${isVid ? '<div id="vsAi" hidden></div>' : ''}</div>`,
     foot: isVid
       ? '<span class="msg"></span><button type="button" class="btn btn-ghost" id="vsSave" hidden>Download video</button><button type="button" class="btn btn-gold" id="vsMake" disabled>Make the video</button>'
       : '<span class="msg"></span><button type="button" class="btn btn-ghost" id="vsCopy" disabled>Copy slot sheet</button><button type="button" class="btn btn-gold" id="vsZip" disabled>Download slides</button>',
@@ -3992,6 +4042,7 @@ async function openVideoStudio(p, mode) {
     };
   }
   setPlan(info && info.plan && Array.isArray(info.plan.shots) && info.plan.shots.length ? info.plan : vDefaultPlan(slides));
+  if (isVid) vsAiPanel(el, s, p, slides);
 }
 
 /* ── Other formats (2026-10-30) ─────────────────────────────────────────
