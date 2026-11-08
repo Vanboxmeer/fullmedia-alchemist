@@ -2205,7 +2205,7 @@ function renderHome() {
           <button type="button" class="btn btn-gold btn-lg" id="compGo">${icons.spark} Transmute</button>
           <span class="small muted" id="optSum"></span>
           <div class="spacer"></div>
-          <div class="comp-alt"><button type="button" class="btn btn-ghost" id="topBtn">Review my top posts</button><button type="button" class="btn btn-ghost" id="recapNew">Make a recap</button><button type="button" class="btn btn-ghost" id="ideasBtn">${icons.spark} Give me ideas</button></div>
+          <div class="comp-alt"><button type="button" class="btn btn-ghost" id="topBtn">Review my top posts</button><button type="button" class="btn btn-ghost" id="recapNew">Make a recap</button><button type="button" class="btn btn-ghost" id="ownNew">My own content</button><button type="button" class="btn btn-ghost" id="ideasBtn">${icons.spark} Give me ideas</button></div>
         </div>
         <div id="ideas"></div>
         <div id="compMsg"></div>
@@ -2319,6 +2319,7 @@ function wireComposer(prefill) {
   $('#ideasBtn').onclick = () => loadIdeas();
   $('#topBtn').onclick = () => openTopReview();
   $('#recapNew').onclick = () => openRecap({});
+  if ($('#ownNew')) $('#ownNew').onclick = () => openOwnPost();
   $('#plistToggle').onclick = () => { comp.listOn = !comp.listOn; paintCompList(); if (comp.listOn) { const f = $('#compList .pitem-link'); if (f) f.focus(); } };
   paintCompList();
   comp.endState = {}; wireEndingField({}, $('#compFine'), comp.endState, 'cp');
@@ -3474,6 +3475,7 @@ function openPostEditor(p, opts = {}) {
           <div class="field"><label for="peDate">Post on</label><input class="input" type="date" id="peDate"></div>
           <div class="field"><label for="peLink">Link</label><input class="input" id="peLink" maxlength="1000" placeholder="https://"><span class="hint">Changing it redraws the QR code too.</span></div>
         </div>
+        <div class="field"><label for="peExt">Your ID <span class="muted">(optional)</span></label><input class="input" id="peExt" maxlength="80" placeholder="e.g. SKU-1042"><span class="hint">Shows as its own column in exports. Handy for matching rows to your own files.</span></div>
         <div class="field"><label for="peTime">Post at <span class="muted">(optional)</span></label><input class="input" type="time" id="peTime"><span class="hint">The time you plan to post this. Leave it empty if it does not matter.</span></div>
       </div>`,
     foot: `<span class="msg"></span><button type="button" class="btn btn-ghost" data-close>Cancel</button><button type="button" class="btn btn-gold" id="peSave">Save</button>`,
@@ -3485,6 +3487,7 @@ function openPostEditor(p, opts = {}) {
   $('#peDate', el).value = p.scheduled_date ? String(p.scheduled_date).slice(0, 10) : '';
   $('#peTime', el).value = /^\d{2}:\d{2}/.test(String(p.scheduled_time || '')) ? String(p.scheduled_time).slice(0, 5) : '';
   $('#peLink', el).value = p.content_link || '';
+  $('#peExt', el).value = p.external_id || '';
   const mentAll = mentionList(p).all; const mentSel = new Set(mentionList(p).list.map((m) => m.name));
   if (mentAll.length) {
     $('#peMent', el).hidden = false;
@@ -3520,9 +3523,10 @@ function openPostEditor(p, opts = {}) {
     if (rawLink && !link) return s.msg('That link isn’t a valid web address.', 'err');
     const btn = $('#peSave', el); btn.disabled = true; s.msg('Saving…');
     try {
-      const linkChanged = link && link !== (normalizeUrl(p.content_link) || '');
+      const linkChanged = !isOwnPost(p) && link && link !== (normalizeUrl(p.content_link) || '');
       const patch = { post_copy: copy, general_hashtags: tags, copy_plus_general: [copy, link || p.content_link || '', tags].filter(Boolean).join('\n\n') };
       if (date) patch.scheduled_date = date;
+      { const ext = $('#peExt', el).value.trim(); if (ext !== String(p.external_id || '')) patch.external_id = ext || null; }
       const tm = $('#peTime', el).value || '';
       if (tm !== (/^\d{2}:\d{2}/.test(String(p.scheduled_time || '')) ? String(p.scheduled_time).slice(0, 5) : '')) patch.scheduled_time = tm || null;
       const r = await api('update-client-post', { body: { brand: S.brand, sku: p.sku, patch } });
@@ -3709,6 +3713,7 @@ function openPostFormats(p) {
 /* ── Redo with a note ───────────────────────────────────────────────── */
 function openRedo(p) {
   closeMenus();
+  if (isOwnPost(p)) { toast('This one is your own content, so there’s no picture to redo. Use Edit to change the caption.', 'info', 6000); return; }
   const rdCamp = (S.campaigns || []).find((x) => x.id === p.campaign_id) || {};
   // 2026-10-08: two sources. "Campaign brief" is the original redo
   // (submit-client-feedback). "This post's own brief" rewrites the post from
@@ -3874,6 +3879,48 @@ function openRecap({ campaign } = {}) {
       if (e.status === 401) return;
       s.msg(e.message || 'The recap didn’t work. Please try again.', 'err');
     }
+  };
+}
+
+/* ── My own content (made elsewhere: copy, hashtags, schedule, optional ID — no uploads) ── */
+const isOwnPost = (p) => !!p && String(p.post_format || '') === 'Own content';
+function openOwnPost() {
+  const camps = (S.campaigns || []);
+  const s = openSheet({
+    title: 'My own content',
+    body: `<div class="stack">
+      <p class="sub" style="margin:0">Already made the video or picture somewhere else? Add it here for the words and the schedule only. Nothing is uploaded and no picture is drawn.</p>
+      <div class="field"><label for="owTitle">Name</label><input class="input" id="owTitle" maxlength="150" placeholder="e.g. Autumn promo reel"></div>
+      <div class="field"><label for="owId">Your ID <span class="muted">optional</span></label><input class="input" id="owId" maxlength="80" placeholder="e.g. SKU-1042 or your file name"><span class="hint">Appears as its own column when you export, so you can match each row to your file.</span></div>
+      <div class="field"><label for="owUrl">Where it lives <span class="muted">optional</span></label><input class="input" id="owUrl" maxlength="1000" placeholder="https://  (Drive, Canva, YouTube…)"><span class="hint">Just a link. We don’t fetch or store the file.</span></div>
+      <div class="field"><label for="owNote">What’s in it? <span class="muted">optional</span></label><textarea class="textarea" id="owNote" maxlength="1500" placeholder="A few words so the caption can match it"></textarea></div>
+      <div class="field"><label for="owCopy">Caption <span class="muted">optional</span></label><textarea class="textarea" id="owCopy" style="min-height:110px" maxlength="4000"></textarea></div>
+      <div class="field"><label for="owTags">Hashtags <span class="muted">optional</span></label><input class="input" id="owTags" maxlength="500" placeholder="#YourBrand #Launch"></div>
+      <div class="grid2">
+        <div class="field"><label for="owDate">Post on</label><input class="input" type="date" id="owDate"></div>
+        <div class="field"><label for="owTime">At <span class="muted">optional</span></label><input class="input" type="time" id="owTime"></div>
+      </div>
+      <div class="field"><label for="owCamp">Group</label><select class="input" id="owCamp"><option value="">My own content (default)</option>${camps.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div>
+    </div>`,
+    foot: `<span class="msg"></span><button type="button" class="btn btn-ghost" data-close>Cancel</button><button type="button" class="btn btn-gold" id="owGo">Add it</button>`,
+  });
+  const el = s.el;
+  $('#owDate', el).value = todayYmd();
+  attachMic && $('#owCopy', el) && attachMic($('#owCopy', el));
+  $('#owGo', el).onclick = async () => {
+    const title = $('#owTitle', el).value.trim();
+    if (!title) return s.msg('Give it a name first.', 'err');
+    const rawUrl = $('#owUrl', el).value.trim(); const url = rawUrl ? normalizeUrl(rawUrl) : '';
+    if (rawUrl && !url) return s.msg('That link isn’t a valid web address.', 'err');
+    const body = { action: 'create_own', brand: S.brand, title, external_id: $('#owId', el).value.trim(), external_url: url, note: $('#owNote', el).value.trim(),
+      copy: $('#owCopy', el).value.trim(), hashtags: normTags($('#owTags', el).value), scheduled_date: $('#owDate', el).value, scheduled_time: $('#owTime', el).value || '', campaign_id: $('#owCamp', el).value || '' };
+    const btn = $('#owGo', el); btn.disabled = true; s.msg('Adding…');
+    try {
+      const r = await api('update-client-post', { body });
+      s.close(); await loadBrand(S.brand); setBrandChrome();
+      if (r.campaign_id) openCampaign(r.campaign_id);
+      toast(`Added${r.sku ? ' as ' + r.sku : ''}. Edit the caption, then approve it and it will export like any other post.`);
+    } catch (e) { btn.disabled = false; if (e.status !== 401) s.msg(e.message || 'That didn’t save. Please try again.', 'err'); }
   };
 }
 
@@ -7825,7 +7872,7 @@ function exportPosts(o) {
     if (a === 'declined') return false;
     if (!o.drafts && a !== 'approved') return false;
     if (typeof isSealed === 'function' && isSealed(p)) return false;
-    return exportPlatforms(p).length > 0 && (p.media_urls || []).length > 0;
+    return exportPlatforms(p).length > 0 && ((p.media_urls || []).length > 0 || isOwnPost(p));
   }).sort((a, b) => String(a.scheduled_date).localeCompare(String(b.scheduled_date)));
 }
 const timeOf = (p, def) => (/^\d{2}:\d{2}/.test(String(p.scheduled_time || '')) ? String(p.scheduled_time).slice(0, 5) : def);
@@ -7884,7 +7931,7 @@ function buildUniversal(posts, o) {
   const items = posts.map((p) => {
     const camp = (S.campaigns || []).find((c) => c.id === p.campaign_id);
     return {
-      id: p.sku, brand: S.brand, campaign: camp ? camp.name : '', date: String(p.scheduled_date).slice(0, 10), time: timeOf(p, o.time),
+      id: p.sku, external_id: p.external_id || '', external_url: isOwnPost(p) ? (p.source_link || '') : '', brand: S.brand, campaign: camp ? camp.name : '', date: String(p.scheduled_date).slice(0, 10), time: timeOf(p, o.time),
       timezone: userTz(), platforms: exportPlatforms(p), caption: applyMentions(String(p.post_copy || '').trim(), p, null).text, link: linkFor(p, ''),
       hashtags: String(p.general_hashtags || '').trim(), instagram_hashtags: String(p.ig_hashtags || '').trim(), tiktok_hashtags: String(p.tiktok_hashtags || '').trim(),
       full_text: captionOf(p, o), location: p.include_location_tag === false ? '' : (p.location_tag || ''), title: p.post_idea || '',
@@ -7896,7 +7943,7 @@ function buildUniversal(posts, o) {
     };
   });
   const capCols = ['instagram', 'tiktok', 'x', 'linkedin', 'facebook', 'pinterest', 'youtube'].map((k) => 'text_' + k);
-  const cols = ['id', 'brand', 'campaign', 'date', 'time', 'timezone', 'platforms', 'title', 'seo_title', 'caption', 'link', 'hashtags', 'instagram_hashtags', 'tiktok_hashtags', 'full_text', ...capCols, 'location', 'image_1', 'image_2', 'image_3', 'image_4', 'status'];
+  const cols = ['id', 'external_id', 'external_url', 'brand', 'campaign', 'date', 'time', 'timezone', 'platforms', 'title', 'seo_title', 'caption', 'link', 'hashtags', 'instagram_hashtags', 'tiktok_hashtags', 'full_text', ...capCols, 'location', 'image_1', 'image_2', 'image_3', 'image_4', 'status'];
   const rows = [cols, ...items.map((it) => cols.map((c) => (c === 'platforms' ? it.platforms.join(', ') : /^image_\d$/.test(c) ? it.images[+c.slice(6) - 1] || '' : /^text_/.test(c) ? it.captions[c.slice(5)] || '' : it[c])))];
   return { csv: csvOf(rows), json: JSON.stringify({ exported_at: new Date().toISOString(), brand: S.brand, posts: items }, null, 2) };
 }

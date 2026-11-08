@@ -3042,10 +3042,10 @@ function foot(saveLabel,cls){ return '<div class="mfoot"><button class="btn" id=
    real brand was refused. Now: name + website, saved at once (the placeholder is
    reused), then the site is read and the brief filled in. Everything else is
    edited later from the brand page. */
-function isPlaceholderBrand(b){ return !!b && /^my brand$/i.test(String(b.name||"").trim()) && !String(b.officialSite||"").trim() && !String(b.whatItIs||"").trim() && !String(b.mission||"").trim(); }
+function isPlaceholderBrand(b){ return !!b && (!String(b.name||"").trim() || /^my brand$/i.test(String(b.name||"").trim())) && !String(b.officialSite||"").trim() && !String(b.whatItIs||"").trim() && !String(b.mission||"").trim(); }
 function siteUrl(v){ v=String(v||"").trim(); if(!v) return ""; if(!/^https?:\/\//i.test(v)) v="https://"+v; try{ const u=new URL(v); return u.hostname.indexOf(".")>0?u.toString().replace(/\/$/,""):""; }catch(e){ return ""; } }
 function nameFromSite(u){ try{ return new URL(u).hostname.replace(/^www\./,"").split(".")[0].split(/[-_]+/).map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" "); }catch(e){ return ""; } }
-function brandSaveError(e){ const m=String((e&&(e.message||e.code))||""); if(/row-level security|42501|violates/i.test(m)) return "Your plan’s brand limit is reached. Archive a brand you don’t use, or upgrade your plan."; return "Couldn’t save: "+(m||"unknown error"); }
+function brandSaveError(e){ const m=String((e&&(e.message||e.code))||""); if(/row-level security|42501|violates/i.test(m)){ const mine=(state.brands||[]).filter(b=>!isPlaceholderBrand(b)&&!b.archivedAt).map(b=>String(b.name||"").trim()).filter(Boolean); return mine.length?("Your Reach plan only has room for "+mine.length+" brand"+(mine.length===1?"":"s")+" and you already have "+mine.slice(0,3).map(n=>"“"+n+"”").join(", ")+". Archive one you don’t use, or upgrade your plan to add another."):"Couldn’t create the brand just now. Reload the page and try again."; } return "Couldn’t save: "+(m||"unknown error"); }
 function startBrandIntake(){ state.intake={ data:{ name:"", officialSite:"", pipeline:"both" } }; renderQuickBrand(); }
 function keepQuick(){ const d=state.intake.data, s=document.getElementById("qbSite"), n=document.getElementById("qbName"); if(s) d.officialSite=s.value; if(n) d.name=n.value; }
 function quickMsg(t,bad){ const m=document.getElementById("qbMsg"); if(m){ m.textContent=t||""; m.style.color=bad?"var(--bad,#e0614f)":""; } }
