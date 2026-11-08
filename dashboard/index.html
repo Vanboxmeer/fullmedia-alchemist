@@ -462,6 +462,9 @@ details.adv[open] summary::before{content:"−"}
 .post{overflow:hidden;display:flex;flex-direction:column;animation:viewIn .45s var(--ease) both}
 .media{position:relative;aspect-ratio:4/5;background:var(--surface-2);overflow:hidden}
 .media.own{aspect-ratio:auto;height:96px}
+.vs-stage{display:grid;place-items:center}.vs-stage canvas,.vs-stage video{width:auto;max-width:100%;max-height:46vh;aspect-ratio:9/16;border-radius:14px;background:#000}
+.progress-line{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden}.progress-line>div{height:100%;width:0;background:var(--gold);transition:width .2s linear}
+.out-field .seg{flex-wrap:wrap}
 .media.own .noimg{padding:10px 16px;font-size:13px;line-height:1.5}
 .media.own .noimg b{color:var(--ink,inherit);font-weight:600}
 .media-track{display:flex;height:100%;transition:transform .45s var(--ease)}
@@ -2492,6 +2495,7 @@ async function createCampaignFromComposer() {
     b.stop(true);
     researchToast(g);
     sealPosts(g.skus);
+    applyOutput(g.skus);
     if (g.scenes_queued) markFinishing(g.skus);
     if (campaign.ending_slide && g.skus && g.skus.length) { try { await applyEnding(campaign, g.skus); } catch (e) { if (e.status === 401) throw e; } }
     await loadBrand(S.brand); setBrandChrome();
@@ -2721,6 +2725,7 @@ function campChatHtml(c) {
           <div class="stepper" id="csHow"><button type="button" id="csMinus" aria-label="Fewer">−</button><output id="csCnt">${defCount}</output><button type="button" id="csPlus" aria-label="More">+</button></div>
           <div class="field"><div class="seg" id="csFmt"><button type="button" data-f="single">Single</button><button type="button" data-f="carousel">Carousel</button><button type="button" data-f="mixed">Mixed</button></div>${carNHtml()}</div>
         </div>
+        ${outFieldHtml('csOut')}
         <section class="finetune" id="csFine" aria-label="Fine-tune">
           <div class="ft-head">Fine-tune <span class="muted small">optional: shape the words and pictures</span></div>
           <div class="grid2" style="margin-top:14px">
@@ -2799,6 +2804,7 @@ function wireCampChat(c) {
     const h = $('#csHow'); if (h) h.hidden = csListOn;
   };
   wireFmtField($('#csFmt').parentElement, () => fmt, (f) => { fmt = f; paint(); });
+  wireOutField('csOut', paint);
   paint();
   $('#csMinus').onclick = () => { count = Math.max(1, count - 1); $('#csCnt').textContent = count; paint(); };
   $('#csPlus').onclick = () => { count = Math.min(10, count + 1); $('#csCnt').textContent = count; paint(); };
@@ -2930,6 +2936,7 @@ function postCardHtml(p, i) {
     <div class="post-body">
       <div class="post-top"><span class="card-badge pill ${fin || seal ? 'idle' : cls}">${fin ? 'Transmuting…' : seal ? 'Sealed' : esc(stageLabel(p, st))}</span><span class="post-date${dueIn(p) != null && dueIn(p) < 0 ? ' late' : isDueSoon(p) ? ' soon' : ''}">${dueLabel(p) ? `<b>${esc(dueLabel(p))}</b> · ` : ''}${esc(fmtDate(p.scheduled_date))}</span>${!fin && !seal ? `<button type="button" class="card-menu" data-a="menu" aria-label="More post actions">${icons.dots}</button>` : ''}</div>
       ${p.post_idea ? `<div class="post-idea">${esc(p.post_idea)}</div>` : ''}
+      ${vmodeOf(p) && (p.media_urls || []).length ? `<div class="post-link small"><span class="tag">${vmodeOf(p) === 'short' ? 'Short video' : 'Prepared for video'}</span> <a href="#" data-a="vopen">${vmodeOf(p) === 'short' ? 'Make the video' : 'Open the slides'}</a></div>` : ''}
       ${p.real_time_event_tag ? `<div class="post-brief" title="${esc(p.real_time_event_tag)}"><b>Post brief${p.event_start_date ? ' · ' + esc(fmtDate(p.event_start_date)) : ''}</b>${esc(p.real_time_event_tag)}</div>` : ''}
       <div class="caption">${esc(p.post_copy || '')}</div>
       <button type="button" class="more-link" data-more>Show more</button>
@@ -2999,6 +3006,7 @@ function wirePostCards(root) {
     };
     $('[data-a="copy"]', card).onclick = () => copyCaption(p());
     const ct = $('[data-a="copytitle"]', card); if (ct) ct.onclick = () => copyTitle(p());
+    { const vo = $('[data-a="vopen"]', card); if (vo) vo.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openVideoStudio(p(), vmodeOf(p()) === 'short' ? 'video' : 'prepared'); }; }
     { const dl = $('[data-a="dl"]', card); if (dl) dl.onclick = (e) => { e.stopPropagation(); downloadImages(p()); }; }
     { const ie = $('[data-a="imged"]', card); if (ie) ie.onclick = (e) => { e.stopPropagation(); openImageEditor(p(), +($('.media', card).dataset.idx || 0)); }; }
     wirePostedRow(card, p());
@@ -3009,6 +3017,8 @@ function wirePostCards(root) {
         <button type="button" data-m="improve">${icons.spark} Sharpen the caption <span class="muted small">(text only)</span></button>
         <button type="button" data-m="imged"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Edit this image <span class="muted small">(words, layout, picture)</span></button>
         <button type="button" data-m="vplan">${icons.spark} Video plan <span class="muted small">(TikTok, Reels)</span></button>
+        <button type="button" data-m="vprep">${icons.spark} Prepared for video <span class="muted small">(9:16 slides)</span></button>
+        <button type="button" data-m="vmake">${icons.spark} Make the video <span class="muted small">(paid plans)</span></button>
         <button type="button" data-m="fmts">${icons.spark} Other formats <span class="muted small">(text, thread, poll)</span></button>
         <button type="button" data-m="redo">${icons.spark} Redo the whole post</button>
         <div class="sep"></div>
@@ -3024,6 +3034,8 @@ function wirePostCards(root) {
           m.querySelector('[data-m="improve"]').onclick = () => openPostEditor(p(), { improve: true });
           m.querySelector('[data-m="redo"]').onclick = () => openRedo(p());
           m.querySelector('[data-m="vplan"]').onclick = () => openVideoPlan(p());
+          m.querySelector('[data-m="vprep"]').onclick = () => openVideoStudio(p(), 'prepared');
+          m.querySelector('[data-m="vmake"]').onclick = () => openVideoStudio(p(), 'video');
           m.querySelector('[data-m="fmts"]').onclick = () => openPostFormats(p());
           m.querySelector('[data-m="download"]').onclick = () => downloadImages(p());
           m.querySelector('[data-m="slides"]').onclick = () => openSlides(p());
@@ -3033,7 +3045,7 @@ function wirePostCards(root) {
           m.querySelector('[data-m="imged"]').onclick = () => openImageEditor(p(), +($('.media', card).dataset.idx || 0));
           m.querySelector('[data-m="archive"]').onclick = () => archivePost(p());
           if (isOwnPost(p())) {
-            ['improve', 'imged', 'vplan', 'slides', 'download'].forEach((k) => { const b = m.querySelector('[data-m="' + k + '"]'); if (b) b.remove(); });
+            ['improve', 'imged', 'vplan', 'vprep', 'vmake', 'slides', 'download'].forEach((k) => { const b = m.querySelector('[data-m="' + k + '"]'); if (b) b.remove(); });
             const rd = m.querySelector('[data-m="redo"]'); rd.innerHTML = icons.spark + ' Write it again'; rd.onclick = () => openPostEditor(p(), { write: true });
           }
         });
@@ -3664,6 +3676,324 @@ function openVideoPlan(p) {
   api('alchemist-video-plan', { body: { action: 'get', brand: S.brand, sku: p.sku } }).then((r) => { if (r && r.plan && Array.isArray(r.plan.shots)) show(r.plan); }).catch(() => {});
 }
 
+/* ── Video: prepared slides + a real video (2026-11-08) ──────────────────
+   Brad: "short form video" = actual videos made from the brand's own settings and assets;
+   "posts prepared for video" = 9:16 slides with empty slots for text and stickers.
+   Both are drawn in the user's own browser from the post's pictures, the brand's colours,
+   typeface and logo, and the video plan's timing. Nothing is uploaded or stored (no storage cost);
+   the user downloads the result. The video has no sound: the plan suggests sounds to add in the app. */
+const VW = 1080, VH = 1920, VM_KEY = 'fa-vmode';
+const V_POS = { top: [489, 260], 'upper-middle': [489, 560], middle: [489, 860], 'lower-middle': [489, 1150], bottom: [489, 1400], left: [290, 860], right: [690, 860], 'top-left': [290, 260], 'top-right': [690, 260], 'bottom-left': [290, 1400], 'bottom-right': [690, 1400] };
+const V_EMOJI = [[/\b(lock|locked|secure|private|privacy)\b/i, '🔒'], [/\b(warn|warning|alert|caution)\b/i, '⚠️'], [/\bstars?\b/i, '⭐'], [/\b(heart|love)\b/i, '❤️'], [/\b(fire|flame|hot|trending)\b/i, '🔥'], [/\b(arrow|pointing)\b/i, '👉'], [/\b(check|checkmark|tick|done)\b/i, '✅'], [/\b(globe|world|earth|network)\b/i, '🌍'], [/\b(rocket|launch)\b/i, '🚀'], [/\b(eyes?|watching)\b/i, '👀'], [/\b(money|coins?|cash|price|dollar)\b/i, '💰'], [/\b(chain|link)\b/i, '🔗'], [/\b(shield|protect|protection)\b/i, '🛡️'], [/\b(bell|notification)\b/i, '🔔'], [/\b(ads?|banned?|blocked?)\b/i, '🚫'], [/\b(thumbs?|like)\b/i, '👍'], [/\b(idea|bulb|lightbulb)\b/i, '💡'], [/\b(clock|timer|countdown)\b/i, '⏱️'], [/\b(sparkle|sparkles|glow|magic|new)\b/i, '✨']];
+function vmMap() { try { return JSON.parse(localStorage.getItem(VM_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function vmodeOf(p) { return (p && vmMap()[p.sku]) || null; }
+function saveVmode(skus, mode) {
+  try { const m = vmMap(); skus.forEach((k) => { if (mode) m[k] = mode; else delete m[k]; }); localStorage.setItem(VM_KEY, JSON.stringify(m)); } catch (e) {}
+  return api('alchemist-video-plan', { body: { action: 'set_mode', brand: S.brand, skus, mode: mode || '' } }).catch(() => null);
+}
+function outMode() { return S.out === 'prepared' || S.out === 'short' ? S.out : 'standard'; }
+function canMakeVideo() { return !!S.isAdmin || !isFreePlan(); }
+function outFieldHtml(id) {
+  return `<div class="field out-field"><span class="label">Output</span><div class="seg" id="${id}" role="group" aria-label="Output"><button type="button" data-o="standard">Post</button><button type="button" data-o="prepared">Prepared for video</button><button type="button" data-o="short">Short video</button></div><span class="hint" id="${id}H"></span></div>`;
+}
+function wireOutField(id, onChange) {
+  const el = document.getElementById(id); if (!el) return;
+  const HINT = {
+    standard: 'Pictures and a caption, ready to post.',
+    prepared: 'Vertical 9:16 slides with empty spots for text and stickers, plus a slot sheet. On every plan, no extra credits.',
+    short: 'Also writes a video plan for each post (+1 credit each), then you make the video from the post. Paid plans.',
+  };
+  const paint = () => {
+    const m = outMode();
+    $$('[data-o]', el).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.o === m)));
+    const h = document.getElementById(id + 'H'); if (h) h.textContent = HINT[m];
+  };
+  $$('[data-o]', el).forEach((b) => b.onclick = () => {
+    const o = b.dataset.o;
+    if (o === 'short' && !canMakeVideo()) { toast('Short video is part of the paid plans. “Prepared for video” works on every plan.', 'info', 7000); return; }
+    S.out = o; paint(); if (onChange) onChange();
+  });
+  paint();
+}
+/* After a batch is made: remember the output kind, and for Short video write a plan for each post (one at a time, in the background). */
+async function applyOutput(skus) {
+  const mode = outMode(); S.out = 'standard';
+  if (mode === 'standard' || !skus || !skus.length) return;
+  await saveVmode(skus, mode);
+  try { renderCampaign(); } catch (e) {}
+  if (mode !== 'short') return;
+  let ok = 0, fail = 0;
+  for (const sku of skus) {
+    try {
+      const r = await api('alchemist-video-plan', { body: { action: 'make', brand: S.brand, sku, platform: 'tiktok', note: '' } });
+      if (r.credits_charged && S.brandData && S.brandData.subscription && S.brandData.subscription.credits_left != null) S.brandData.subscription.credits_left = Math.max(0, Number(S.brandData.subscription.credits_left) - r.credits_charged);
+      ok++;
+    } catch (e) { if (e.status === 401) return; fail++; }
+  }
+  toast(fail ? `Video plans: ${ok} ready, ${fail} couldn’t be made (not charged). Open “Make the video” on those posts to try again.` : `Video plans ready for ${ok} post${ok === 1 ? '' : 's'}. Open “Make the video” on a post.`, fail ? 'info' : 'ok', 9000);
+}
+function vBrand() {
+  const bd = S.brandData || {}, ds = bd.design_system || {}, pal = ds.palette || {}, fonts = ds.fonts || {};
+  const hex = (v, d) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : d);
+  const logo = (brandAssetList().find((a) => a.kind === 'logo') || {}).url || '';
+  return { name: S.brand, ground: hex(pal.ground, hex(bd.card_bg, '#141414')), accent: hex(pal.accent, hex(bd.primary_color, '#d9a441')), font: String(fonts.display || fonts.heading || 'Inter'), logo, logoBmp: null };
+}
+const vFontsDone = new Set();
+async function vFont(name) {
+  if (!name || vFontsDone.has(name)) return; vFontsDone.add(name);
+  try {
+    const l = document.createElement('link'); l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(name).replace(/%20/g, '+') + ':wght@700;800&display=swap';
+    document.head.appendChild(l);
+    await Promise.race([document.fonts.load('800 60px "' + name + '"'), sleep(2500)]);
+  } catch (e) { /* falls back to Inter / system */ }
+}
+async function vLoad(url) {
+  if (!url) return null;
+  try { const r = await fetch(url, { mode: 'cors' }); if (!r.ok) return null; return await createImageBitmap(await r.blob()); } catch (e) { return null; }
+}
+function vRound(ctx, x, y, w, h, r) { ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); }
+function vCover(ctx, img, zoom, dx) {
+  const s = Math.max(VW / img.width, VH / img.height) * (zoom || 1), w = img.width * s, h = img.height * s;
+  ctx.drawImage(img, (VW - w) / 2 + (dx || 0), (VH - h) / 2, w, h);
+}
+/* The slide's own background: its clean picture when it has one; otherwise the finished card on a blurred copy of itself. */
+function vBase(ctx, br, sl, zoom, dx) {
+  ctx.fillStyle = br.ground; ctx.fillRect(0, 0, VW, VH);
+  if (sl.photoBmp) {
+    vCover(ctx, sl.photoBmp, zoom, dx);
+    const g1 = ctx.createLinearGradient(0, 0, 0, 520); g1.addColorStop(0, 'rgba(0,0,0,.45)'); g1.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g1; ctx.fillRect(0, 0, VW, 520);
+    const g2 = ctx.createLinearGradient(0, VH - 620, 0, VH); g2.addColorStop(0, 'rgba(0,0,0,0)'); g2.addColorStop(1, 'rgba(0,0,0,.55)'); ctx.fillStyle = g2; ctx.fillRect(0, VH - 620, VW, 620);
+    if (br.logoBmp) { const h = 74, w = Math.min(240, br.logoBmp.width * h / br.logoBmp.height); ctx.globalAlpha = 0.92; ctx.drawImage(br.logoBmp, 60, 110, w, h); ctx.globalAlpha = 1; }
+  } else if (sl.card) {
+    ctx.save(); ctx.filter = 'blur(36px) brightness(.5)'; vCover(ctx, sl.card, 1.2, dx); ctx.restore();
+    const w = VW * (zoom || 1), h = w * sl.card.height / sl.card.width;
+    ctx.drawImage(sl.card, (VW - w) / 2 + (dx || 0), (VH - h) / 2 - 70, w, h);
+  }
+}
+function vWrap(ctx, text, maxW) {
+  const out = []; let cur = '';
+  String(text || '').split(/\s+/).filter(Boolean).forEach((w) => { const t = cur ? cur + ' ' + w : w; if (cur && ctx.measureText(t).width > maxW) { out.push(cur); cur = w; } else cur = t; });
+  if (cur) out.push(cur); return out.slice(0, 4);
+}
+function vText(ctx, br, words, pos, style, a, rise) {
+  const size = /large|big|huge/i.test(style || '') ? 92 : /small/i.test(style || '') ? 54 : 70;
+  const side = /left|right/.test(pos); const [cx, cy] = V_POS[pos] || V_POS.middle;
+  ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, a));
+  ctx.font = `800 ${size}px "${br.font}", Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const lines = vWrap(ctx, words, side ? 440 : 740), lh = size * 1.15, y0 = cy - (lines.length - 1) * lh / 2 + rise;
+  const widest = Math.max(...lines.map((l) => ctx.measureText(l).width));
+  ctx.fillStyle = 'rgba(0,0,0,.4)'; vRound(ctx, cx - widest / 2 - 36, y0 - lh / 2 - 18, widest + 72, lines.length * lh + 36, 28); ctx.fill();
+  ctx.fillStyle = br.accent; vRound(ctx, cx - widest / 2 - 36, y0 - lh / 2 - 18, 10, lines.length * lh + 36, 5); ctx.fill();
+  ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = 12; ctx.fillStyle = '#fff';
+  lines.forEach((l, i) => ctx.fillText(l, cx, y0 + i * lh));
+  ctx.restore();
+}
+function vEmoji(idea) { for (const [re, e] of V_EMOJI) if (re.test(String(idea || ''))) return e; return '✨'; }
+function vSticker(ctx, idea, pos, a) {
+  const [cx, cy] = V_POS[pos] || V_POS.middle; const k = Math.max(0, Math.min(1, a));
+  const c1 = 1.70158, c3 = c1 + 1, ease = 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2);
+  ctx.save(); ctx.globalAlpha = k; ctx.translate(cx, cy); ctx.scale(Math.max(0.01, ease), Math.max(0.01, ease)); ctx.rotate(-0.12);
+  ctx.font = '170px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 18; ctx.fillText(vEmoji(idea), 0, 0); ctx.restore();
+}
+function vDefaultPlan(slides) {
+  const shots = slides.map((sl, i) => {
+    const head = String((sl.words && sl.words.headline) || '').split(/\s+/).slice(0, 8).join(' ');
+    return { slide: sl.n, start: i * 3, end: i * 3 + 3, motion: 'slow zoom', transition: 'fade',
+      text: head ? { words: head, where: i % 2 ? 'middle' : 'upper-middle', appears_at: i * 3 + 0.4, style: 'bold, white, large' } : null,
+      sticker: (i === 0 || i === slides.length - 1) ? { idea: 'your sticker', where: i === 0 ? 'top-left' : 'lower-middle', appears_at: i * 3 + 0.8 } : null };
+  });
+  return { v: 1, platform: 'tiktok', total_seconds: slides.length * 3, hook: { what_viewers_see: '', on_screen_text: '' }, shots, audio: [], cover: { slide: 1, text: '' }, tips: [], isDefault: true };
+}
+function vTimeline(plan, n) {
+  let t = 0; const hook = plan.hook && plan.hook.on_screen_text;
+  const tl = (plan.shots || []).slice(0, 8).map((s, i) => {
+    const d = Math.max(1.5, Math.min(6, (Number(s.end) - Number(s.start)) || 3)); const st = Number(s.start) || 0;
+    const rel = (x) => { const r = Number(x) - st; return Number.isFinite(r) ? Math.max(0, Math.min(d - 0.5, r)) : 0.3; };
+    const o = { slide: Math.max(1, Math.min(n, Number(s.slide) || 1)), t0: t, t1: t + d, d, transition: String(s.transition || ''),
+      text: s.text && s.text.words ? { words: s.text.words, where: s.text.where, style: s.text.style, rel: rel(s.text.appears_at) } : null,
+      sticker: s.sticker && s.sticker.idea ? { idea: s.sticker.idea, where: s.sticker.where, rel: rel(s.sticker.appears_at) } : null };
+    if (i === 0 && !o.text && hook) o.text = { words: hook, where: 'upper-middle', style: 'bold, white, large', rel: 0.2 };
+    t += d; return o;
+  });
+  return tl;
+}
+function vShot(ctx, br, slides, plan, s, t, dx) {
+  const sl = slides[s.slide - 1] || slides[0]; const zoom = 1 + 0.07 * Math.max(0, Math.min(1, (t - s.t0) / s.d));
+  ctx.save(); ctx.translate(dx, 0); vBase(ctx, br, sl, zoom, 0);
+  const local = (rel) => t - s.t0 - rel, fade = Math.max(0, Math.min(1, (s.t1 - t) / 0.25));
+  if (s.text && sl.photoBmp) { const l = local(s.text.rel); if (l > 0) { const a = Math.min(1, l / 0.35); vText(ctx, br, s.text.words, s.text.where, s.text.style, a * fade, (1 - a) * 40); } }
+  if (s.sticker && !plan.isDefault) { const l = local(s.sticker.rel); if (l > 0) vSticker(ctx, s.sticker.idea, s.sticker.where, Math.min(1, l / 0.35) * (fade > 0.99 ? 1 : fade)); }
+  ctx.restore();
+}
+function vFrame(ctx, br, slides, plan, tl, t) {
+  const total = tl[tl.length - 1].t1; t = Math.max(0, Math.min(t, total - 0.001));
+  let i = tl.findIndex((s) => t >= s.t0 && t < s.t1); if (i < 0) i = tl.length - 1;
+  const s = tl[i], nx = tl[i + 1], XF = 0.4, inX = nx && t > s.t1 - XF, mode = s.transition.toLowerCase();
+  if (inX && !/^(cut|hard)/.test(mode)) {
+    const k = (t - (s.t1 - XF)) / XF;
+    if (/push|slide|swipe/.test(mode)) { vShot(ctx, br, slides, plan, s, t, -k * VW); vShot(ctx, br, slides, plan, nx, t, (1 - k) * VW); }
+    else { vShot(ctx, br, slides, plan, s, t, 0); ctx.globalAlpha = k; vShot(ctx, br, slides, plan, nx, t, 0); ctx.globalAlpha = 1; }
+  } else vShot(ctx, br, slides, plan, s, t, 0);
+}
+/* One prepared slide: clean background, optionally with the empty slots and the keep-clear zones drawn on top. */
+function vPrepared(ctx, br, slides, tl, n, guides) {
+  const sl = slides[n - 1]; vBase(ctx, br, sl, 1, 0);
+  if (!guides) return;
+  ctx.save(); ctx.fillStyle = 'rgba(230,70,70,.22)'; ctx.fillRect(0, 1536, VW, VH - 1536); ctx.fillRect(918, 0, VW - 918, 1536);
+  ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = '600 28px Inter, system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.fillText('Keep clear: the app’s buttons and captions sit here', 60, 1580); ctx.restore();
+  tl.filter((s) => s.slide === n).forEach((s) => {
+    const slot = (kind, o, w, h) => {
+      const [cx, cy] = V_POS[o.where] || V_POS.middle; const x = cx - w / 2, y = cy - h / 2;
+      ctx.save(); ctx.fillStyle = 'rgba(255,255,255,.1)'; vRound(ctx, x, y, w, h, 28); ctx.fill();
+      ctx.setLineDash([18, 12]); ctx.lineWidth = 5; ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.setLineDash([]);
+      ctx.font = '700 30px Inter, system-ui, sans-serif'; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 8;
+      const label = kind === 'text' ? 'TEXT' : 'STICKER'; ctx.fillText(label + ' · at ' + (Math.round((s.t0 + o.rel) * 10) / 10) + 's', cx, y + 40);
+      const txt = kind === 'text' ? '“' + o.words + '”' : o.idea; ctx.font = '600 28px Inter, system-ui, sans-serif'; const ls = vWrap(ctx, txt, w - 40); ls.slice(0, 3).forEach((l, i) => ctx.fillText(l, cx, y + 84 + i * 36));
+      ctx.restore();
+    };
+    if (s.text && sl.photoBmp) slot('text', s.text, /left|right/.test(s.text.where) ? 440 : 740, 220);
+    if (s.sticker) slot('sticker', s.sticker, 330, 260);
+  });
+}
+function vSlotSheet(plan, tl, slides) {
+  const L = [`PREPARED FOR VIDEO · ${slides.length} vertical slide${slides.length === 1 ? '' : 's'} (1080×1920)`, 'Keep text and stickers out of the bottom 20% and the right 15%: the app’s buttons and captions sit there.', ''];
+  tl.forEach((s) => {
+    const r = (x) => Math.round(x * 10) / 10;
+    L.push(`Slide ${s.slide} · ${r(s.t0)}s–${r(s.t1)}s${s.transition ? ' · then ' + s.transition : ''}`);
+    if (s.text) L.push(`  Text slot: ${String(s.text.where || 'middle').replace('-', ' ')} · at ${r(s.t0 + s.text.rel)}s · “${s.text.words}”${slides[s.slide - 1] && slides[s.slide - 1].photoBmp ? '' : ' (words are already in this slide’s picture)'}`);
+    if (s.sticker) L.push(`  Sticker slot: ${String(s.sticker.where || 'middle').replace('-', ' ')} · at ${r(s.t0 + s.sticker.rel)}s · ${s.sticker.idea}`);
+  });
+  if (plan.audio && plan.audio.length) { L.push('', 'Sound ideas'); plan.audio.forEach((a) => L.push(`  ${a.title}${a.artist ? ' by ' + a.artist : ''}${a.license_note ? ' · ' + a.license_note : ''}`)); }
+  return L.join('\n');
+}
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(b) { let c = ~0; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return ~c >>> 0; }
+function makeZip(files) {
+  const enc = new TextEncoder(), parts = [], cent = []; let off = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), data = f.data, crc = crc32(data);
+    const lh = new DataView(new ArrayBuffer(30)); lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(12, 0x21, true); lh.setUint32(14, crc, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, name.length, true);
+    parts.push(new Uint8Array(lh.buffer), name, data);
+    const ch = new DataView(new ArrayBuffer(46)); ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(14, 0x21, true); ch.setUint32(16, crc, true); ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true); ch.setUint16(28, name.length, true); ch.setUint32(42, off, true);
+    cent.push(new Uint8Array(ch.buffer), name); off += 30 + name.length + data.length;
+  }
+  const csize = cent.reduce((a, b) => a + b.length, 0), end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, csize, true); end.setUint32(16, off, true);
+  return new Blob([...parts, ...cent, new Uint8Array(end.buffer)], { type: 'application/zip' });
+}
+function vDownload(blob, name) { const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); }
+function vMime() { for (const m of ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) {} } return ''; }
+async function vRecord(drawAt, total, onProg, ctl) {
+  const cv = document.createElement('canvas'); cv.width = VW; cv.height = VH; const ctx = cv.getContext('2d');
+  const stream = cv.captureStream(30), mime = vMime();
+  const rec = new MediaRecorder(stream, Object.assign({ videoBitsPerSecond: 7000000 }, mime ? { mimeType: mime } : {}));
+  const chunks = []; rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+  const stopped = new Promise((res) => { rec.onstop = res; });
+  drawAt(ctx, 0); rec.start(200);
+  const t0 = performance.now();
+  await new Promise((res) => { const tick = () => { const t = (performance.now() - t0) / 1000; if (ctl.stop) return res(); drawAt(ctx, Math.min(t, total)); onProg(Math.min(1, t / total)); if (t >= total) res(); else requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
+  await sleep(250); rec.stop(); await stopped; stream.getTracks().forEach((tr) => tr.stop());
+  const type = String(rec.mimeType || mime || 'video/webm').split(';')[0];
+  return { blob: new Blob(chunks, { type }), ext: /mp4/.test(type) ? 'mp4' : 'webm' };
+}
+async function openVideoStudio(p, mode) {
+  closeMenus();
+  const media = (p.media_urls || []).map((u) => String(u)).slice(0, 4);
+  if (!media.length) { toast('This post has no pictures yet.', 'info'); return; }
+  const isVid = mode === 'video';
+  if (isVid && !canMakeVideo()) { toast('Making a video is part of the paid plans. “Prepared for video” works on every plan.', 'info', 8000); return; }
+  const br = vBrand(), ctl = { stop: false };
+  let plan = null, slides = [], tl = [], idx = 0, made = null, vUrl = '';
+  const s = openSheet({
+    title: isVid ? 'Make the video' : 'Prepared for video',
+    body: `<div class="stack">
+      <p class="muted small" style="margin:0">${isVid ? 'Your brand’s colours, typeface and logo, this post’s pictures and the video plan’s timing, drawn into a 9:16 video right here. Nothing is uploaded. The video has no sound; add a track in TikTok, Reels or Shorts.' : 'Vertical 9:16 slides with empty spots for text and stickers, ready to finish in TikTok, Reels, Shorts or CapCut. Nothing is uploaded or stored.'}</p>
+      <div class="vs-stage"><canvas id="vsCv" width="360" height="640"></canvas><video id="vsVid" controls playsinline hidden></video></div>
+      ${isVid ? '<div class="progress-line" id="vsBar" hidden><div></div></div>' : '<div class="seg" id="vsSl" role="group" aria-label="Slide"></div>'}
+      <div class="notice" id="vsPlan"></div></div>`,
+    foot: isVid
+      ? '<span class="msg"></span><button type="button" class="btn btn-ghost" id="vsSave" hidden>Download video</button><button type="button" class="btn btn-gold" id="vsMake" disabled>Make the video</button>'
+      : '<span class="msg"></span><button type="button" class="btn btn-ghost" id="vsCopy" disabled>Copy slot sheet</button><button type="button" class="btn btn-gold" id="vsZip" disabled>Download slides</button>',
+    onClose: () => { ctl.stop = true; if (vUrl) URL.revokeObjectURL(vUrl); },
+  });
+  const el = s.el, work = document.createElement('canvas'); work.width = VW; work.height = VH;
+  const wctx = work.getContext('2d'), cv = $('#vsCv', el), pctx = cv.getContext('2d');
+  const paint = () => {
+    if (!slides.length) return;
+    if (isVid) vFrame(wctx, br, slides, plan, tl, tl[0].t0 + Math.min(1.2, tl[0].d * 0.5)); else vPrepared(wctx, br, slides, tl, idx + 1, true);
+    pctx.clearRect(0, 0, cv.width, cv.height); pctx.drawImage(work, 0, 0, cv.width, cv.height);
+  };
+  const note = () => {
+    const n = $('#vsPlan', el);
+    const withPhoto = slides.filter((x) => x.photoBmp).length;
+    n.innerHTML = (plan && !plan.isDefault ? `Using your video plan (${Math.round(tl[tl.length - 1].t1)}s, ${tl.length} shot${tl.length === 1 ? '' : 's'}).` : 'No video plan yet, so this uses a simple default: each slide for 3 seconds with its own headline. A plan adds a hook, timing, stickers and sound ideas.')
+      + (withPhoto < slides.length ? ` ${slides.length - withPhoto} of ${slides.length} slide${slides.length - withPhoto === 1 ? ' keeps its' : 's keep their'} words in the picture, so ${isVid ? 'no extra text is added to' : 'only sticker slots are offered on'} ${slides.length - withPhoto === 1 ? 'it' : 'them'}.` : '')
+      + ` <button type="button" class="btn btn-sm btn-ghost" id="vsPlanGo">${icons.spark} ${plan && !plan.isDefault ? 'Make a new plan' : 'Make a plan'} (1 credit)</button>`;
+    $('#vsPlanGo', el).onclick = makePlan;
+  };
+  const setPlan = (pl) => { plan = pl; tl = vTimeline(plan, slides.length); if (!tl.length) { plan = vDefaultPlan(slides); tl = vTimeline(plan, slides.length); } note(); paint(); };
+  async function makePlan() {
+    if (!await confirmDialog('Make a video plan for this post? It uses 1 credit.', 'Make it')) return;
+    const b = $('#vsPlanGo', el); b.disabled = true; s.msg('Writing the plan. About half a minute…');
+    try {
+      const r = await api('alchemist-video-plan', { body: { action: 'make', brand: S.brand, sku: p.sku, platform: 'tiktok', note: '' } });
+      if (r.credits_charged && S.brandData && S.brandData.subscription && S.brandData.subscription.credits_left != null) S.brandData.subscription.credits_left = Math.max(0, Number(S.brandData.subscription.credits_left) - r.credits_charged);
+      s.msg(''); setPlan(r.plan);
+    } catch (err) { s.msg(''); b.disabled = false; if (err.status !== 401) toast(err.message, 'err', 8000); }
+  }
+  s.msg('Getting the pictures ready…');
+  const [info] = await Promise.all([api('alchemist-video-plan', { body: { action: 'get', brand: S.brand, sku: p.sku } }).catch(() => null), vFont(br.font)]);
+  const sv = info && Array.isArray(info.slides) ? info.slides : [];
+  slides = media.map((u, i) => { const x = sv.find((y) => Number(y.slide) === i + 1) || {}; return { n: i + 1, cardUrl: u, photoUrl: x.photo || '', words: x.words || {} }; });
+  await Promise.all(slides.map(async (sl) => { sl.card = await vLoad(sl.cardUrl); sl.photoBmp = await vLoad(sl.photoUrl); }));
+  br.logoBmp = await vLoad(br.logo);
+  slides = slides.filter((x) => x.card || x.photoBmp);
+  if (!slides.length) { s.msg(''); $('#vsPlan', el).textContent = 'The pictures couldn’t be loaded. Close this and try again.'; return; }
+  slides.forEach((x, i) => { x.n = i + 1; });
+  s.msg('');
+  if (isVid) {
+    $('#vsMake', el).disabled = false;
+    $('#vsMake', el).onclick = async () => {
+      const mk = $('#vsMake', el), bar = $('#vsBar', el); mk.disabled = true; bar.hidden = false; $('#vsVid', el).hidden = true; cv.hidden = false;
+      s.msg('Drawing the video. Keep this tab open and in front until it finishes.');
+      try {
+        const total = tl[tl.length - 1].t1;
+        made = await vRecord((ctx, t) => { vFrame(ctx, br, slides, plan, tl, t); pctx.drawImage(ctx.canvas, 0, 0, cv.width, cv.height); }, total, (k) => { bar.firstElementChild.style.width = Math.round(k * 100) + '%'; }, ctl);
+        if (ctl.stop) return;
+        if (vUrl) URL.revokeObjectURL(vUrl); vUrl = URL.createObjectURL(made.blob);
+        const v = $('#vsVid', el); v.src = vUrl; v.hidden = false; cv.hidden = true; bar.hidden = true;
+        $('#vsSave', el).hidden = false; s.msg('Done. Watch it, then download it.'); mk.textContent = 'Make it again'; mk.disabled = false;
+      } catch (err) { s.msg(''); bar.hidden = true; mk.disabled = false; toast('The video couldn’t be made in this browser: ' + (err && err.message ? err.message : 'unsupported') + '. Try Chrome or Edge.', 'err', 9000); }
+    };
+    $('#vsSave', el).onclick = () => { if (made) vDownload(made.blob, (String(p.post_idea || p.sku).replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 40) || p.sku) + '.' + made.ext); };
+  } else {
+    const sl = $('#vsSl', el);
+    sl.innerHTML = slides.map((x, i) => `<button type="button" data-i="${i}" aria-pressed="${i === 0}">Slide ${x.n}</button>`).join('');
+    $$('button', sl).forEach((b) => b.onclick = () => { idx = +b.dataset.i; $$('button', sl).forEach((o) => o.setAttribute('aria-pressed', String(o === b))); paint(); });
+    $('#vsCopy', el).disabled = false; $('#vsZip', el).disabled = false;
+    $('#vsCopy', el).onclick = async () => {
+      try { await navigator.clipboard.writeText(vSlotSheet(plan, tl, slides)); toast('Slot sheet copied.'); }
+      catch (e) { const s2 = openSheet({ title: 'Slot sheet', dialog: true, body: '<textarea class="textarea" style="min-height:260px" readonly></textarea>', foot: '<button type="button" class="btn btn-gold" data-close>Done</button>' }); const ta = s2.el.querySelector('textarea'); ta.value = vSlotSheet(plan, tl, slides); ta.select(); }
+    };
+    $('#vsZip', el).onclick = async () => {
+      const z = $('#vsZip', el); z.disabled = true; s.msg('Drawing the slides…');
+      try {
+        const files = [], toPng = (c) => new Promise((res) => c.toBlob(res, 'image/png')), cc = document.createElement('canvas'); cc.width = VW; cc.height = VH; const cx = cc.getContext('2d');
+        for (const x of slides) {
+          for (const g of [false, true]) { vPrepared(cx, br, slides, tl, x.n, g); files.push({ name: `slide-${x.n}-${g ? 'with-slots' : 'clean'}.png`, data: new Uint8Array(await (await toPng(cc)).arrayBuffer()) }); }
+        }
+        files.push({ name: 'slot-sheet.txt', data: new TextEncoder().encode(vSlotSheet(plan, tl, slides)) });
+        vDownload(makeZip(files), (String(p.post_idea || p.sku).replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 40) || p.sku) + '-prepared.zip');
+        s.msg('Downloaded.');
+      } catch (err) { s.msg(''); toast('Could not make the download: ' + (err && err.message ? err.message : 'try again'), 'err', 8000); }
+      z.disabled = false;
+    };
+  }
+  setPlan(info && info.plan && Array.isArray(info.plan.shots) && info.plan.shots.length ? info.plan : vDefaultPlan(slides));
+}
+
 /* ── Other formats (2026-10-30) ─────────────────────────────────────────
    Brad: help users use other platforms and other content types. Text-only posts, threads and
    polls written natively for a platform from an existing post (alchemist-post-format).
@@ -4083,6 +4413,7 @@ function openCreateMore(c) {
         <div class="field" id="cmHow"><span class="label">How many</span><div class="stepper"><button type="button" id="cmMinus" aria-label="Fewer">−</button><output id="cmCnt">${count}</output><button type="button" id="cmPlus" aria-label="More">+</button></div></div>
         <div class="field"><span class="label">Slides per post</span><div class="seg" id="cmFmt"><button type="button" data-f="single">One image</button><button type="button" data-f="carousel">Carousel</button><button type="button" data-f="mixed">Mixed</button></div>${carNHtml()}</div>
       </div>
+      ${outFieldHtml('cmOut')}
       <div class="grid2">
         <div class="field"><label for="cmArt">Art style</label>${artStyleSelectHtml('cmArt', c.art_style || '')}</div>
         <label class="row small" style="margin-top:26px"><input type="checkbox" id="cmQr"${(typeof c.include_qr === 'boolean' ? c.include_qr : qrDefault()) ? ' checked' : ''}> Show a QR code on the images</label>
@@ -4111,7 +4442,7 @@ function openCreateMore(c) {
     if (listOn) { if (!items.length) items.push(newItem()); mountPostList($('#cmList', el), items, paint); } else $('#cmList', el).innerHTML = '';
     paint();
   };
-  wireFmtField($('#cmFmt', el).parentElement, () => fmt, (f) => { fmt = f; paint(); }); paint();
+  wireFmtField($('#cmFmt', el).parentElement, () => fmt, (f) => { fmt = f; paint(); }); wireOutField('cmOut', paint); paint();
   $('#cmMinus', el).onclick = () => { count = Math.max(1, count - 1); $('#cmCnt', el).textContent = count; paint(); };
   $('#cmPlus', el).onclick = () => { count = Math.min(10, count + 1); $('#cmCnt', el).textContent = count; paint(); };
   $('#cmGo', el).onclick = async () => {
@@ -4172,6 +4503,7 @@ async function runMorePosts(c, { notes, count, fmt = 'mixed', items = null, cost
       b.stop(true);
       researchToast(g);
       sealPosts(g.skus);
+      applyOutput(g.skus);
       if (g.scenes_queued) markFinishing(g.skus);
       if (c.ending_slide && g.skus && g.skus.length) await applyEnding(c, g.skus);
       await loadBrand(S.brand); setBrandChrome(); renderCampaign();
@@ -4215,6 +4547,7 @@ function openStartIdea(o = {}) {
         <div class="field" id="siHow"><span class="label">How many posts</span><div class="stepper"><button type="button" id="siMinus" aria-label="Fewer">−</button><output id="siCnt">${count}</output><button type="button" id="siPlus" aria-label="More">+</button></div></div>
         <div class="field"><span class="label">Slides per post</span><div class="seg" id="siFmt"><button type="button" data-f="single">One image</button><button type="button" data-f="carousel">Carousel</button><button type="button" data-f="mixed">Mixed</button></div>${carNHtml()}</div>
       </div>
+      ${outFieldHtml('siOut')}
       <div class="field"><label for="siInfo">Anything else I should know? <span class="muted">(optional)</span></label><textarea class="textarea" id="siInfo" maxlength="900" placeholder="Dates, places, an offer, who it’s for, what to avoid…"></textarea></div>
       <div class="grid2">
         <div class="field"><label for="siStart">Start posting</label><input class="input" type="date" id="siStart" value="${todayYmd()}"></div>
@@ -4249,6 +4582,7 @@ function openStartIdea(o = {}) {
   };
   $$('#siKind button', el).forEach((b) => b.onclick = () => { listOn = b.dataset.k === 'list'; paintList(); });
   wireFmtField($('#siFmt', el).parentElement, () => fmt, (f) => { fmt = f; paint(); });
+  wireOutField('siOut', paint);
   $('#siMinus', el).onclick = () => { count = Math.max(1, count - 1); $('#siCnt', el).textContent = count; paint(); };
   $('#siPlus', el).onclick = () => { count = Math.min(10, count + 1); $('#siCnt', el).textContent = count; paint(); };
   paintList();
@@ -4506,7 +4840,7 @@ function slidesOf(count, fmt) {
   let s = 0; for (let i = 0; i < count; i++) s += MIXED_PATTERN[i % MIXED_PATTERN.length]; return s;
 }
 function costOf(count, fmt) {
-  return slidesOf(count, fmt) * MODEL_MULT[curModel()] + SCENE_CREDITS * pictureCount(count, fmt);
+  return slidesOf(count, fmt) * MODEL_MULT[curModel()] + SCENE_CREDITS * pictureCount(count, fmt) + (outMode() === 'short' ? count : 0);
 }
 /* Share of slides that get a real picture (brand setting, default 66%). */
 function picturesShare() {
