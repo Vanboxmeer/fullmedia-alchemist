@@ -2638,7 +2638,7 @@ function renderCampaign() {
           </div>
         </div>
         <div class="camp-actions">
-          <button type="button" class="btn btn-gold" id="moreBtn2">${icons.spark} Create more posts</button>
+          ${c.name === 'My own content' ? '<button type="button" class="btn btn-gold" id="moreBtn2">Add my own content</button>' : ''}
           <button type="button" class="btn btn-ghost" id="editCamp">Edit campaign</button>
           ${posts.length >= 2 ? '<button type="button" class="btn btn-ghost" id="recapBtn">Make a recap</button>' : ''}
           <button type="button" class="icon-btn" id="campMenu" aria-label="More campaign actions">${icons.dots}</button>
@@ -2659,22 +2659,7 @@ function renderCampaign() {
   wireBrandNav(main);
   $('#editCamp').onclick = () => openEditCampaign(c);
   if ($('#recapBtn')) $('#recapBtn').onclick = () => openRecap({ campaign: c });
-  if (c.name === 'My own content') { const mb = $('#moreBtn2'); mb.innerHTML = 'Add my own content'; mb.onclick = () => openOwnPost(); } else
-  $('#moreBtn2').onclick = () => {
-    // Activate the Create tab and scroll the studio panel into view
-    const studio = $('#campStudio');
-    if (studio) {
-      $$('.cs-tab', studio).forEach((t) => t.setAttribute('aria-selected', 'false'));
-      $$('.cs-pane', studio).forEach((p) => p.classList.remove('active'));
-      const createTab = $('[data-pane="create"]', studio);
-      if (createTab) createTab.setAttribute('aria-selected', 'true');
-      const createPane = $('#csCreate');
-      if (createPane) createPane.classList.add('active');
-      S.studioTab = 'create';
-      studio.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const notes = $('#csNotes'); if (notes) notes.focus();
-    }
-  };
+  if ($('#moreBtn2')) $('#moreBtn2').onclick = () => openOwnPost();
   $('#campMenu').onclick = (e) => {
     e.stopPropagation();
     popMenu(e.currentTarget, `<button type="button" data-a="share">Client approval link</button><button type="button" data-a="ics">Add all posts to my calendar</button><button type="button" data-a="export">Export for automation (Metricool…)</button><div class="sep"></div><button type="button" data-a="archive">Archive campaign</button>`, (m) => {
