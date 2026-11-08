@@ -1,0 +1,1 @@
+// own-post-draft is deployed live with verify_jwt=false (CORS preflight needs it). It is kept out of supabase/functions so CI does not redeploy it with the default JWT check. Source: Supabase dashboard / MCP.

@@ -3475,6 +3475,11 @@ function openPostEditor(p, opts = {}) {
           <div class="field"><label for="peDate">Post on</label><input class="input" type="date" id="peDate"></div>
           <div class="field"><label for="peLink">Link</label><input class="input" id="peLink" maxlength="1000" placeholder="https://"><span class="hint">Changing it redraws the QR code too.</span></div>
         </div>
+        <div id="peOwn" hidden>
+          <div class="field"><label for="peSrc">Where it lives <span class="muted">(optional)</span></label><input class="input" id="peSrc" maxlength="1000" placeholder="https://"></div>
+          <div class="field"><label for="peNote">What’s in it? <span class="muted">(optional)</span></label><textarea class="textarea" id="peNote" maxlength="1500" placeholder="A few words so the caption can match it"></textarea></div>
+          <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="peWrite">${icons.spark} Write it again</button><span class="small muted">✦ 1 credit. Replaces the caption and hashtags above, and nothing is saved until you press Save.</span></div>
+        </div>
         <div class="field"><label for="peExt">Your ID <span class="muted">(optional)</span></label><input class="input" id="peExt" maxlength="80" placeholder="e.g. SKU-1042"><span class="hint">Shows as its own column in exports. Handy for matching rows to your own files.</span></div>
         <div class="field"><label for="peTime">Post at <span class="muted">(optional)</span></label><input class="input" type="time" id="peTime"><span class="hint">The time you plan to post this. Leave it empty if it does not matter.</span></div>
       </div>`,
@@ -3488,6 +3493,22 @@ function openPostEditor(p, opts = {}) {
   $('#peTime', el).value = /^\d{2}:\d{2}/.test(String(p.scheduled_time || '')) ? String(p.scheduled_time).slice(0, 5) : '';
   $('#peLink', el).value = p.content_link || '';
   $('#peExt', el).value = p.external_id || '';
+  if (isOwnPost(p)) {
+    $('#peOwn', el).hidden = false; $('#peSrc', el).value = p.source_link || ''; $('#peNote', el).value = p.own_note || '';
+    const sh = $('#peImprove', el); if (sh) sh.closest('.row').hidden = true;
+    $('#peWrite', el).onclick = async () => {
+      const raw = $('#peSrc', el).value.trim(), url = raw ? normalizeUrl(raw) : '';
+      if (raw && !url) return s.msg('That link isn’t a valid web address.', 'err');
+      const b = $('#peWrite', el); b.disabled = true; s.msg('The Alchemist is reading and writing…');
+      try {
+        const r = await ownDraft({ title: p.post_idea || '', id: $('#peExt', el).value.trim(), url, note: $('#peNote', el).value.trim(), existing: $('#peCopy', el).value.trim() });
+        $('#peCopy', el).value = r.post_copy || ''; $('#peTags', el).value = r.general_hashtags || ''; $('#peTags', el).dispatchEvent(new Event('input'));
+        p.__draftLoc = r.location_tag || null;
+        s.msg((r.note || 'Done.') + ' Press Save to keep it.', r.thin ? 'err' : 'ok');
+      } catch (e) { if (e.status !== 401) s.msg(e.message || 'That didn’t work. Please try again.', 'err'); }
+      b.disabled = false;
+    };
+  }
   const mentAll = mentionList(p).all; const mentSel = new Set(mentionList(p).list.map((m) => m.name));
   if (mentAll.length) {
     $('#peMent', el).hidden = false;
@@ -3527,6 +3548,12 @@ function openPostEditor(p, opts = {}) {
       const patch = { post_copy: copy, general_hashtags: tags, copy_plus_general: [copy, link || p.content_link || '', tags].filter(Boolean).join('\n\n') };
       if (date) patch.scheduled_date = date;
       { const ext = $('#peExt', el).value.trim(); if (ext !== String(p.external_id || '')) patch.external_id = ext || null; }
+      if (isOwnPost(p)) {
+        const sr = $('#peSrc', el).value.trim(), sn = normalizeUrl(sr) || ''; if (sr && !sn) { btn.disabled = false; return s.msg('That link isn’t a valid web address.', 'err'); }
+        if (sn !== String(p.source_link || '')) patch.source_link = sn || null;
+        const nt = $('#peNote', el).value.trim(); if (nt !== String(p.own_note || '')) patch.own_note = nt || null;
+        if (p.__draftLoc && !p.location_tag) { patch.location_tag = p.__draftLoc; patch.include_location_tag = true; }
+      }
       const tm = $('#peTime', el).value || '';
       if (tm !== (/^\d{2}:\d{2}/.test(String(p.scheduled_time || '')) ? String(p.scheduled_time).slice(0, 5) : '')) patch.scheduled_time = tm || null;
       const r = await api('update-client-post', { body: { brand: S.brand, sku: p.sku, patch } });
@@ -3884,6 +3911,10 @@ function openRecap({ campaign } = {}) {
 
 /* ── My own content (made elsewhere: copy, hashtags, schedule, optional ID — no uploads) ── */
 const isOwnPost = (p) => !!p && String(p.post_format || '') === 'Own content';
+// Draft the words for content made elsewhere: reads the link + note, 1 credit, nothing saved until the user keeps it.
+async function ownDraft({ title, id, url, note, existing, instruction }) {
+  return api('own-post-draft', { body: { brand: S.brand, title, external_id: id, url, note, existing, instruction } });
+}
 function openOwnPost() {
   const camps = (S.campaigns || []);
   const s = openSheet({
@@ -3894,8 +3925,10 @@ function openOwnPost() {
       <div class="field"><label for="owId">Your ID <span class="muted">optional</span></label><input class="input" id="owId" maxlength="80" placeholder="e.g. SKU-1042 or your file name"><span class="hint">Appears as its own column when you export, so you can match each row to your file.</span></div>
       <div class="field"><label for="owUrl">Where it lives <span class="muted">optional</span></label><input class="input" id="owUrl" maxlength="1000" placeholder="https://  (Drive, Canva, YouTube…)"><span class="hint">Just a link. We don’t fetch or store the file.</span></div>
       <div class="field"><label for="owNote">What’s in it? <span class="muted">optional</span></label><textarea class="textarea" id="owNote" maxlength="1500" placeholder="A few words so the caption can match it"></textarea></div>
+      <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="owWrite">${icons.spark} Write it for me</button><span class="small muted" id="owWriteHint">Reads the link and your note. ✦ 1 credit. It can’t watch a video, so a few words above help.</span></div>
       <div class="field"><label for="owCopy">Caption <span class="muted">optional</span></label><textarea class="textarea" id="owCopy" style="min-height:110px" maxlength="4000"></textarea></div>
       <div class="field"><label for="owTags">Hashtags <span class="muted">optional</span></label><input class="input" id="owTags" maxlength="500" placeholder="#YourBrand #Launch"></div>
+      <div class="field"><label for="owLoc">Location <span class="muted">optional</span></label><input class="input" id="owLoc" maxlength="120" placeholder="e.g. Belfast"></div>
       <div class="grid2">
         <div class="field"><label for="owDate">Post on</label><input class="input" type="date" id="owDate"></div>
         <div class="field"><label for="owTime">At <span class="muted">optional</span></label><input class="input" type="time" id="owTime"></div>
@@ -3907,13 +3940,27 @@ function openOwnPost() {
   const el = s.el;
   $('#owDate', el).value = todayYmd();
   attachMic && $('#owCopy', el) && attachMic($('#owCopy', el));
+  $('#owWrite', el).onclick = async () => {
+    const title = $('#owTitle', el).value.trim(), rawUrl = $('#owUrl', el).value.trim(), url = rawUrl ? normalizeUrl(rawUrl) : '', note = $('#owNote', el).value.trim();
+    if (rawUrl && !url) return s.msg('That link isn’t a valid web address.', 'err');
+    if (!title && !url && !note) return s.msg('Add a name, a link or a few words first.', 'err');
+    const b = $('#owWrite', el); b.disabled = true; s.msg('The Alchemist is reading and writing…');
+    try {
+      const r = await ownDraft({ title, id: $('#owId', el).value.trim(), url, note, existing: $('#owCopy', el).value.trim() });
+      $('#owCopy', el).value = r.post_copy || ''; $('#owTags', el).value = r.general_hashtags || '';
+      if (r.location_tag && !$('#owLoc', el).value.trim()) $('#owLoc', el).value = r.location_tag;
+      $('#owWrite', el).innerHTML = icons.spark + ' Write it again';
+      s.msg((r.note || 'Done.') + (r.thin ? ' There wasn’t much to go on, so add a few words above and write it again.' : ' Edit anything, or write it again.'), r.thin ? 'err' : 'ok');
+    } catch (e) { if (e.status !== 401) s.msg(e.message || 'That didn’t work. Please try again.', 'err'); }
+    b.disabled = false;
+  };
   $('#owGo', el).onclick = async () => {
     const title = $('#owTitle', el).value.trim();
     if (!title) return s.msg('Give it a name first.', 'err');
     const rawUrl = $('#owUrl', el).value.trim(); const url = rawUrl ? normalizeUrl(rawUrl) : '';
     if (rawUrl && !url) return s.msg('That link isn’t a valid web address.', 'err');
     const body = { action: 'create_own', brand: S.brand, title, external_id: $('#owId', el).value.trim(), external_url: url, note: $('#owNote', el).value.trim(),
-      copy: $('#owCopy', el).value.trim(), hashtags: normTags($('#owTags', el).value), scheduled_date: $('#owDate', el).value, scheduled_time: $('#owTime', el).value || '', campaign_id: $('#owCamp', el).value || '' };
+      copy: $('#owCopy', el).value.trim(), hashtags: normTags($('#owTags', el).value), location_tag: $('#owLoc', el).value.trim(), scheduled_date: $('#owDate', el).value, scheduled_time: $('#owTime', el).value || '', campaign_id: $('#owCamp', el).value || '' };
     const btn = $('#owGo', el); btn.disabled = true; s.msg('Adding…');
     try {
       const r = await api('update-client-post', { body });
