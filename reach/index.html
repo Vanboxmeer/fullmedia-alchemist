@@ -1520,13 +1520,30 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
       var messages = [{ role: "user", content: (opts.images && opts.images.length) ? opts.images.map(function (im) { return { type: "image", source: { type: "base64", media_type: im.type || "image/jpeg", data: im.data } }; }).concat([{ type: "text", text: String(prompt) }]) : String(prompt) }];
       var system = "Reply with exactly one JSON value (object or array) and no other text.";
       var guard = 0;
+      /* 2026-11-09: a long search sent every earlier page back on every step until the request passed the gateway's
+         400 KB limit (or the 14-step cap) and the whole run was thrown away. Old results are now trimmed, and near the
+         end the Alchemist is told to wrap up with what it has instead of failing. */
+      function trimOld() {
+        for (var i = 0; i < messages.length - 1; i++) {
+          var m = messages[i];
+          if (m.role !== "user" || !Array.isArray(m.content)) continue;
+          m.content.forEach(function (b) { if (b && b.type === "tool_result" && typeof b.content === "string" && b.content.length > 2500) b.content = b.content.slice(0, 2500) + " …[older result shortened]"; });
+        }
+      }
+      function size() { try { return JSON.stringify(messages).length; } catch (e) { return 0; } }
       function step() {
-        if (++guard > 14) throw { code: "error", message: "The Alchemist used too many steps." };
+        guard++;
+        if (guard > 18) throw { code: "error", message: "The Alchemist used too many steps." };
+        trimOld();
+        var wrap = guard >= 15 || size() > 300000;
+        var hint = wrap ? "You have used up your lookups. Do NOT call any tool. Reply now with the final JSON, using only what you already read." : (guard === 11 ? "Only a few lookups are left. Finish in one or two more steps, then reply with the final JSON." : "");
+        var lm = messages[messages.length - 1];
+        if (hint && lm && lm.role === "user" && Array.isArray(lm.content)) lm.content.push({ type: "text", text: hint });
         var body = { tier: opts.modelTier || "quick", feature: opts.feature || (tools.length ? "agent-tools" : "json"), system: system, messages: messages, max_tokens: tools.length ? 8000 : 4096 };
         if (defs.length) body.tools = defs;
         return callAI(body, opts.signal).then(function (r) {
           var blocks = r.content || [], uses = blocks.filter(function (b) { return b.type === "tool_use"; });
-          if (r.stop_reason === "tool_use" && uses.length) {
+          if (r.stop_reason === "tool_use" && uses.length && !(guard >= 16)) {
             messages.push({ role: "assistant", content: blocks });
             return Promise.all(uses.map(function (u) {
               var tool = tools.find(function (t) { return t.name === u.name; });
@@ -5672,7 +5689,7 @@ async function connTools(key,run){
         if(run.calls>=run.maxCalls) throw new Error("Tool budget for this run is used up. Answer with what you already have.");
         run.calls++; if(run.onCall) run.onCall(c,t,input);
         let r; try{ r=await mcpCap.callTool(c.server,t,input||{},{cache:false,signal:ctx&&ctx.signal}); }catch(e){ run.lastErr=e; throw new Error((e&&e.message)||"tool failed"); }
-        run.ok++; const tx=resultTexts(r); run.sq+=squash(tx.flat)+"|"; tx.chunks.forEach(c=>run.chunks.push(c)); return tx.shown.slice(0,28000);
+        run.ok++; const tx=resultTexts(r); run.sq+=squash(tx.flat)+"|"; tx.chunks.forEach(c=>run.chunks.push(c)); return tx.shown.slice(0,12000);
       }});
   }
   return out;
@@ -5744,7 +5761,7 @@ async function startRun(rid){
   window.onbeforeunload=function(e){ e.preventDefault(); e.returnValue=''; return ''; };
   const ctl=openRunModal(r); state.run={rid,ctl,hid:false}; keepAwake(true); ctl.log(("wakeLock" in navigator)?"Keep this screen open until it finishes. I am keeping it awake for you.":"Keep this screen on until it finishes. Locking the phone stops the search.");
   try{ if(r.type==="progress") await runProgress(r,ctl); else await runResearch(r,ctl); }
-  catch(e){ const key=r.type==="progress"?"gmail":"web"; const slept=!!(state.run&&state.run.hid&&!(e&&e.code==="cancelled")); const msg=(e&&e.code==="cancelled")?"Stopped before anything was saved.":(slept?"The search stopped because the screen went to sleep, so nothing was saved. Keep this screen on until it finishes, then run it again.":connErr(e,key)); patchDoc("requests",rid,{status:(e&&e.code==="cancelled")?"cancelled":"failed",summary:msg}); ctl.finish('<div class="al warn" style="margin-top:10px"><span class="t">'+esc(msg)+'</span></div><div style="margin-top:8px"><button class="btn small" id="rnConn">Open Connections</button></div>',(o)=>{ const b=o.querySelector("#rnConn"); if(b) b.addEventListener("click",()=>openConnections()); }); }
+  catch(e){ const key=r.type==="progress"?"gmail":"web"; const slept=!!(state.run&&state.run.hid&&!(e&&e.code==="cancelled")&&(e instanceof TypeError||/failed to fetch|network|load failed|aborted/i.test(String((e&&e.message)||"")))); const msg=(e&&e.code==="cancelled")?"Stopped before anything was saved.":(slept?"The search stopped because the screen went to sleep, so nothing was saved. Keep this screen on until it finishes, then run it again.":connErr(e,key)); patchDoc("requests",rid,{status:(e&&e.code==="cancelled")?"cancelled":"failed",summary:msg}); ctl.finish('<div class="al warn" style="margin-top:10px"><span class="t">'+esc(msg)+'</span></div><div style="margin-top:8px"><button class="btn small" id="rnConn">Open Connections</button></div>',(o)=>{ const b=o.querySelector("#rnConn"); if(b) b.addEventListener("click",()=>openConnections()); }); }
   finally{ keepAwake(false); window.onbeforeunload=null; state.run=null; scheduleRender(); }
 }
 /* =====================================================================
@@ -5876,7 +5893,10 @@ async function runResearch(r,ctl){
     let out; try{ out=await agentWithTools(researchPrompt(r,brand,ask,found.map(f=>f.name),seen,pass),tools,ctl,"web",run,"complex"); }
     catch(e){ if(e&&e.code==="cancelled") break;
       if(e&&(e.code==="bad_json"||e.code==="invalid_json")&&badJson<3){ badJson++; ctl.unspin(); ctl.log("The reply was cut off or malformed — trying again with a different angle.","warn"); continue; }
-      if(found.length) { ctl.unspin(); ctl.log("Stopped early: "+connErr(e,"web"),"warn"); break; } throw e; }
+      if(found.length) { ctl.unspin(); ctl.log("Stopped early: "+connErr(e,"web"),"warn"); break; }
+      /* nothing found yet: only stop for errors a retry cannot fix; anything else gets another round (what was read so far is kept) */
+      if(e&&["plan_limit","rate_limited","not_granted","unavailable","needs_reauth","server_not_connected","server_not_found","not_in_manifest","approval_required","consent_required","blocked_by_policy"].includes(e.code)) throw e;
+      badJson++; if(badJson>=3) throw e; ctl.unspin(); ctl.log("That round failed ("+connErr(e,"web")+") — trying again.","warn"); continue; }
     ctl.unspin();
     const cands=Array.isArray(out.candidates)?out.candidates:[]; let good=0;
     await badPre(cands);
