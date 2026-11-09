@@ -118,6 +118,12 @@ function routeOf(row: any, t: any, brand: any): Route {
   return { route: "manual", reason: "No email or web form on file yet.", to: "", link: "" };
 }
 
+function unconfirm(d: any, brandId: string) {
+  const o = Object.assign({}, d);
+  if (o.accounts && o.accounts[brandId] && o.accounts[brandId].sendFrom) { o.accounts = Object.assign({}, o.accounts); o.accounts[brandId] = Object.assign({}, o.accounts[brandId], { preflight: false }); }
+  else o.preflight = false;
+  return o;
+}
 async function wsOf(client: string) {
   const { data } = await admin.from("ar_settings").select("data").eq("client_id", client).eq("key", "workspace").maybeSingle();
   return ((data as any)?.data || {}) as any;
@@ -129,6 +135,14 @@ function sigFor(ws: any, bd: any) {
   if (mn) { const ag = ws?.soloSender ? "" : clean(ws?.agencyName, 120); return ag ? mn + "\n" + ag : mn; }
   return clean(ws?.signature, 600);
 }
+// which mail account a brand sends from, and whether the user has confirmed it (per-brand account wins, then the brand's own sending email, then the workspace one)
+function acctOf(st: any, bd: any, brandId: string) {
+  const a = (st.accounts || {})[brandId];
+  if (a && a.sendFrom) return { addr: a.sendFrom as string, ok: a.preflight === true };
+  const own = sendFromFor(bd, "");
+  if (own && own !== st.sendFrom) return { addr: own, ok: false };
+  return { addr: st.sendFrom as string, ok: !!(st.sendFrom && st.preflight) };
+}
 function sendFromFor(bd: any, fallback: string) {
   const m = String(bd?.outreachSender || "").match(/[\w.+-]+@[\w.-]+\.\w+/);
   return m ? m[0].toLowerCase() : fallback;
@@ -137,7 +151,9 @@ async function getSettings(client: string) {
   const { data } = await admin.from("ar_settings").select("data").eq("client_id", client).eq("key", "automation").maybeSingle();
   const d: any = (data as any)?.data || {};
   const brands: Record<string, boolean> = {}; Object.keys(d.brands || {}).forEach((k) => { if (d.brands[k] === true) brands[k] = true; });
-  return { on: d.on === true, autoReady: d.autoReady === true, autoFu: d.autoFu === true, brands, dailyCap: Math.max(1, Math.min(40, Number(d.dailyCap) || 15)), gapSec: Math.max(30, Math.min(900, Number(d.gapSec) || 120)), sendFrom: EMAIL.test(String(d.sendFrom || "").trim()) ? String(d.sendFrom).trim().toLowerCase() : "", preflight: d.preflight === true };
+  const accounts: Record<string, { sendFrom: string; preflight: boolean }> = {};
+  Object.keys(d.accounts || {}).forEach((k) => { const a = d.accounts[k] || {}; const sf = String(a.sendFrom || "").trim().toLowerCase(); if (EMAIL.test(sf)) accounts[k] = { sendFrom: sf, preflight: a.preflight === true }; });
+  return { on: d.on === true, autoReady: d.autoReady === true, autoFu: d.autoFu === true, brands, dailyCap: Math.max(1, Math.min(40, Number(d.dailyCap) || 15)), gapSec: Math.max(30, Math.min(900, Number(d.gapSec) || 120)), sendFrom: EMAIL.test(String(d.sendFrom || "").trim()) ? String(d.sendFrom).trim().toLowerCase() : "", preflight: d.preflight === true, accounts };
 }
 
 async function loadRows(client: string, brandOnly: string | null) {
@@ -295,16 +311,18 @@ async function agentQueue(sc: Scope) {
   const today = iso(new Date());
   const st = await getSettings(sc.client);
   if (!st.on) return { ok: true, tasks: [], status: "off", message: "Automation is switched off in Alchemist Reach. Nothing to do." };
-  if (!st.sendFrom || !st.preflight) return { ok: true, tasks: [], status: "setup", message: "Stop. The user has not confirmed which mail account to send from. Tell them to open Alchemist Reach \u2192 Automation \u2192 \"Check first\", enter the address they send from, tick the boxes and confirm. Nothing will be sent until they do." };
+  const anyAcct = !!(st.sendFrom && st.preflight) || Object.keys(st.accounts || {}).some((k) => st.accounts[k].preflight);
+  if (!anyAcct) return { ok: true, tasks: [], status: "setup", message: "Stop. The user has not confirmed which mail account to send from. Tell them to open Alchemist Reach \u2192 Automation \u2192 \"Check first\", enter the address they send from, tick the boxes and confirm. Nothing will be sent until they do." };
   const { bmap, rows, tmap } = await loadRows(sc.client, sc.brand);
   // everything approved and due, so we can tell the user how many are lined up (tasks are still handed out one at a time)
-  const eligible: { r: any; it: Item }[] = []; let heldAlready = 0;
+  const eligible: { r: any; it: Item }[] = []; let heldAlready = 0; const needAcct = new Set<string>();
   for (const r of rows) {
     if (!st.brands[r.brand_id]) continue;
     const it = classify(r, tmap, bmap, today);
     applyAuto(it, st, r);
     if (!it || !it.approved || it.flag) continue;
     if (it.kind !== "first" && it.kind !== "followup") continue;
+    if (!acctOf(st, (bmap.get(r.brand_id) || {}).data || {}, r.brand_id).ok) { needAcct.add(String((bmap.get(r.brand_id) || {}).name || "a brand")); continue; }
     const claim = (r.data || {}).agentClaim;
     if (claim && claim.at) {
       if (Date.now() - Number(claim.at) >= 30 * 60_000) {
@@ -322,6 +340,7 @@ async function agentQueue(sc: Scope) {
   if (done >= st.dailyCap) return { ok: true, tasks: [], status: "daily_cap", queued, message: "Daily limit reached (" + st.dailyCap + " sent today). " + queued + " approved message" + (queued === 1 ? " is" : "s are") + " still queued for tomorrow. Stop for today." };
   const since = (Date.now() - (await lastSendAt(sc.client))) / 1000;
   if (since < st.gapSec) return { ok: true, tasks: [], status: "wait", waitSeconds: Math.ceil(st.gapSec - since), queued, message: queued + " approved message" + (queued === 1 ? " is" : "s are") + " queued. Pausing between sends protects the user's accounts: ask again in " + Math.ceil(st.gapSec - since) + " seconds." };
+  if (!queued && needAcct.size) return { ok: true, tasks: [], status: "setup", message: "Stop. These brands have no confirmed mail account yet: " + [...needAcct].join(", ") + ". Tell the user to confirm each one in Alchemist Reach \u2192 Automation \u2192 Right accounts. Nothing will be sent for them until they do." };
   if (!queued) return { ok: true, tasks: [], status: "empty", queued: 0, remainingToday: st.dailyCap - done, minGapSeconds: st.gapSec, message: heldAlready ? "Nothing new to hand out. " + heldAlready + " task(s) were already handed out and are waiting for a result." : "Nothing approved and due right now." };
   const ws = await wsOf(sc.client);
   // skip (and permanently block) any address whose domain doesn't exist or can't take mail
@@ -344,7 +363,7 @@ async function agentQueue(sc: Scope) {
   const { r, it } = pick;
   const trk = it.kind === "first" && it.route.route === "email" ? await trackLinks(sc.client, it.brand, it.id, clean(flat(r).data?.draft, 8000)) : {};
   const bd = (bmap.get(it.brandId) || {}).data || {};
-  const task = taskOf(it, flat(r), tmap.get(r.target_id), sigFor(ws, bd), today, sendFromFor(bd, st.sendFrom), trk);
+  const task = taskOf(it, flat(r), tmap.get(r.target_id), sigFor(ws, bd), today, acctOf(st, bd, it.brandId).addr, trk);
   const d3 = Object.assign({}, r.data || {}); d3.agentClaim = { at: Date.now(), kind: it.kind }; d3.updatedAt = Date.now();
   await admin.from("ar_deals").update({ data: d3 }).eq("id", r.id);
   const left = queued - 1;
@@ -396,7 +415,7 @@ async function agentResult(sc: Scope, a: any) {
     if (d.agentFlag.kind === "wrong_account") {
       delete d.autoOk; await admin.from("ar_deals").update({ data: d }).eq("id", id);
       const { data: cur } = await admin.from("ar_settings").select("data").eq("client_id", sc.client).eq("key", "automation").maybeSingle();
-      await admin.from("ar_settings").upsert({ client_id: sc.client, key: "automation", data: Object.assign({}, (cur as any)?.data || {}, { preflight: false }), updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
+      await admin.from("ar_settings").upsert({ client_id: sc.client, key: "automation", data: unconfirm((cur as any)?.data || {}, raw.brand_id), updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
       return { ok: true, message: "Stopped. Automation is paused until the user re-confirms the mail account in Alchemist Reach. Do not send anything else. Tell the user which account you were signed into." };
     }
     return { ok: true, message: "Held for the user. Move on to the next task." };
@@ -532,7 +551,9 @@ async function appAction(u: any, client: string, body: any) {
     const mine = new Set((brs || []).map((b: any) => b.id));
     const brands: Record<string, boolean> = {}; Object.keys(body.brands || {}).forEach((k) => { if (mine.has(k) && body.brands[k] === true) brands[k] = true; });
     const sf = String(body.sendFrom || "").trim().toLowerCase();
-    const data = { on: body.on === true, autoReady: body.autoReady === true, autoFu: body.autoFu === true, sendFrom: EMAIL.test(sf) ? sf : "", preflight: body.preflight === true && EMAIL.test(sf), brands, dailyCap: Math.max(1, Math.min(40, Number(body.dailyCap) || 15)), gapSec: Math.max(30, Math.min(900, Number(body.gapSec) || 120)) };
+    const accounts: Record<string, { sendFrom: string; preflight: boolean }> = {};
+    Object.keys(body.accounts || {}).forEach((k) => { if (!mine.has(k)) return; const a = body.accounts[k] || {}; const f = String(a.sendFrom || "").trim().toLowerCase(); if (EMAIL.test(f)) accounts[k] = { sendFrom: f, preflight: a.preflight === true }; });
+    const data = { on: body.on === true, autoReady: body.autoReady === true, autoFu: body.autoFu === true, sendFrom: EMAIL.test(sf) ? sf : "", preflight: body.preflight === true && EMAIL.test(sf), brands, accounts, dailyCap: Math.max(1, Math.min(40, Number(body.dailyCap) || 15)), gapSec: Math.max(30, Math.min(900, Number(body.gapSec) || 120)) };
     const { error } = await admin.from("ar_settings").upsert({ client_id: client, key: "automation", data, updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
     return { ok: !error, settings: data, error: error ? "Couldn't save" : undefined };
   }
