@@ -1218,6 +1218,13 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
       });
     });
   }
+  /* An account manager invited by an agency gets access to the agency's brands the first time they sign in. Best effort: never blocks sign-in. */
+  function claimInvite() {
+    return ccbFresh().then(function (t) {
+      if (!t) return null;
+      return fetch(SB_URL + "/functions/v1/reach-team", { method: "POST", headers: { apikey: SB_KEY, Authorization: "Bearer " + t, "content-type": "application/json" }, body: JSON.stringify({ action: "claim" }) }).then(function (r) { return r.json().catch(function () { return null; }); });
+    }).catch(function () { return null; });
+  }
   function initCtx(session) {
     ctx.uid = session.user.id;
     var md = session.user.user_metadata || {};
@@ -1226,7 +1233,7 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
     return sb.rpc("ar_is_admin").then(function (a) {
       ctx.admin = a.data === true;
       /* admins work inside UPM's own workspace; everyone else gets (or already has) a private workspace of their own */
-      return ctx.admin ? { data: { client_id: DEFAULT_CLIENT } } : sb.rpc("ar_provision_workspace").then(function (r) { if (r.error) throw r.error; return r; });
+      return ctx.admin ? { data: { client_id: DEFAULT_CLIENT } } : claimInvite().then(function () { return sb.rpc("ar_provision_workspace"); }).then(function (r) { if (r.error) throw r.error; return r; });
     }).then(function (pw) {
       ctx.client = (pw.data && pw.data.client_id) || DEFAULT_CLIENT;
       ctx.fresh = !!(pw.data && pw.data.created);
@@ -1666,6 +1673,12 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
       return ccbFresh().then(function (t) {
         return fetch(SB_URL + "/functions/v1/reach-inbox", { method: "POST", headers: { apikey: SB_KEY, Authorization: "Bearer " + t, "content-type": "application/json" }, body: JSON.stringify(Object.assign({ action: action, clientId: ctx.client }, extra || {})) })
           .then(function (r) { return r.json(); });
+      });
+    },
+    team: function (action, extra) {
+      return ccbFresh().then(function (t) {
+        return fetch(SB_URL + "/functions/v1/reach-team", { method: "POST", headers: { apikey: SB_KEY, Authorization: "Bearer " + t, "content-type": "application/json" }, body: JSON.stringify(Object.assign({ action: action, clientId: ctx.client }, extra || {})) })
+          .then(function (r) { return r.json().catch(function () { return { ok: false, error: "Unexpected answer (" + r.status + ")." }; }); });
       });
     },
     agent: function (action, extra) {
@@ -4230,7 +4243,7 @@ function renderSidebar(){
 /* Account menu + module menu are built by /assets/xpromo.js (one component for Content and Reach). Reach only supplies its own entries. */
 window.xpHostInfo=function(){ const m=wsMeta(); return {workspace:m.wsName||"My workspace"}; };
 window.xpModuleItems=function(){
-  const items=[{label:"Sender profile & plan",fn:()=>openAccountModal()},{label:"Connections",mini:CONNECTORS.filter(c=>connUsable(c.key)).length+"/"+CONNECTORS.length,fn:()=>openConnections()},{label:"Claude automation",fn:()=>openAutomation()}];
+  const items=[{label:"Sender profile & plan",fn:()=>openAccountModal()},{label:"Connections",mini:CONNECTORS.filter(c=>connUsable(c.key)).length+"/"+CONNECTORS.length,fn:()=>openConnections()},{label:"Team & brands",fn:()=>openTeam()},{label:"Claude automation",fn:()=>openAutomation()}];
   if(state.currentBrandId&&viewerIsAdmin) items.push({label:CLIENT.preview?"Exit client view":"Client view",fn:()=>{ if(CLIENT.preview) exitPreview(); else startPreview(); }});
   items.push({label:"Reach guide",href:"/reach-features/"}); return items; };
 window.xpCloseHostMenus=function(){ closeBrandMenu(); };
@@ -6105,6 +6118,32 @@ async function renderInbox(){
   });
 }
 const CONN_PILL={ready:["p-good","Connected"],allow:["p-good","Ready — asks the first time"],checking:["p-neutral","Checking…"],missing:["p-warn","Not added yet"],reauth:["p-bad","Needs reconnecting"],off:["p-bad","Turned off for Alchemist Reach"],soon:["p-neutral","Coming soon"],unavailable:["p-neutral","Unavailable"],unknown:["p-neutral","Unknown"]};
+/* ---- Team & brands: the workspace owner adds account managers and picks which brands each one works on ---- */
+async function openTeam(){
+  const R=await reachApi();
+  if(!R||!R.team){ toast("Team isn't available in this view"); return; }
+  openModal('<div class="mhead"><div><h3>Team &amp; brands</h3><div class="ikstep">Add account managers and choose which brands each one works on</div></div><button class="iconbtn" id="mClose">&times;</button></div><div class="mbody"><div class="hint">Loading…</div></div><div class="mfoot"><button class="btn" id="mCancel">Close</button></div>',true); wireClose();
+  const body=document.querySelector("#modalBox .mbody");
+  const paint=async()=>{
+    const t=await R.team("list");
+    if(!t||!t.ok){ body.innerHTML='<div class="al warn"><span class="t">'+esc((t&&t.error)||"Couldn’t load the team.")+'</span></div>'; return; }
+    const bl=(ids,attr,u)=>t.brands.map(b=>'<label class="chk" style="margin:2px 0"><input type="checkbox" '+attr+'="'+esc(b.id)+'"'+(u?' data-u="'+esc(u)+'"':"")+(ids.includes(b.id)?" checked":"")+'><span>'+esc(b.name)+'</span></label>').join("");
+    const seatTxt=t.seats.limit==null?"Seats: no limit on your plan":"Seats: "+(t.seats.used==null?"?":t.seats.used)+" of "+t.seats.limit+" used"+(t.seats.plan?" ("+esc(t.seats.plan)+")":"");
+    const teamRows=t.team.map(m=>'<div style="margin:8px 0;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius)"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>'+esc(m.email||"Teammate")+'</b><span style="flex:1"></span><button class="btn small" data-trm="'+esc(m.userId)+'">Remove</button></div><div class="mini" style="margin:4px 0 2px">Can work on:</div>'+bl(m.brandIds,"data-tb",m.userId)+'</div>').join("")||'<div class="fine" style="margin:8px 0">No teammates yet.</div>';
+    const pendRows=t.pending.map(p=>'<div class="mini" style="margin:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>'+esc(p.email)+'</b><span class="pill p-warn">Waiting for first sign-in</span>'+(p.error?'<span style="color:var(--bad)">'+esc(p.error)+'</span>':"")+'<span style="flex:1"></span><button class="btn small" data-tpx="'+esc(p.email)+'">Cancel</button></div>').join("");
+    body.innerHTML='<div class="mini" style="margin-bottom:8px">'+seatTxt+'. Each person signs in to Alchemist Reach with their own email, and opens, edits and sends only for the brands you tick. Brand names stay visible to the whole team, but a brand’s rows, drafts and mail are only available to the people ticked for it.</div>'
+      +'<h4 style="margin:12px 0 4px">Your team</h4>'+teamRows
+      +(pendRows?'<h4 style="margin:14px 0 4px">Invited</h4>'+pendRows:"")
+      +'<h4 style="margin:14px 0 4px">Add an account manager</h4><div class="field"><label>Their email (the one they sign in with)</label><input type="email" id="tmEmail" placeholder="name@youragency.com"></div><div class="mini" style="margin:4px 0 2px">Brands they can work on:</div>'+bl([],"data-nb")
+      +'<div class="mfoot" style="padding:10px 0 0"><button class="btn primary" id="tmInv">Add to team</button><span class="mini" id="tmMsg" style="margin-left:10px"></span></div>'
+      +'<div class="fine" style="margin-top:8px">Workspace settings (sender profile, Claude automation) are shared by the whole team. Each brand can have its own account manager name, signature and sending email under Brand details.</div>';
+    body.querySelectorAll("[data-tb]").forEach(c=>c.addEventListener("change",async()=>{ const u=c.dataset.u; const ids=Array.from(body.querySelectorAll('[data-tb][data-u="'+u+'"]:checked')).map(x=>x.dataset.tb); if(!ids.length){ toast("Pick at least one brand, or remove the person"); return paint(); } const r=await R.team("set_brands",{userId:u,brandIds:ids}); toast(r&&r.ok?"Saved":((r&&r.error)||"Couldn’t save")); if(!(r&&r.ok)) paint(); }));
+    body.querySelectorAll("[data-trm]").forEach(b=>b.addEventListener("click",async()=>{ if(b.dataset.sure!=="1"){ b.dataset.sure="1"; b.textContent="Click again to remove"; return; } const r=await R.team("remove",{userId:b.dataset.trm}); toast(r&&r.ok?"Removed":((r&&r.error)||"Couldn’t remove")); paint(); }));
+    body.querySelectorAll("[data-tpx]").forEach(b=>b.addEventListener("click",async()=>{ await R.team("remove",{email:b.dataset.tpx}); paint(); }));
+    document.getElementById("tmInv").addEventListener("click",async()=>{ const m=document.getElementById("tmMsg"); const email=(document.getElementById("tmEmail").value||"").trim(); const ids=Array.from(body.querySelectorAll("[data-nb]:checked")).map(x=>x.dataset.nb); if(!email){ m.textContent="Enter their email."; return; } if(!ids.length){ m.textContent="Tick at least one brand."; return; } m.textContent="Adding…"; const r=await R.team("invite",{email,brandIds:ids}); if(r&&r.ok){ toast(r.status==="added"?"Added to your team":"Saved. They get access when they first sign in"); paint(); } else m.textContent=(r&&r.error)||"Couldn’t add them."; });
+  };
+  paint();
+}
 /* ---- Automation: let the user's OWN agent (Claude Cowork etc.) do approved sends, forms and follow-ups ---- */
 async function openAutomation(){
   const R=await reachApi();

@@ -69,3 +69,6 @@ verify_jwt = false
 
 [functions.links-api]
 verify_jwt = false
+
+[functions.reach-team]
+verify_jwt = true
