@@ -118,9 +118,20 @@ function routeOf(row: any, t: any, brand: any): Route {
   return { route: "manual", reason: "No email or web form on file yet.", to: "", link: "" };
 }
 
-async function sigOf(client: string) {
+async function wsOf(client: string) {
   const { data } = await admin.from("ar_settings").select("data").eq("client_id", client).eq("key", "workspace").maybeSingle();
-  return clean((data as any)?.data?.signature, 600);
+  return ((data as any)?.data || {}) as any;
+}
+// per-brand account manager: brand signature wins, then brand manager name + company, then the workspace signature
+function sigFor(ws: any, bd: any) {
+  const own = clean(bd?.managerSig, 600); if (own) return own;
+  const mn = clean(bd?.managerName, 120);
+  if (mn) { const ag = ws?.soloSender ? "" : clean(ws?.agencyName, 120); return ag ? mn + "\n" + ag : mn; }
+  return clean(ws?.signature, 600);
+}
+function sendFromFor(bd: any, fallback: string) {
+  const m = String(bd?.outreachSender || "").match(/[\w.+-]+@[\w.-]+\.\w+/);
+  return m ? m[0].toLowerCase() : fallback;
 }
 async function getSettings(client: string) {
   const { data } = await admin.from("ar_settings").select("data").eq("client_id", client).eq("key", "automation").maybeSingle();
@@ -312,7 +323,7 @@ async function agentQueue(sc: Scope) {
   const since = (Date.now() - (await lastSendAt(sc.client))) / 1000;
   if (since < st.gapSec) return { ok: true, tasks: [], status: "wait", waitSeconds: Math.ceil(st.gapSec - since), queued, message: queued + " approved message" + (queued === 1 ? " is" : "s are") + " queued. Pausing between sends protects the user's accounts: ask again in " + Math.ceil(st.gapSec - since) + " seconds." };
   if (!queued) return { ok: true, tasks: [], status: "empty", queued: 0, remainingToday: st.dailyCap - done, minGapSeconds: st.gapSec, message: heldAlready ? "Nothing new to hand out. " + heldAlready + " task(s) were already handed out and are waiting for a result." : "Nothing approved and due right now." };
-  const sig = await sigOf(sc.client);
+  const ws = await wsOf(sc.client);
   // skip (and permanently block) any address whose domain doesn't exist or can't take mail
   let pick: { r: any; it: Item } | null = null;
   for (const e of eligible) {
@@ -332,7 +343,8 @@ async function agentQueue(sc: Scope) {
   if (!pick) return { ok: true, tasks: [], status: "empty", queued: 0, message: "Every queued address had a domain that can't receive email, so they were skipped and flagged for the user." };
   const { r, it } = pick;
   const trk = it.kind === "first" && it.route.route === "email" ? await trackLinks(sc.client, it.brand, it.id, clean(flat(r).data?.draft, 8000)) : {};
-  const task = taskOf(it, flat(r), tmap.get(r.target_id), sig, today, st.sendFrom, trk);
+  const bd = (bmap.get(it.brandId) || {}).data || {};
+  const task = taskOf(it, flat(r), tmap.get(r.target_id), sigFor(ws, bd), today, sendFromFor(bd, st.sendFrom), trk);
   const d3 = Object.assign({}, r.data || {}); d3.agentClaim = { at: Date.now(), kind: it.kind }; d3.updatedAt = Date.now();
   await admin.from("ar_deals").update({ data: d3 }).eq("id", r.id);
   const left = queued - 1;

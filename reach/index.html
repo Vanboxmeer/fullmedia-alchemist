@@ -2920,7 +2920,7 @@ function openAccountModal(){
     +'<div class="hint" style="margin:0 0 8px">Every draft, signature and subject line uses these. They are yours — nothing here is shared with anyone else.</div>'
     +'<div class="g2"><div class="field"><label>My name in messages</label><input type="text" id="mSenderName" value="'+esc(m.senderName||senderName())+'" placeholder="e.g. Sam Lee"></div><div class="field"><label>My company or agency <span class="mini">(what drafts call you; leave blank if you send only for your own brand)</span></label><input type="text" id="mAgency" value="'+esc(m.agencyName||"")+'" placeholder="e.g. Acme Media"></div></div>'
     +'<div class="field"><label>Sending email <span class="mini">(the Gmail address you send from)</span></label><input type="text" id="mSender" value="'+esc(m.senderEmail||(ACCT&&ACCT.email)||"")+'" placeholder="you@yourcompany.com"></div>'
-    +'<div class="field"><label>Email signature <span class="mini">(appended when you copy a message or open Gmail — use the registered business address only)</span></label><textarea id="mSig" rows="4" placeholder="Sam Lee&#10;Acme Media&#10;[registered address]">'+esc(m.signature||"")+'</textarea></div>'
+    +'<div class="field"><label>Email signature <span class="mini">(appended when you copy a message or open Gmail — use the registered business address only)</span></label><textarea id="mSig" rows="4" placeholder="Sam Lee&#10;Acme Media&#10;[registered address]">'+esc(m.signature||"")+'</textarea><div class="mini" style="margin-top:4px">Different account managers per brand? Set a name, signature and sending email on each Brand page → Brand details. These are the defaults.</div></div>'
     +'<div class="hint" style="margin:0 0 8px">The name a <b>brand</b> goes by in messages and subject lines is set on the brand: Brand page → Brand details → Edit.</div>'
     +'<div class="section-title" style="margin-top:14px">Workspace</div>'
     +'<div class="field"><label>Workspace name <span class="mini">(only you see this)</span></label><input type="text" id="mWsName" value="'+esc(wsName)+'"></div>'
@@ -3208,13 +3208,14 @@ function openEditBrandModal(b){
     +''
     +'<div class="section-title kbs" style="margin:14px 0 10px"><span class="dot" style="background:var(--fg-faint)"></span>Campaign &amp; plan settings</div><div class="row2"><div class="field"><label>Campaign status</label><input type="text" id="mCStatus" value="'+esc(b.campaignStatus||"")+'"></div><div class="field"><label>Primary KPI</label><input type="text" id="mKPI" value="'+esc(b.primaryKPI||"")+'"></div></div>'
     +'<div class="row2"><div class="field"><label>Monthly budget</label><input type="text" id="mBudget" value="'+esc(b.monthlyBudget||"")+'"></div><div class="field"><label>Subscription plan</label><input type="text" id="mPlan" value="'+esc(b.subscriptionPlan||"")+'"></div></div>'
-    +'<div class="row2"><div class="field"><label>Client contact</label><input type="text" id="mCContact" value="'+esc(b.clientContact||"")+'"></div><div class="field"><label>Outreach sender <span class="mini">(your Google account to open)</span></label><input type="text" id="mSender" value="'+esc(b.outreachSender||"")+'" placeholder="you@yourcompany.com"></div></div>'
+    +'<div class="row2"><div class="field"><label>Client contact</label><input type="text" id="mCContact" value="'+esc(b.clientContact||"")+'"></div><div class="field"><label>Sending email for this brand <span class="mini">(the Google account its mail is sent from; blank = the workspace email)</span></label><input type="text" id="mSender" value="'+esc(b.outreachSender||"")+'" placeholder="'+esc(wsMeta().senderEmail||"you@yourcompany.com")+'"></div></div>'
+    +'<div class="row2"><div class="field"><label>Account manager <span class="mini">(who signs this brand\'s messages; blank = the workspace sender)</span></label><input type="text" id="mMgr" value="'+esc(b.managerName||"")+'" placeholder="'+esc(wsMeta().senderName||"e.g. Sam Lee")+'"></div><div class="field"><label>Signature for this brand <span class="mini">(optional; blank = account manager + company, or the workspace signature)</span></label><textarea id="mMgrSig" rows="3">'+esc(b.managerSig||"")+'</textarea></div></div>'
     +'<div class="field"><label>Send-as alias <span class="mini">(the From address this brand uses, if it is an alias of that account)</span></label><input type="text" id="mSendAs" value="'+esc(b.sendAs||"")+'" placeholder="outreach@brand.com"></div>'
     +'<div class="field"><label>Deal history / renewal risk</label><input type="text" id="mDeal" value="'+esc(b.dealHistory||"")+'"></div>'
     +'<div class="row2"><div class="field"><label>Free coverage quota</label><input type="number" id="mQuota" value="'+esc(b.planQuota||"")+'"></div><div class="field"><label>Per</label><select id="mPeriod">'+opt(PLAN_PERIODS,b.planPeriod||"per month")+'</select></div></div>'
     +'<div class="field"><label>Notes</label><textarea id="mNotes">'+esc(b.notes||"")+'</textarea></div>'+brandGatesFields(b)+'</div>'+foot("Save"),true);
   wireClose(); wireBrandGates();
-  document.getElementById("mSave").addEventListener("click",async()=>{ const pipe=document.getElementById("mPipe").value; await D("brands/"+b.id).update({name:gv("mName"),callAs:gv("mCallAs"),usesCoverage:pipe!=="lead",usesLeads:pipe!=="coverage",officialSite:gv("mSite"),legalName:gv("mLegal"),whatItIs:gv("mWhat"),targetAudience:gv("mAud"),mission:gv("mMission"),brandTone:gv("mTone"),coverageScope:gv("mCovScope"),leadScope:gv("mLeadScope"),proofPoints:gv("mProof"),doNotContact:gv("mDNC"),audienceHangouts:gv("mHang"),newsUrl:gv("mNews"),keyMessages:gv("mMsgs"),competitors:gv("mComp"),blockWords:gv("mBlock"),campaignStatus:gv("mCStatus"),primaryKPI:gv("mKPI"),monthlyBudget:gv("mBudget"),subscriptionPlan:gv("mPlan"),clientContact:gv("mCContact"),outreachSender:gv("mSender"),sendAs:gv("mSendAs"),dealHistory:gv("mDeal"),planQuota:gv("mQuota"),planPeriod:document.getElementById("mPeriod").value,notes:gv("mNotes")}); saveBrandGates(b.id); closeModal(); toast("Saved"); });
+  document.getElementById("mSave").addEventListener("click",async()=>{ const pipe=document.getElementById("mPipe").value; await D("brands/"+b.id).update({name:gv("mName"),callAs:gv("mCallAs"),usesCoverage:pipe!=="lead",usesLeads:pipe!=="coverage",officialSite:gv("mSite"),legalName:gv("mLegal"),whatItIs:gv("mWhat"),targetAudience:gv("mAud"),mission:gv("mMission"),brandTone:gv("mTone"),coverageScope:gv("mCovScope"),leadScope:gv("mLeadScope"),proofPoints:gv("mProof"),doNotContact:gv("mDNC"),audienceHangouts:gv("mHang"),newsUrl:gv("mNews"),keyMessages:gv("mMsgs"),competitors:gv("mComp"),blockWords:gv("mBlock"),campaignStatus:gv("mCStatus"),primaryKPI:gv("mKPI"),monthlyBudget:gv("mBudget"),subscriptionPlan:gv("mPlan"),clientContact:gv("mCContact"),outreachSender:gv("mSender"),managerName:gv("mMgr"),managerSig:(document.getElementById("mMgrSig").value||"").trim(),sendAs:gv("mSendAs"),dealHistory:gv("mDeal"),planQuota:gv("mQuota"),planPeriod:document.getElementById("mPeriod").value,notes:gv("mNotes")}); saveBrandGates(b.id); closeModal(); toast("Saved"); });
 }
 function openNewWaveModal(brand,type){
   const isLead=type==="lead";
@@ -3375,10 +3376,10 @@ function ackAlert(id,code){ const d=ix().deal.get(id); if(!d) return; patchDeal(
 /* =====================================================================
    REACH — Gmail compose, mailto, DM links, copy
    ===================================================================== */
-function sigText(){ return (wsMeta().signature||"").trim(); }
+function sigText(b){ const own=((b&&b.managerSig)||"").trim(); if(own) return own; const mn=((b&&b.managerName)||"").trim(); if(mn){ const ag=agencyName(); return mn+(ag?"\n"+ag:""); } return (wsMeta().signature||"").trim(); }
 /* Add the saved signature once: if the message already ends with the sign-off name alone, expand that line into the full signature; if it already holds the whole signature, leave it. */
-function withSig(body){ let b=(body||"").replace(/\s+$/,""); const sig=sigText(); if(!sig||!b||b.includes(sig)) return b; const first=sig.split("\n")[0].trim(); const lines=b.split("\n"); if(first&&lines[lines.length-1].trim()===first){ lines.pop(); return lines.join("\n").replace(/\s+$/,"")+"\n"+sig; } return b+"\n\n"+sig; }
-function outBody(d){ return withSig(d.draft||""); }
+function withSig(body,br){ let b=(body||"").replace(/\s+$/,""); const sig=sigText(br); if(!sig||!b||b.includes(sig)) return b; const first=sig.split("\n")[0].trim(); const lines=b.split("\n"); if(first&&lines[lines.length-1].trim()===first){ lines.pop(); return lines.join("\n").replace(/\s+$/,"")+"\n"+sig; } return b+"\n\n"+sig; }
+function outBody(d){ return withSig(d.draft||"",brandById(d.brandId)); }
 function senderEmail(d){ const b=brandById(d.brandId)||{}; const m=((b.outreachSender||wsMeta().senderEmail||"")+"").match(/[\w.+-]+@[\w.-]+\.\w+/); return m?m[0]:""; }
 function sendAsOf(d){ const b=brandById(d.brandId)||{}; const m=((b.sendAs||"")+"").match(/[\w.+-]+@[\w.-]+\.\w+/); return m?m[0]:""; }
 function gmailHref(d){ const em=emailOf(d); if(!em) return ""; const su=d.subject||""; const sd=senderEmail(d);
@@ -3430,7 +3431,7 @@ function routeKind(d){
 }
 function routeBanner(d){
   const rk=routeKind(d); if(rk==="email"||rk==="order") return "";
-  const i=dmInfo(d), host=i.href?hostOf(i.href):"", me=senderEmail(d), nm=senderName();
+  const i=dmInfo(d), host=i.href?hostOf(i.href):"", me=senderEmail(d), nm=senderName(brandById(d.brandId));
   if(rk==="none") return '<div class="al warn"><span class="t"><b>No way to reach them yet.</b> Add an email, a profile link or a form link under “Contact &amp; target” before you send anything.</span></div>';
   if(rk==="dm") return '<div class="al info"><span class="t"><b>'+esc(chanLabel(d))+'.</b> This goes in a chat message, so there is no subject line and no email. Open the chat (the message is copied for you), paste it, send it, then press <b>Mark sent</b>.</span></div>';
   return '<div class="al info"><span class="t"><b>Web form'+(host?" · "+esc(host):"")+'.</b> This one has no email address, so there is nothing to send from Gmail. Open the form, paste the message into its message box and submit it. '
@@ -3632,7 +3633,7 @@ function gapDays(){ const n=Number(wsMeta().nudgeGap); return n>=0&&n<=30?n:3; }
 let ACCT=null;
 /* 2026-11-09: no built-in person or agency. A user who has not set their name gets their own account name, never anyone else's. */
 function acctName(){ const n=String((ACCT&&ACCT.name)||"").trim(); return n&&!/@/.test(n)?n:""; }
-function senderName(){ return (wsMeta().senderName||"").trim()||(sigText().split("\n")[0]||"").trim()||acctName(); }
+function senderName(b){ const bn=((b&&b.managerName)||"").trim(); if(bn) return bn; return (wsMeta().senderName||"").trim()||(sigText().split("\n")[0]||"").trim()||acctName(); }
 /* what drafts call the agency and the brand: the user decides (workspace settings / brand "Refer to this brand as") */
 function agencyName(){ return (wsMeta().agencyName||"").trim(); }
 function brandCall(b){ b=b||{}; return (b.callAs||"").trim()||b.name||""; }
@@ -3700,7 +3701,7 @@ function nudgeTo(d,st){
 /* ---------- the words ---------- */
 function buildNudge(d,st,tone){
   const b=brandById(d.brandId)||{}, to=nudgeTo(d,st)||{}, meta=BLOCK_WHY[st.why], creator=to.kind==="creator";
-  const first=to.first||"there", sender=senderName(), tgt=nameOf(d), by=fmtShort(addDays(todayISO(),3));
+  const first=to.first||"there", sender=senderName(brandById(d.brandId)), tgt=nameOf(d), by=fmtShort(addDays(todayISO(),3));
   const lastSubj=(d.sentSubject||d.subject||"").replace(/^re:\s*/i,"")||"my earlier note";
   const what=isLead(d)?("the introduction to "+tgt):("the "+(b.name||"campaign")+" placement with "+tgt);
   const subj=creator?lastSubj:what;
@@ -3827,9 +3828,9 @@ function autoPrepare(){
 
 /* ---------- compose modal ---------- */
 let NMOD=null;
-function nudgeGmail(d,to,subject,body){ const sd=senderEmail(d); const b=withSig(body);
+function nudgeGmail(d,to,subject,body){ const sd=senderEmail(d); const b=withSig(body,brandById(d.brandId));
   const u="https://mail.google.com/mail/?view=cm&fs=1&to="+encodeURIComponent(to)+"&su="+encodeURIComponent(subject)+"&body="+encodeURIComponent(b)+(sd?"&authuser="+encodeURIComponent(sd):""); return u.length>7500?u.replace(/&body=[^&]*/,""):u; }
-function outNudge(d,body){ return withSig(body); }
+function outNudge(d,body){ return withSig(body,brandById(d.brandId)); }
 function openNudgeModal(id,tone,force){
   const d=ix().deal.get(id); if(!d) return; const st=stallOf(d);
   if(!st||st.on==="us"){ toast(st?"This one is on you — open it and reply":"Nothing is stalled on this row"); return; }
@@ -4924,7 +4925,7 @@ function mergeTpl(d,key){
   const T=TPL[key]; const b=brandById(d.brandId)||{}, t=targetForDeal(d); const client=(d.ownerType||"").startsWith("Client");
   const first=((t.contactName||"").trim().split(/\s+/)[0])||"there"; const cs=commsForDeal(d.id).filter(c=>c.direction==="Sent"); const lastSubj=(d.sentSubject||d.subject||"").replace(/^re:\s*/i,"")||(cs.length?cs[cs.length-1].summary.replace(/\s*\(follow-up.*$/,""):"")||"my earlier note";
   const what=cleanBlurb(b.whatItIs,b.name), theirs=firstSentence(t.whatTheyDo||"",160).replace(/^([A-Z])([a-z])/,(m,x,y)=>x.toLowerCase()+y), chan=nameOf(d);
-  const map={Channel:chan,First:first,Sender:client?(d.ownerName||b.name||"the team"):senderName(),Agency:agencyName()||"my agency",Brand:brandCall(b),BrandWhat:what,
+  const map={Channel:chan,First:first,Sender:client?(d.ownerName||b.name||"the team"):senderName(b),Agency:agencyName()||"my agency",Brand:brandCall(b),BrandWhat:what,
     BrandLine:"We work with "+(brandCall(b)||"a client")+(what?" — "+what:"")+".",
     Reason:theirs?("I came across "+chan+" — "+theirs+". I think there could be a fit."):("I think there could be a fit with what "+chan+" does."),
     Observation:theirs?("I came across "+chan+" — "+theirs+"."):"",LastSubject:lastSubj};
@@ -4956,7 +4957,7 @@ function paneHtml(d){
    +'<span class="sp"></span><button class="btn big primary '+(lead?"lead":"")+'" data-p="sent" type="button">✓ '+sentWord+'</button></div>'
    +'<div class="sblinks">'+(em&&connUsable("gmail")?'<button class="lnk" data-p="gmailcheck" type="button" title="Look for a reply or a sent copy in your Gmail (read-only)">📬 Check Gmail</button>':'')
    +(em?'<a class="lnk" href="'+esc(mailtoHref(d))+'" data-p="mailto">Default mail app</a>':'')
-   +(sigText()?'<span class="mini">Signature is added automatically</span>':'<a class="lnk" href="#" data-p="setsig">Add a signature</a>')
+   +(sigText(brandById(d.brandId))?'<span class="mini">Signature is added automatically</span>':'<a class="lnk" href="#" data-p="setsig">Add a signature</a>')
    +(!em&&!dm.href&&!t.orderVia?'<span class="mini" style="color:var(--bad)">No email or link on file — add one under “Contact &amp; target”.</span>':'')
    +'</div></div>';
   return '<div class="ph '+(lead?"lead":"cov")+'"><div class="row1"><h2>'+esc(name)+'</h2><div class="pnav">'+'<button class="btn tiny" data-p="profile" title="'+(lead?"Open this lead\'s profile: contact, pricing, history":"Open this option\'s full profile: pricing, past deals, links")+'">Profile ↗</button>'+'<button class="iconbtn" data-p="prev" title="Previous (k)">↑</button><button class="iconbtn" data-p="next" title="Next (j)">↓</button><button class="iconbtn" data-p="close" title="Close (Esc)">×</button></div></div>'
@@ -5516,7 +5517,7 @@ function campaignBlock0(d){ const w=waveOf(d), b=brandById(d.brandId)||{}; if(!o
   return "\n\nCAMPAIGN INSTRUCTIONS ("+(w.name||"this campaign")+")\n"+(organicOf(d)?"This is an ORGANIC campaign: the client has no paid budget this round. Never ask for rates or offer payment or sponsorship. You may name the project.\n":"")+((w.message||"").trim()?"Campaign message"+(w.messageAt?" (status as of "+new Date(w.messageAt).toISOString().slice(0,10)+")":"")+" — the ONLY source for project status/news you may state, say it in your own plain words, never present it as older or newer than its date:\n"+w.message.trim()+"\n":"")+(organicOf(d)&&b.officialSite?"You may include the project's link once, as plain text: "+b.officialSite+"\n":""); }
 function voiceOf(d){ const b=brandById(d.brandId)||{}; const client=(d.ownerType||"").startsWith("Client");
   if(isCommunity(d)) return "Write as a real person connected to "+brandCall(b)+", posting in a community. Human and transparent, no marketing voice.";
-  const SN=senderName(), AG=agencyName(), BC=brandCall(b), who=SN+(AG?" from "+AG:""), nm=" Always call the agency exactly \""+(AG||"the agency")+"\" and the brand exactly \""+BC+"\"; never expand or rename them.";
+  const SN=senderName(b), AG=agencyName(), BC=brandCall(b), who=SN+(AG?" from "+AG:""), nm=" Always call the agency exactly \""+(AG||"the agency")+"\" and the brand exactly \""+BC+"\"; never expand or rename them.";
   if(organicOf(d)&&!client) return "Write as "+who+", reaching out on behalf of "+BC+" to invite this person and their audience to check the project out. Organic, free, friendly and low-pressure."+nm;
   if(client) return "Write as a team member of "+brandCall(b)+" reaching out directly, first person plural.";
   if(isLead(d)) return "Write as "+who+", introducing "+BC+(AG?" — "+AG+" works with the brand.":".")+nm;
@@ -5537,7 +5538,7 @@ function templateGuide(d){ let k=suggestTemplate(d); const org=organicOf(d)&&!/^
   F2:"Follow-up 2 (day 10, last): very brief, make it easy to say no. Subject starts with 'Re:'.",
   L1:"Intro for a lead/partner: who UPM is, what the brand is (only from brand facts), one specific true reason this target is relevant (only from target facts, else omit), one low-friction ask.",
   L2:"Intro for a prospective client: who UPM is, one specific true observation about them (only from target facts, else omit), one low-friction ask.",
-  LF:"Intro follow-up: brief, polite, restate the ask."}; return {key:k,text:String(g[k]||"").replace(/\bBrad\b/g,senderName()||"the sender").replace(/\bUPM\b/g,agencyName()||"the team")}; }
+  LF:"Intro follow-up: brief, polite, restate the ask."}; return {key:k,text:String(g[k]||"").replace(/\bBrad\b/g,senderName(brandById(d.brandId))||"the sender").replace(/\bUPM\b/g,agencyName()||"the team")}; }
 async function runSample(prompt,tier,onStatus){
   if(!aiAvailable()) throw {code:"unavailable",message:"The Alchemist is not available in this view"};
   const gap=o=>GAP_RE.test(String((o&&o.subject)||"")+"\n"+String((o&&o.body)||""));
