@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
 
   if (action === "content_brands") {
     const names = await contentNames(c);
-    let q = admin.from("cc_brands").select("id,name,logo_url,primary_color,default_wheel_url,content_niches,brand_mission,target_audience,content_goals,brand_tone,proof_points,content_exclusions").order("name").limit(300);
+    let q = admin.from("cc_brands").select("id,name,logo_url,primary_color,default_wheel_url,content_niches,brand_mission,target_audience,content_goals,brand_tone,proof_points,content_exclusions,news_url").order("name").limit(300);
     if (names !== "all") { if (!names.length) return J({ ok: true, brands: [] }); q = q.in("name", names); }
     const { data: rows, error } = await q;
     if (error) return J({ ok: false, error: "Could not read your Content brands" }, 500);
@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
         reach: {
           name: s(b.name, 80), officialSite: s(b.default_wheel_url, 300), color: hex(b.primary_color),
           whatItIs: s(niches || b.brand_mission, 400), mission: s(b.brand_mission, 1200), targetAudience: s(b.target_audience, 1200),
-          brandTone: s(b.brand_tone, 300), proofPoints: s(b.proof_points, 1500), keyMessages: s(b.content_goals, 1200), blockWords: s(b.content_exclusions, 1000),
+          brandTone: s(b.brand_tone, 300), proofPoints: s(b.proof_points, 1500), keyMessages: s(b.content_goals, 1200), blockWords: s(b.content_exclusions, 1000), newsUrl: s(b.news_url, 300),
         },
       };
     });
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
         content: {
           brand_name: s(b.name, 80), site: s(b.official_site || d.officialSite, 300),
           brand_mission: s(d.mission || d.whatItIs, 1200), target_audience: s(d.targetAudience, 1200), brand_tone: s(d.brandTone, 300),
-          proof_points: s(d.proofPoints, 1500), content_goals: s(d.keyMessages, 1200), content_exclusions: s(d.blockWords, 1000),
+          proof_points: s(d.proofPoints, 1500), content_goals: s(d.keyMessages, 1200), content_exclusions: s(d.blockWords, 1000), news_url: s(d.newsUrl, 300),
         },
       };
     });

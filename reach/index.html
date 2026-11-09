@@ -3111,7 +3111,7 @@ async function openImportFromContent(){
 }
 async function saveIntakeBrand(){
   const d=state.intake.data, T=v=>String(v||"").trim();
-  const base={ name:T(d.name), usesCoverage:d.pipeline!=="lead", usesLeads:d.pipeline!=="coverage", officialSite:T(d.officialSite), whatItIs:T(d.whatItIs), mission:T(d.mission), targetAudience:T(d.targetAudience), brandTone:T(d.brandTone), proofPoints:T(d.proofPoints), keyMessages:T(d.keyMessages), blockWords:T(d.blockWords), campaignStatus:"Not started" };
+  const base={ name:T(d.name), usesCoverage:d.pipeline!=="lead", usesLeads:d.pipeline!=="coverage", officialSite:T(d.officialSite), whatItIs:T(d.whatItIs), mission:T(d.mission), targetAudience:T(d.targetAudience), brandTone:T(d.brandTone), proofPoints:T(d.proofPoints), keyMessages:T(d.keyMessages), blockWords:T(d.blockWords), newsUrl:T(d.newsUrl), campaignStatus:"Not started" };
   if(!base.name) throw new Error("Give the brand a name first");
   const ph=state.brands.find(isPlaceholderBrand);
   let id;
