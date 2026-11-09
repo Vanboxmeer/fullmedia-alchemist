@@ -4117,7 +4117,7 @@ function wireRequestAccess(){ const b=document.getElementById("reqAccBtn"); if(!
    The same tabs serve "All brands" and a single brand; the brand switcher is the only
    place other brands appear, and it is absent for client viewers (see client.js).
    ===================================================================== */
-const TAB_DEFS=[["work","Workbench"],["options","Options"],["requests","Requests"],["knowledge","Brand knowledge"],["overview","Brands"]];
+const TAB_DEFS=[["work","Workbench"],["options","Options"],["requests","Requests"],["knowledge","Drafting notes"],["overview","Brands"]];
 const SEC_OF_TAB={work:"work",stalled:"stalled",deals:"deals",options:"options",requests:"cov_requests",knowledge:"knowledge",overview:"overview"};
 const TOP_OF_TAB={work:"work",stalled:"stalled",deals:"deals",options:"options",requests:"requests",knowledge:"knowledge",overview:"brands"};
 function curTab(){ const sec=state.currentBrandId?state.currentSection:state.top; return ({work:"work",stalled:"stalled",deals:"deals",options:"options",cov_requests:"requests",requests:"requests",knowledge:"knowledge",overview:"overview",brands:"overview"})[sec]||"work"; }
@@ -4140,8 +4140,8 @@ function renderSidebar(){
   if(typeof clientMode==="function"&&clientMode()){ document.body.classList.remove("mnav"); if(mt) mt.innerHTML=""; renderClientTopnav(); return; }
   document.body.classList.add("mnav");
   const scopeId=state.currentBrandId, cur=curTab(), loading=state.loading;
-  top.innerHTML=TAB_DEFS.map(([k,l])=>{ const label=k==="overview"?(scopeId?"Brand":"Brands"):l; const n=loading?0:tabBadge(k,scopeId); return '<button class="tab'+(cur===k?" on":"")+'" data-tab="'+k+'">'+esc(label)+(n?'<span class="tb'+(k==="stalled"?" bad":k==="requests"?" info":"")+'">'+n+'</span>':'')+'</button>'; }).join("");
-  if(mt) mt.innerHTML=TAB_DEFS.map(([k,l])=>{ const label=k==="overview"?(scopeId?"Brand":"Brands"):l; const n=loading?0:tabBadge(k,scopeId); return '<button data-tab="'+k+'" class="'+(cur===k?"on":"")+'" aria-label="'+esc(label)+'"><svg viewBox="0 0 24 24" aria-hidden="true">'+TAB_ICON[k]+'</svg><span>'+esc(label)+'</span>'+(n?'<span class="tb'+(k==="stalled"?" bad":k==="requests"?" info":"")+'">'+n+'</span>':'')+'</button>'; }).join("");
+  top.innerHTML=TAB_DEFS.map(([k,l])=>{ const label=k==="overview"?(scopeId?"Brand details":"Brands"):l; const n=loading?0:tabBadge(k,scopeId); return '<button class="tab'+(cur===k?" on":"")+'" data-tab="'+k+'">'+esc(label)+(n?'<span class="tb'+(k==="stalled"?" bad":k==="requests"?" info":"")+'">'+n+'</span>':'')+'</button>'; }).join("");
+  if(mt) mt.innerHTML=TAB_DEFS.map(([k,l])=>{ const label=k==="overview"?(scopeId?"Brand details":"Brands"):l; const n=loading?0:tabBadge(k,scopeId); return '<button data-tab="'+k+'" class="'+(cur===k?"on":"")+'" aria-label="'+esc(label)+'"><svg viewBox="0 0 24 24" aria-hidden="true">'+TAB_ICON[k]+'</svg><span>'+esc(label)+'</span>'+(n?'<span class="tb'+(k==="stalled"?" bad":k==="requests"?" info":"")+'">'+n+'</span>':'')+'</button>'; }).join("");
   const b=scopeId?brandById(scopeId):null; const idx=b?state.brands.indexOf(b):-1;
   document.getElementById("bsLabel").textContent=b?b.name:"All brands";
   const sw=document.getElementById("bsSw"); sw.style.background=b?(b.color||BRAND_COLORS[Math.max(idx,0)%BRAND_COLORS.length]):"var(--fg-faint)";
@@ -5343,10 +5343,10 @@ function dnWaveBoxes(b,sel,pref){ const ws=state.waves.filter(w=>w.brandId===b.i
 function renderKnowledgePage(brand){
   const t=document.getElementById("pageTitle"), c=document.getElementById("pageCrumb"), a=document.getElementById("topActions"), v=document.getElementById("view");
   a.innerHTML="";
-  if(!brand){ t.textContent="Brand knowledge"; c.textContent="pick a brand";
-    v.innerHTML='<div class="briefcard" style="padding:16px"><div class="kbtitle" style="margin-bottom:6px">Pick a brand</div><div class="mini" style="margin-bottom:10px">Brand knowledge and drafting notes belong to one brand.</div>'+(state.brands.length?state.brands.map(x=>'<button class="btn" style="margin:0 6px 6px 0" data-kb="'+esc(x.id)+'">'+esc(x.name)+'</button>').join(""):'<div class="mini">No brands yet.</div>')+'</div>';
+  if(!brand){ t.textContent="Drafting notes"; c.textContent="pick a brand";
+    v.innerHTML='<div class="briefcard" style="padding:16px"><div class="kbtitle" style="margin-bottom:6px">Pick a brand</div><div class="mini" style="margin-bottom:10px">Drafting notes belong to one brand.</div>'+(state.brands.length?state.brands.map(x=>'<button class="btn" style="margin:0 6px 6px 0" data-kb="'+esc(x.id)+'">'+esc(x.name)+'</button>').join(""):'<div class="mini">No brands yet.</div>')+'</div>';
     v.querySelectorAll("[data-kb]").forEach(el=>el.addEventListener("click",()=>setScope(el.dataset.kb))); return; }
-  t.textContent=brand.name+" — brand knowledge"; c.textContent="what the Alchemist knows and how it should write";
+  t.textContent=brand.name+" — drafting notes"; c.textContent="what the Alchemist knows and how it should write";
   const notes=dnList(brand);
   const rows=notes.map((n,i)=>'<div class="dnrow'+(n.on===false?" off":"")+'" data-i="'+i+'"><input type="checkbox" class="dnon" '+(n.on===false?"":"checked")+' title="On / off"><div class="dnmain"><textarea class="dntxt" rows="2">'+esc(n.text||"")+'</textarea><div class="mini">Applies to: <b>'+esc(dnScopeLabel(brand,n))+'</b> · <button class="lnk dnscope" type="button">Change</button> · <button class="lnk dndel" type="button">Delete</button></div></div></div>').join("");
   const wl=state.waves.filter(w=>w.brandId===brand.id);
