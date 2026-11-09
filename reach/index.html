@@ -925,6 +925,7 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
 #bellBtn{position:relative}
 #bellBtn .bn{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;border-radius:9px;background:var(--bad);color:#fff;font:700 10.5px/17px var(--font-body);text-align:center;padding:0 4px}
 
+.paneseg{display:inline-flex;gap:2px;padding:3px;margin:0 0 14px;border:1px solid rgba(127,127,127,.3);border-radius:999px}.paneseg button{border:0;background:transparent;color:inherit;font:inherit;font-size:13px;font-weight:600;padding:7px 16px;border-radius:999px;cursor:pointer;opacity:.7}.paneseg button.on{background:#e0a63e;color:#1a1405;opacity:1}.paneseg button:focus-visible{outline:2px solid #e0a63e;outline-offset:2px}.setupnote{font-size:13px;opacity:.8;margin:0 0 12px}.setupchk{display:flex;gap:8px;align-items:center;font-size:13px;margin:-4px 0 12px}
 </style><style id="fm-bsw-v24">@media (max-width:700px){#topnav .spacer{display:none!important}#topnav>#bsw{flex:1 1 0!important;min-width:0!important;margin-left:6px!important;position:static!important}#topnav #bsBtn{max-width:none!important;width:100%;justify-content:flex-start}#topnav #bsLabel{flex:1 1 auto;min-width:0;text-align:left}#topnav #bsBtn .car{margin-left:auto}#topnav #bsMenu.bsmenu{position:absolute;left:12px!important;right:12px!important;top:100%;margin-top:4px;width:auto;min-width:0!important}}@media (min-width:701px){#bsBtn{max-width:260px!important}.bsmenu{min-width:280px}}</style><style id="fm-mobile-v2">
 /* Reach on a phone, pass 2 (2026-11-03): filters in a bottom sheet, swipe a card left to snooze. */
 .fsw{display:contents}.fshead,.fsbtn,.fsback{display:none}
@@ -2540,6 +2541,7 @@ const LEAD_STAGES = ["New","Researching","Ready to Reach Out","Contacted","In Co
 const TEMPLATES = ["A — Direct creator inbox","B — Talent agency / management","C — Twitch (CCV-based)","D — Orgs / networks / editorial","Follow-up 1","Follow-up 2","E — Project-named (post-reply only)"];
 const PROCEED_OPTIONS = ["","Yes","No","Pending"];
 const OWNER_TYPES = ["UPM Account Manager","Client / brand — own channels"];
+function ownerTypes(){ return [["UPM Account Manager",(agencyName()||"Agency")+" account manager"],["Client / brand — own channels","Client / brand — own channels"]]; }
 const COVERAGE_TYPES = ["Free Coverage","Paid Coverage","Discounted","Product/Access Only"];
 const INTRO_TYPES = ["New client","Partnership","Integration","Major user / community","Investor / grant","Other"];
 const BRAND_COLORS = ["#e0a63e","#6bc28c","#7fb2e0","#e07d68","#c6a8ef","#e08ec0","#8fd1c7"];
@@ -2591,6 +2593,7 @@ function daysBetween(a,b){ a=toIso(a); b=toIso(b); if(!a||!b) return null; const
 function daysAgo(iso){ const n=daysBetween(iso,todayISO()); return n; }
 function agoText(iso){ if(!iso) return "—"; const n=daysAgo(iso); if(n==null) return "—"; if(n<=0) return "today"; if(n===1) return "yesterday"; if(n<14) return n+"d ago"; if(n<60) return Math.round(n/7)+"w ago"; return Math.round(n/30)+"mo ago"; }
 function toast(m,actLabel,actFn){ const t=document.getElementById("toast"); t.textContent=m; if(actLabel){ const b=document.createElement("button"); b.className="tact"; b.textContent=actLabel; b.addEventListener("click",()=>{ t.classList.remove("show"); try{actFn();}catch(e){} }); t.appendChild(b); } t.classList.add("show"); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),actLabel?6500:2600); }
+function optp(list,cur){ return list.map(x=>'<option value="'+esc(x[0])+'" '+(cur===x[0]?"selected":"")+'>'+esc(x[1])+'</option>').join(""); }
 function opt(list,cur){ return list.map(v=>'<option value="'+esc(v)+'" '+(cur===v?"selected":"")+'>'+esc(v||"—")+'</option>').join(""); }
 function pillClass(t){ t=(t||"").toLowerCase();
   if(t.includes("won")||t.includes("completed")) return "p-good";
@@ -2604,6 +2607,7 @@ async function boot(){
   wireChrome();
   if(!window.claude||!window.claude.use){ renderNoCap(); return; }
   db = await window.claude.use("db"); userCap = await window.claude.use("user");
+  try{ window.claude.use("reach").then(R=>{ try{ ACCT=(R&&R.account&&R.account())||null; }catch(e){} }).catch(()=>{}); }catch(e){}
   window.claude.use("sample").then(s=>{ sampleCap=s||null; if(state.wb.active) paneAgentState(); }).catch(()=>{ sampleCap=null; });
   window.claude.use("permissions").then(p=>{ permCap=p||null; }).catch(()=>{ permCap=null; }).then(()=>window.claude.use("mcp")).then(m=>{ mcpCap=m||null; return connRefresh(); }).catch(()=>{ mcpCap=null; CONNECTORS.forEach(c=>{ conn[c.key]={st:"unavailable"}; }); }).then(()=>loadInboxState()).then(()=>{ renderSidebar(); if(state.wb&&state.wb.view!==undefined&&!state.loading) scheduleRender(); });
   if(!db){ renderNoCap(); return; }
@@ -2814,11 +2818,13 @@ function wireSort(scope,s,redraw){ scope.querySelectorAll("th.sortable").forEach
 
 /* ====================== RENDER ====================== */
 let shareChecked=false;
+let setupAsked=false;
 function render(){
   pendingRender=false;
   const view=document.getElementById("view");
   if(!state.loading&&!autoPrepDone){ autoPrepDone=true; setTimeout(autoPrepare,60); }
   if(!state.loading&&!shareChecked){ shareChecked=true; scheduleShareSync(); }
+  if(!state.loading&&!setupAsked&&!clientMode()&&!(CLIENT&&CLIENT.canWrite===false)&&setupNeeded()){ setupAsked=true; setTimeout(()=>{ try{ openSetupModal(); }catch(e){} },500); }
   renderSidebar();
   if(clientMode()){ if(state.loading){ view.className="pagemode"; view.innerHTML='<div class="empty"><div class="big">Loading…</div></div>'; return; } renderClientPage(); return; }
   if(state.loading){ view.className="pagemode"; view.innerHTML='<div class="empty"><div class="big">Lighting the furnace…</div></div>'; return; }
@@ -2864,17 +2870,61 @@ function addLeadsToWave(ids,brand,wave){
   toast("Added "+ids.length+" to "+wave.name); state.addTargetToWave=null; openWave(wave.id);
 }
 /* ---- workspace / plan surface — honest: records the chosen plan, no checkout ---- */
+/* ---- 2026-11-09: first-run setup. Nobody inherits another person's name, agency or address: each workspace says who it is. ---- */
+function identityMissing(){ const m=wsMeta(), out=[]; if(!((m.senderName||"").trim()||sigText())) out.push("name"); if(!(m.agencyName||"").trim()&&!m.soloSender) out.push("company"); return out; }
+function brandNeedsName(){ return (state.brands||[]).find(b=>!(b.callAs||"").trim()&&/^(my brand|new brand|brand)$/i.test((b.name||"").trim())); }
+function setupNeeded(){ return identityMissing().length>0||!!brandNeedsName(); }
+async function saveWorkspaceMeta(patch){ const prev=wsMeta(); const next=Object.assign({wsName:prev.wsName||"My workspace",plan:prev.plan||"Free"},prev,patch); delete next.id; const ex=state.meta.find(x=>x.id==="workspace"); if(ex) Object.assign(ex,next); else state.meta.push(Object.assign({id:"workspace"},next)); markDirty(); noteLocal("meta","workspace"); try{ await D("meta/workspace").set(next); }catch(e){ toast("Couldn't save"); return false; } return true; }
+async function ensureSetup(){ if(!setupNeeded()) return true; openSetupModal(); toast("Finish this quick setup first — drafts need your name and your brand's name"); return false; }
+function openSetupModal(){
+  const m=wsMeta(), nb=brandNeedsName(), solo=!!m.soloSender;
+  const nm=(m.senderName||"").trim()||acctName();
+  openModal('<div class="mhead"><div><h3>Set up in one minute</h3><div class="ikstep">So every message is written as you, for your brand</div></div><button class="iconbtn" id="mClose" aria-label="Close">&times;</button></div><div class="mbody">'
+    +'<div class="section-title">You</div>'
+    +'<div class="g2"><div class="field"><label>Your name in messages</label><input type="text" id="suName" value="'+esc(nm)+'" placeholder="e.g. Sam Lee"></div>'
+    +'<div class="field"><label>Your company or agency</label><input type="text" id="suAgency" value="'+esc(m.agencyName||"")+'" placeholder="e.g. Acme Media"'+(solo?" disabled":"")+'></div></div>'
+    +'<label class="setupchk"><input type="checkbox" id="suSolo"'+(solo?" checked":"")+'> I send only for my own brand (no agency)</label>'
+    +'<div class="field"><label>Sending email <span class="mini">(the Gmail address you send from)</span></label><input type="text" id="suEmail" value="'+esc(m.senderEmail||(ACCT&&ACCT.email)||"")+'" placeholder="you@yourcompany.com"></div>'
+    +(nb?'<div class="section-title" style="margin-top:12px">Your brand</div><div class="setupnote">Each brand has its own name for the workbench and the name the people you contact will see.</div>'
+      +'<div class="g2"><div class="field"><label>Brand name in your workbench <span class="mini">(only you see this)</span></label><input type="text" id="suBrand" value="" placeholder="e.g. Acme Spring Launch"></div>'
+      +'<div class="field"><label>Name used in messages and subject lines</label><input type="text" id="suCall" value="" placeholder="e.g. Acme"></div></div>'
+      +'<div class="g2"><div class="field"><label>Website <span class="mini">(optional)</span></label><input type="text" id="suSite" value="" placeholder="https://"></div><div class="field"><label>What it is <span class="mini">(one line, optional)</span></label><input type="text" id="suWhat" value="" placeholder="e.g. A reading app for kids"></div></div>':'')
+    +'<div class="setupnote" style="margin-top:6px">You can change all of this later: Account menu → Sender profile &amp; plan, and Brand page → Brand details.</div>'
+    +'</div>'+foot("Save and continue"),false);
+  wireClose();
+  const solo0=document.getElementById("suSolo"), ag=document.getElementById("suAgency");
+  solo0.addEventListener("change",()=>{ ag.disabled=solo0.checked; if(solo0.checked) ag.value=""; });
+  const brandInp=document.getElementById("suBrand"), callInp=document.getElementById("suCall");
+  if(brandInp&&callInp){ let touched=false; callInp.addEventListener("input",()=>{ touched=true; }); brandInp.addEventListener("input",()=>{ if(!touched) callInp.value=brandInp.value; }); }
+  document.getElementById("mSave").addEventListener("click",async()=>{
+    const name=gv("suName"), agency=document.getElementById("suSolo").checked?"":gv("suAgency"), email=gv("suEmail");
+    if(!name){ toast("Add your name"); return; }
+    if(!agency&&!document.getElementById("suSolo").checked){ toast("Add your company, or tick “I send only for my own brand”"); return; }
+    let bn="",bc="";
+    if(nb){ bn=gv("suBrand"); bc=gv("suCall")||bn; if(!bn){ toast("Add a name for your brand"); return; } }
+    const prev=wsMeta(); const sig=(prev.signature||"").trim()||[name,agency].filter(Boolean).join("\n");
+    const ok=await saveWorkspaceMeta({senderName:name,agencyName:agency,soloSender:document.getElementById("suSolo").checked,senderEmail:email,signature:sig});
+    if(!ok) return;
+    if(nb){ try{ await D("brands/"+nb.id).update({name:bn,callAs:bc,officialSite:gv("suSite"),whatItIs:gv("suWhat")}); }catch(e){ toast("Couldn't save the brand"); return; } }
+    closeModal(); toast("Saved — drafts will now be written as "+name+(agency?" from "+agency:"")); scheduleRender();
+  });
+}
 function openAccountModal(){
   const pcm=(state.meta||[]).find(x=>x.id==='publicContact')||{};
-  const m=wsMeta(); const cur=m.plan||"Free"; const wsName=m.wsName||(viewerIsAdmin?"UPM — agency":"My workspace");
+  const m=wsMeta(); const cur=m.plan||"Free"; const wsName=m.wsName||"My workspace";
   const tiers=PLAN_TIERS.map(t=>'<div class="plan'+(t.name===cur?' on':'')+'" data-plan="'+esc(t.name)+'"><div class="ptop"><span class="pname">'+esc(t.name)+'</span><span class="pprice">'+esc(t.price)+'</span></div><div class="pline">'+esc(t.line)+'</div><ul class="pfeat">'+t.feats.map(f=>'<li>'+esc(f)+'</li>').join("")+'</ul><button class="btn small '+(t.name===cur?'':'primary')+'" data-choose="'+esc(t.name)+'" '+(t.name===cur?'disabled':'')+'>'+(t.name===cur?'Current plan':'Choose '+esc(t.name))+'</button></div>').join("");
-  openModal('<div class="mhead"><div><h3>Workspace &amp; plan</h3><div class="ikstep">'+(viewerIsAdmin?'Agency workspace — root data':'Your private workspace')+'</div></div><button class="iconbtn" id="mClose">&times;</button></div><div class="mbody">'
-    +'<div class="field"><label>Workspace name</label><input type="text" id="mWsName" value="'+esc(wsName)+'"></div>'
+  openModal('<div class="mhead"><div><h3>Sender profile &amp; plan</h3><div class="ikstep">'+(viewerIsAdmin?'Agency workspace':'Your private workspace')+'</div></div><button class="iconbtn" id="mClose">&times;</button></div><div class="mbody">'
+    +'<div class="section-title">Who your messages come from</div>'
+    +'<div class="hint" style="margin:0 0 8px">Every draft, signature and subject line uses these. They are yours — nothing here is shared with anyone else.</div>'
+    +'<div class="g2"><div class="field"><label>My name in messages</label><input type="text" id="mSenderName" value="'+esc(m.senderName||senderName())+'" placeholder="e.g. Sam Lee"></div><div class="field"><label>My company or agency <span class="mini">(what drafts call you; leave blank if you send only for your own brand)</span></label><input type="text" id="mAgency" value="'+esc(m.agencyName||"")+'" placeholder="e.g. Acme Media"></div></div>'
+    +'<div class="field"><label>Sending email <span class="mini">(the Gmail address you send from)</span></label><input type="text" id="mSender" value="'+esc(m.senderEmail||(ACCT&&ACCT.email)||"")+'" placeholder="you@yourcompany.com"></div>'
+    +'<div class="field"><label>Email signature <span class="mini">(appended when you copy a message or open Gmail — use the registered business address only)</span></label><textarea id="mSig" rows="4" placeholder="Sam Lee&#10;Acme Media&#10;[registered address]">'+esc(m.signature||"")+'</textarea></div>'
+    +'<div class="hint" style="margin:0 0 8px">The name a <b>brand</b> goes by in messages and subject lines is set on the brand: Brand page → Brand details → Edit.</div>'
+    +'<div class="section-title" style="margin-top:14px">Workspace</div>'
+    +'<div class="field"><label>Workspace name <span class="mini">(only you see this)</span></label><input type="text" id="mWsName" value="'+esc(wsName)+'"></div>'
     +'<div class="field"><label>Workspace avatar <span class="mini">(shown top right in Reach and Content, so you can tell your workspace from the brand you are on)</span></label><div class="row" style="gap:10px;align-items:center"><span id="mWsAv" style="width:40px;height:40px;border-radius:50%;overflow:hidden;display:inline-grid;place-items:center;background:var(--surface-3);flex:0 0 auto"></span><button class="btn small" id="mWsAvPick" type="button">Choose image…</button><button class="btn small" id="mWsAvRm" type="button" style="display:none">Remove</button></div></div>'
-    +'<div class="g2"><div class="field"><label>Refer to my agency as <span class="mini">(what every draft calls you)</span></label><input type="text" id="mAgency" value="'+esc(m.agencyName||(viewerIsAdmin?"UPM":""))+'" placeholder="e.g. UPM"></div><div class="field"><label>My name in messages</label><input type="text" id="mSenderName" value="'+esc(m.senderName||senderName())+'" placeholder="e.g. Brad"></div></div>'
-    +'<div class="field"><label>Email signature <span class="mini">(appended when you copy a message or open Gmail — use the registered business address only)</span></label><textarea id="mSig" rows="4" placeholder="Brad&#10;United Press Media&#10;[registered address]">'+esc(m.signature||"")+'</textarea></div>'
+    +'<div class="g2"><div class="field"><label>Daily send ramp (warning threshold)</label><input type="number" id="mRamp" min="1" value="'+esc(m.rampPerDay||10)+'"></div><div class="field"></div></div>'
     +'<div class="field"><label>Saved snippets <span class="mini">(one per line: trigger = text. Type /trigger or say “insert trigger”. Links work well for media kits and decks. Use \\n for a new line.)</span></label><textarea id="mSnips" rows="4" placeholder="media kit = You can see our media kit here: https://example.com/kit&#10;pricing = Rates start from $X per placement.">'+esc(m.snippets||"")+'</textarea></div>'
-    +'<div class="g2"><div class="field"><label>Default sender mailbox</label><input type="text" id="mSender" value="'+esc(m.senderEmail||"")+'" placeholder="brad@unitedpress.media"></div><div class="field"><label>Daily send ramp (warning threshold)</label><input type="number" id="mRamp" min="1" value="'+esc(m.rampPerDay||10)+'"></div></div>'
     +'<div class="section-title" style="margin-top:14px">Public listing contact</div>'
     +'<div class="hint" style="margin:0 0 8px">Shown to other Reach users on options you share to the public library, so buyers know how to order from you. Nothing else about you or your brands is shown.</div>'
     +'<div class="g2"><div class="field"><label>Name shown publicly</label><input type="text" id="pcName" value="'+esc(pcm.name||"")+'" placeholder="Your agency or company"></div><div class="field"><label>Order email</label><input type="text" id="pcEmail" value="'+esc(pcm.email||"")+'"></div></div>'
@@ -2943,7 +2993,7 @@ function wireCommandCenter(){
 }
 
 /* ---- brand overview (both pipelines) ---- */
-function renderOverview(brand){
+function renderOverview0(brand){
   const t=document.getElementById("pageTitle"), c=document.getElementById("pageCrumb"), a=document.getElementById("topActions"), v=document.getElementById("view");
   t.textContent=brand.name;
   const flows=[]; if(brandUses(brand,"coverage")) flows.push("Coverage"); if(brandUses(brand,"lead")) flows.push("Partnerships & Intros");
@@ -3004,7 +3054,7 @@ function renderWaveCards(brand,type){
   }).join("")+'</div>';
   return cards+'<div style="margin:10px 0 4px"><button class="btn small '+(type==="lead"?"primary lead":"primary")+'" data-newwave="'+type+'">+ New '+label+'</button></div>';
 }
-function ownerLabel(d){ if(!d.ownerType) return "—"; return d.ownerType==="UPM Account Manager"?("UPM — "+(d.ownerName||"?")):("Client — "+(d.ownerName||"own channels")); }
+function ownerLabel(d){ if(!d.ownerType) return "—"; return d.ownerType==="UPM Account Manager"?((agencyName()||"Agency")+" — "+(d.ownerName||"?")):("Client — "+(d.ownerName||"own channels")); }
 function drawerShell(headCls, title, sub, bodyHtml){
   const drawer=document.getElementById("drawer");
   drawer.innerHTML='<div class="dhead '+headCls+'"><div class="ti"><h2>'+title+'</h2><div class="sub">'+sub+'</div></div><button class="iconbtn" id="drawerClose">&times;</button></div><div class="dbody">'+bodyHtml+'</div>';
@@ -3144,8 +3194,8 @@ async function saveIntakeBrand(){
 }
 function openEditBrandModal(b){
   openModal('<div class="mhead"><h3>Edit '+esc(b.name)+'</h3><button class="iconbtn" id="mClose">&times;</button></div><div class="mbody">'
-    +'<div class="row2"><div class="field"><label>Name</label><input type="text" id="mName" value="'+esc(b.name)+'"></div><div class="field"><label>Pipelines</label><select id="mPipe">'+['both','coverage','lead'].map(v=>'<option value="'+v+'" '+((b.usesCoverage!==false&&b.usesLeads!==false&&v==="both")||(b.usesCoverage!==false&&b.usesLeads===false&&v==="coverage")||(b.usesLeads!==false&&b.usesCoverage===false&&v==="lead")?"selected":"")+'>'+(v==="both"?"Both":v==="coverage"?"Coverage only":"Leads only")+'</option>').join("")+'</select></div></div>'
-    +'<div class="field"><label>Refer to this brand as <span class="mini">(the name messages use. Leave blank to use the name above)</span></label><input type="text" id="mCallAs" value="'+esc(b.callAs||"")+'" placeholder="e.g. SpinQuest"></div>'
+    +'<div class="row2"><div class="field"><label>Brand name in your workbench <span class="mini">(only you see this)</span></label><input type="text" id="mName" value="'+esc(b.name)+'"></div><div class="field"><label>Pipelines</label><select id="mPipe">'+['both','coverage','lead'].map(v=>'<option value="'+v+'" '+((b.usesCoverage!==false&&b.usesLeads!==false&&v==="both")||(b.usesCoverage!==false&&b.usesLeads===false&&v==="coverage")||(b.usesLeads!==false&&b.usesCoverage===false&&v==="lead")?"selected":"")+'>'+(v==="both"?"Both":v==="coverage"?"Coverage only":"Leads only")+'</option>').join("")+'</select></div></div>'
+    +'<div class="field"><label>Name used in messages and subject lines <span class="mini">(what the people you contact see. Leave blank to use the workbench name)</span></label><input type="text" id="mCallAs" value="'+esc(b.callAs||"")+'" placeholder="e.g. SpinQuest"></div>'
     +'<div class="row2"><div class="field"><label>Official site</label><input type="text" id="mSite" value="'+esc(b.officialSite||"")+'"></div><div class="field"><label>Legal name</label><input type="text" id="mLegal" value="'+esc(b.legalName||"")+'"></div></div>'
     +'<div class="field"><label>What it is</label><textarea id="mWhat">'+esc(b.whatItIs||"")+'</textarea></div>'
     +brandKnowledgeFields(b)
@@ -3156,7 +3206,7 @@ function openEditBrandModal(b){
     +''
     +'<div class="section-title kbs" style="margin:14px 0 10px"><span class="dot" style="background:var(--fg-faint)"></span>Campaign &amp; plan settings</div><div class="row2"><div class="field"><label>Campaign status</label><input type="text" id="mCStatus" value="'+esc(b.campaignStatus||"")+'"></div><div class="field"><label>Primary KPI</label><input type="text" id="mKPI" value="'+esc(b.primaryKPI||"")+'"></div></div>'
     +'<div class="row2"><div class="field"><label>Monthly budget</label><input type="text" id="mBudget" value="'+esc(b.monthlyBudget||"")+'"></div><div class="field"><label>Subscription plan</label><input type="text" id="mPlan" value="'+esc(b.subscriptionPlan||"")+'"></div></div>'
-    +'<div class="row2"><div class="field"><label>Client contact</label><input type="text" id="mCContact" value="'+esc(b.clientContact||"")+'"></div><div class="field"><label>Outreach sender <span class="mini">(your Google account to open)</span></label><input type="text" id="mSender" value="'+esc(b.outreachSender||"")+'" placeholder="brad@unitedpress.media"></div></div>'
+    +'<div class="row2"><div class="field"><label>Client contact</label><input type="text" id="mCContact" value="'+esc(b.clientContact||"")+'"></div><div class="field"><label>Outreach sender <span class="mini">(your Google account to open)</span></label><input type="text" id="mSender" value="'+esc(b.outreachSender||"")+'" placeholder="you@yourcompany.com"></div></div>'
     +'<div class="field"><label>Send-as alias <span class="mini">(the From address this brand uses, if it is an alias of that account)</span></label><input type="text" id="mSendAs" value="'+esc(b.sendAs||"")+'" placeholder="outreach@brand.com"></div>'
     +'<div class="field"><label>Deal history / renewal risk</label><input type="text" id="mDeal" value="'+esc(b.dealHistory||"")+'"></div>'
     +'<div class="row2"><div class="field"><label>Free coverage quota</label><input type="number" id="mQuota" value="'+esc(b.planQuota||"")+'"></div><div class="field"><label>Per</label><select id="mPeriod">'+opt(PLAN_PERIODS,b.planPeriod||"per month")+'</select></div></div>'
@@ -3577,9 +3627,12 @@ function nudgeDays(why,d){
 function closeAge(why,days){ const meta=BLOCK_WHY[why]; if(!meta.close) return 0; return Math.max(meta.close,(days[days.length-1]||0)+4); }
 function maxNudges(){ const n=Number(wsMeta().maxNudges); return n>=1&&n<=3?n:3; }
 function gapDays(){ const n=Number(wsMeta().nudgeGap); return n>=0&&n<=30?n:3; }
-function senderName(){ return (wsMeta().senderName||"").trim()||(sigText().split("\n")[0]||"").trim()||"Brad"; }
+let ACCT=null;
+/* 2026-11-09: no built-in person or agency. A user who has not set their name gets their own account name, never anyone else's. */
+function acctName(){ const n=String((ACCT&&ACCT.name)||"").trim(); return n&&!/@/.test(n)?n:""; }
+function senderName(){ return (wsMeta().senderName||"").trim()||(sigText().split("\n")[0]||"").trim()||acctName(); }
 /* what drafts call the agency and the brand: the user decides (workspace settings / brand "Refer to this brand as") */
-function agencyName(){ return (wsMeta().agencyName||"").trim()||(viewerIsAdmin?"UPM":""); }
+function agencyName(){ return (wsMeta().agencyName||"").trim(); }
 function brandCall(b){ b=b||{}; return (b.callAs||"").trim()||b.name||""; }
 function b0(d){ return brandById(d.brandId)||{}; }
 /* earlier messages to the same target (or the same inbox) for ANY brand in this workspace */
@@ -3675,7 +3728,7 @@ function buildNudge(d,st,tone){
         :"Hi {{First}},\n\nFinal check on {{Subj}}. If we don't have {{Ask}} by {{By}}, we'll release {{Target}} and pause this item so it doesn't sit open. You can reopen it any time."+opts+"\n\nThanks,\n{{Sender}}";
     if(st.why==="brief") body=body.replace(/A one-word reply works:[\s\S]*?\(tell us until when\)/,"If you need more time, tell us until when and we'll plan around it.");
   }
-  const subjectLine=creator?("Re: "+lastSubj):("Quick check: "+(b.name||"")+" / "+tgt+(st.why==="payment"?" — payment":st.why==="brief"?" — brief & assets":" — your decision"));
+  const subjectLine=creator?("Re: "+lastSubj):("Quick check: "+(brandCall(b)||b.name||"")+" / "+tgt+(st.why==="payment"?" — payment":st.why==="brief"?" — brief & assets":" — your decision"));
   return {subject:subjectLine,body:rep(body)};
 }
 
@@ -4135,10 +4188,10 @@ function wireRequestAccess(){ const b=document.getElementById("reqAccBtn"); if(!
    The same tabs serve "All brands" and a single brand; the brand switcher is the only
    place other brands appear, and it is absent for client viewers (see client.js).
    ===================================================================== */
-const TAB_DEFS=[["work","Workbench"],["options","Options"],["requests","Requests"],["knowledge","Drafting notes"],["overview","Brands"]];
+const TAB_DEFS=[["work","Workbench"],["options","Options"],["requests","Requests"],["overview","Brands"]];
 const SEC_OF_TAB={work:"work",stalled:"stalled",deals:"deals",options:"options",requests:"cov_requests",knowledge:"knowledge",overview:"overview"};
 const TOP_OF_TAB={work:"work",stalled:"stalled",deals:"deals",options:"options",requests:"requests",knowledge:"knowledge",overview:"brands"};
-function curTab(){ const sec=state.currentBrandId?state.currentSection:state.top; return ({work:"work",stalled:"stalled",deals:"deals",options:"options",cov_requests:"requests",requests:"requests",knowledge:"knowledge",overview:"overview",brands:"overview"})[sec]||"work"; }
+function curTab(){ const sec=state.currentBrandId?state.currentSection:state.top; return ({work:"work",stalled:"stalled",deals:"deals",options:"options",cov_requests:"requests",requests:"requests",knowledge:"overview",overview:"overview",brands:"overview"})[sec]||"work"; }
 function goTab(t){ if(t==="options"){ OPT_PROFILE=null; LEAD_PROFILE=null; } if(state.currentBrandId) goSection(SEC_OF_TAB[t]||"work"); else goTop(TOP_OF_TAB[t]||"work"); }
 function setScope(id){
   const t=curTab(); state.currentBrandId=id||null; setBrandNav(id||null); state.currentWaveId=null; state.addTargetToWave=null; state.wb.wave=""; state.wb.active=null; state.wb.sel={};
@@ -4158,8 +4211,8 @@ function renderSidebar(){
   if(typeof clientMode==="function"&&clientMode()){ document.body.classList.remove("mnav"); if(mt) mt.innerHTML=""; renderClientTopnav(); return; }
   document.body.classList.add("mnav");
   const scopeId=state.currentBrandId, cur=curTab(), loading=state.loading;
-  top.innerHTML=TAB_DEFS.map(([k,l])=>{ const label=k==="overview"?(scopeId?"Brand details":"Brands"):l; const n=loading?0:tabBadge(k,scopeId); return '<button class="tab'+(cur===k?" on":"")+'" data-tab="'+k+'">'+esc(label)+(n?'<span class="tb'+(k==="stalled"?" bad":k==="requests"?" info":"")+'">'+n+'</span>':'')+'</button>'; }).join("");
-  if(mt) mt.innerHTML=TAB_DEFS.map(([k,l])=>{ const label=k==="overview"?(scopeId?"Brand details":"Brands"):l; const n=loading?0:tabBadge(k,scopeId); return '<button data-tab="'+k+'" class="'+(cur===k?"on":"")+'" aria-label="'+esc(label)+'"><svg viewBox="0 0 24 24" aria-hidden="true">'+TAB_ICON[k]+'</svg><span>'+esc(label)+'</span>'+(n?'<span class="tb'+(k==="stalled"?" bad":k==="requests"?" info":"")+'">'+n+'</span>':'')+'</button>'; }).join("");
+  top.innerHTML=TAB_DEFS.map(([k,l])=>{ const label=k==="overview"?(scopeId?"Brand":"Brands"):l; const n=loading?0:tabBadge(k,scopeId); return '<button class="tab'+(cur===k?" on":"")+'" data-tab="'+k+'">'+esc(label)+(n?'<span class="tb'+(k==="stalled"?" bad":k==="requests"?" info":"")+'">'+n+'</span>':'')+'</button>'; }).join("");
+  if(mt) mt.innerHTML=TAB_DEFS.map(([k,l])=>{ const label=k==="overview"?(scopeId?"Brand":"Brands"):l; const n=loading?0:tabBadge(k,scopeId); return '<button data-tab="'+k+'" class="'+(cur===k?"on":"")+'" aria-label="'+esc(label)+'"><svg viewBox="0 0 24 24" aria-hidden="true">'+TAB_ICON[k]+'</svg><span>'+esc(label)+'</span>'+(n?'<span class="tb'+(k==="stalled"?" bad":k==="requests"?" info":"")+'">'+n+'</span>':'')+'</button>'; }).join("");
   const b=scopeId?brandById(scopeId):null; const idx=b?state.brands.indexOf(b):-1;
   document.getElementById("bsLabel").textContent=b?b.name:"All brands";
   const sw=document.getElementById("bsSw"); sw.style.background=b?(b.color||BRAND_COLORS[Math.max(idx,0)%BRAND_COLORS.length]):"var(--fg-faint)";
@@ -4172,9 +4225,9 @@ function renderSidebar(){
   renderBell(); initAlchemistChat();
 }
 /* Account menu + module menu are built by /assets/xpromo.js (one component for Content and Reach). Reach only supplies its own entries. */
-window.xpHostInfo=function(){ const m=wsMeta(); return {workspace:m.wsName||(viewerIsAdmin?"UPM \u2014 agency":"My workspace")}; };
+window.xpHostInfo=function(){ const m=wsMeta(); return {workspace:m.wsName||"My workspace"}; };
 window.xpModuleItems=function(){
-  const items=[{label:"Workspace settings",fn:()=>openAccountModal()},{label:"Connections",mini:CONNECTORS.filter(c=>connUsable(c.key)).length+"/"+CONNECTORS.length,fn:()=>openConnections()},{label:"Claude automation",fn:()=>openAutomation()}];
+  const items=[{label:"Sender profile & plan",fn:()=>openAccountModal()},{label:"Connections",mini:CONNECTORS.filter(c=>connUsable(c.key)).length+"/"+CONNECTORS.length,fn:()=>openConnections()},{label:"Claude automation",fn:()=>openAutomation()}];
   if(state.currentBrandId&&viewerIsAdmin) items.push({label:CLIENT.preview?"Exit client view":"Client view",fn:()=>{ if(CLIENT.preview) exitPreview(); else startPreview(); }});
   items.push({label:"Reach guide",href:"/reach-features/"}); return items; };
 window.xpCloseHostMenus=function(){ closeBrandMenu(); };
@@ -4477,7 +4530,7 @@ function renderWorkbench(brand){
     +'<button class="btn small'+(nMore?" act":"")+'" id="fMore" title="More filters and tools">'+(w.moreOpen?"▴":"▾")+' More'+(nMore?" · "+nMore:"")+'</button>'
     +'<button class="btn small" id="fClear" style="display:none">Clear</button><span class="sp"></span><span class="cnt" id="wbCount"></span></div>'
     +'<div class="wbmore'+(w.moreOpen?" open":"")+'" id="wbMore">'+sel("fFlow",w.flow,[["coverage","Coverage"],["lead","Partnerships & Intros"],["community","Communities"]],"All pipelines")
-    +sel("fOwner",w.owner,OWNER_TYPES,"Any owner")+sel("fSent",w.sent,[["never","Never contacted"],["7","Sent ≤ 7 days"],["30","Sent ≤ 30 days"]],"Any send date")+sel("fTz",w.tz,TZ_FILTER,"Any send timing")
+    +sel("fOwner",w.owner,ownerTypes(),"Any owner")+sel("fSent",w.sent,[["never","Never contacted"],["7","Sent ≤ 7 days"],["30","Sent ≤ 30 days"]],"Any send date")+sel("fTz",w.tz,TZ_FILTER,"Any send timing")
     +'<label class="check"><input type="checkbox" id="fAlerts"'+(w.alertsOnly?" checked":"")+'> Has warnings</label><label class="check" title="The 10 open rows with the highest priority score"><input type="checkbox" id="fTop"'+(w.top?" checked":"")+'> Top 10 prospects</label><div class="reachrow" id="wbReach"></div><span class="sp"></span>'
     +'<button class="btn small" id="fCompact" title="Denser rows">'+(w.compact?"Cozy":"Compact")+'</button><button class="btn small" id="fTsv" title="Copy rows as TSV for Sheets">Copy as TSV</button><button class="btn small" id="fHelp" title="Keyboard shortcuts">⌨ <span class="kbd">?</span></button></div></div><div class="fsback'+(w.fsOpen?" on":"")+'" id="fsback"></div>';
   const acts='<div class="wbacts"><button class="btn small" id="aFind" title="Add targets: have the Alchemist find creators, leads or free communities, or add from your own library">＋ Add / Find</button><button class="btn small" id="aProg" title="Check inboxes for replies">📬 Check replies</button>'+(brand?'<button class="btn small" id="aBrand" title="Pause or resume the whole brand, or any one of its campaigns">⏸ Pause / resume</button>':'')+'<button class="btn small" id="wbChrome" title="'+(w.chromeOff?"Show":"Hide")+' notices and filters">'+(w.chromeOff?"▾ Filters"+(nMore||w.q||w.wave||w.plat||w.status?" •":""):"▴")+'</button></div>';
@@ -4949,7 +5002,7 @@ function paneHtml(d){
    /* target + more */
    +'<details class="more psec"><summary>Contact &amp; target (shared catalog)</summary><div class="g2">'+(lead?tfld("Contact name","contactName")+tfld("Contact email","contactEmail")+tfld("Website","website")+tfld("Best contact","bestContact"):tfld("Contact email","contactEmail")+tfld("Contact link / handle","contactLink")+tfld("Contact other","contactOther")+tfld("List price (rates)","rates")+tfld("Platform","platform")+tfld("Niche","niche"))+'</div><div class="mini" style="margin-top:6px">Edits here update the shared catalog entry — every brand using this target sees them.</div></details>'
    +'<details class="more psec"><summary>More fields</summary><div class="g2">'
-   +'<div><label>Owner</label><select data-pf="ownerType"><option value="">—</option>'+opt(OWNER_TYPES,d.ownerType)+'</select></div>'+fld("Owner name","ownerName")
+   +'<div><label>Owner</label><select data-pf="ownerType"><option value="">—</option>'+optp(ownerTypes(),d.ownerType)+'</select></div>'+fld("Owner name","ownerName")
    +(lead?'<div><label>Intro type</label><select data-pf="introType"><option value="">—</option>'+opt(INTRO_TYPES,d.introType)+'</select></div>'+fld("Fit score","fitScore")+fld("Potential value","proposalValue")
      :'<div><label>Coverage type</label><select data-pf="outreachType"><option value="">—</option>'+opt(COVERAGE_TYPES,d.outreachType)+'</select></div><div><label>Template</label><select data-pf="template"><option value="">—</option>'+opt(TEMPLATES,d.template)+'</select></div>'+fld("Tier","tier")+fld("Brand fit","brandFit")+'<div><label>Proceed?</label><select data-pf="proceed">'+opt(PROCEED_OPTIONS,d.proceed)+'</select></div>')
    +fld("Sent date","sentDate","date")+fld("Replied date","repliedDate","date")+fld("Follow-up due","followUpDue","date")+fld("Next action","nextAction")
@@ -5358,7 +5411,7 @@ function dnScopeLabel(b,n){ const ws=(n.waves||[]).map(id=>(state.waves.find(w=>
 function dnSave(b,list){ patchDoc("brands",b.id,{draftNotes:list}); }
 function dnWaveBoxes(b,sel,pref){ const ws=state.waves.filter(w=>w.brandId===b.id).sort((x,y)=>(y.createdAt||0)-(x.createdAt||0));
   return ws.length?ws.map(w=>'<label class="dnchk"><input type="checkbox" data-w="'+esc(w.id)+'"'+(sel.includes(w.id)?" checked":"")+'> '+esc(w.name||"Campaign")+' <span class="mini">'+esc(w.pipelineType==="lead"?"leads":"coverage")+'</span></label>').join(""):'<div class="mini">No campaigns yet.</div>'; }
-function renderKnowledgePage(brand){
+function renderKnowledgePage0(brand){
   const t=document.getElementById("pageTitle"), c=document.getElementById("pageCrumb"), a=document.getElementById("topActions"), v=document.getElementById("view");
   a.innerHTML="";
   if(!brand){ t.textContent="Drafting notes"; c.textContent="pick a brand";
@@ -5393,6 +5446,11 @@ function renderKnowledgePage(brand){
   });
   v.querySelectorAll("[data-editbrand]").forEach(el=>el.addEventListener("click",()=>openEditBrandModal(brand)));
 }
+/* 2026-11-09: Brand details and Drafting notes are one page ("Brand") with two panes, not two tabs. */
+function brandPaneBar(active){ return '<div class="paneseg" role="tablist"><button type="button" data-pane="overview" class="'+(active==="overview"?"on":"")+'">Brand details</button><button type="button" data-pane="knowledge" class="'+(active==="knowledge"?"on":"")+'">Drafting notes</button></div>'; }
+function addPaneBar(active){ const v=document.getElementById("view"); if(!v) return; v.insertAdjacentHTML("afterbegin",brandPaneBar(active)); v.querySelectorAll(".paneseg [data-pane]").forEach(b=>b.addEventListener("click",()=>goSection(b.dataset.pane))); }
+function renderOverview(brand){ renderOverview0(brand); addPaneBar("overview"); }
+function renderKnowledgePage(brand){ renderKnowledgePage0(brand); if(brand) addPaneBar("knowledge"); }
 function kbMissing(b){ return KB_FIELDS.filter(f=>f.need&&!String(b[f.k]||"").trim()); }
 function knowledgeCardHTML(b){
   function row(l,v){ return v&&String(v).trim()?'<div class="brow"><div class="bk">'+l+'</div><div class="bv">'+esc(v)+'</div></div>':''; }
@@ -5425,7 +5483,7 @@ function brandKnowledgeFields(b){
    It only works from facts on the row. It cannot browse; research is a queued request.
    ===================================================================== */
 const AGENT_RULES=[
- "UPM outreach rules (hard):",
+ "Outreach rules (hard):",
  "- Plain text only: no images, tracking or attachments. No links, except where the campaign instructions below allow the brand's own link once.",
  "- Use the agency and brand names exactly as given in the writing instruction. Never expand, shorten or change them.",
  "- Never mention any former or previous name of a brand or product (for example \"Content Conveyor Belt\"). Use only the current name.",
@@ -5442,7 +5500,7 @@ function agentErr(e){ const c=e&&e.code; if(c==="not_granted") return "Allow Cla
 function brandFacts(b){ return ["Brand: "+b.name,b.callAs&&"In messages, always call the brand exactly: "+b.callAs,b.whatItIs&&"What it is: "+b.whatItIs,b.mission&&"Mission: "+b.mission,b.targetAudience&&"Audience: "+b.targetAudience,b.brandTone&&"Tone / voice: "+b.brandTone,b.proofPoints&&"Proof points (the ONLY facts about the brand you may cite): "+b.proofPoints,b.audienceHangouts&&"Where the audience gathers: "+b.audienceHangouts,b.keyMessages&&"Key messages (what may be said): "+b.keyMessages,b.competitors&&"COMPETITORS — never suggest, contact, mention or compare to these: "+b.competitors,b.blockWords&&"Blocked words — never suggest an option whose name, site or niche contains: "+b.blockWords,b.doNotContact&&"Do-not-contact list: "+b.doNotContact].filter(Boolean).map(x=>scrubOld(x,b.callAs||b.name)).join("\n"); }
 function targetFacts(d){ const t=targetForDeal(d); const L=[ "Name: "+nameOf(d) ];
   if(isLead(d)){ [["Category",t.category],["What they do",t.whatTheyDo],["Website",t.website],["Contact name",t.contactName],["Notes",t.notes],["Intro type",d.introType]].forEach(([k,v])=>{ if(v) L.push(k+": "+v); }); }
-  else { [["Platform",t.platform],["Type",t.type],["Niche",t.niche],["Language",t.language],["How to post",t.howToPost],["Rules / policy",t.rulesNote],["Contact name",t.contactName],["Research notes",t.researchNotes],["Personalisation line supplied by Brad",d.personalisation]].forEach(([k,v])=>{ if(v) L.push(k+": "+v); }); }
+  else { [["Platform",t.platform],["Type",t.type],["Niche",t.niche],["Language",t.language],["How to post",t.howToPost],["Rules / policy",t.rulesNote],["Contact name",t.contactName],["Research notes",t.researchNotes],["Personalisation line supplied by the sender",d.personalisation]].forEach(([k,v])=>{ if(v) L.push(k+": "+v); }); }
   return L.join("\n"); }
 function waveOf(d){ return ix().wave.get(d.waveId)||{}; }
 function organicOf(d){ return !isLead(d)&&waveOf(d).mode==="organic"; }
@@ -5477,7 +5535,7 @@ function templateGuide(d){ let k=suggestTemplate(d); const org=organicOf(d)&&!/^
   F2:"Follow-up 2 (day 10, last): very brief, make it easy to say no. Subject starts with 'Re:'.",
   L1:"Intro for a lead/partner: who UPM is, what the brand is (only from brand facts), one specific true reason this target is relevant (only from target facts, else omit), one low-friction ask.",
   L2:"Intro for a prospective client: who UPM is, one specific true observation about them (only from target facts, else omit), one low-friction ask.",
-  LF:"Intro follow-up: brief, polite, restate the ask."}; return {key:k,text:String(g[k]||"").replace(/\bBrad\b/g,senderName()).replace(/\bUPM\b/g,agencyName()||"the agency")}; }
+  LF:"Intro follow-up: brief, polite, restate the ask."}; return {key:k,text:String(g[k]||"").replace(/\bBrad\b/g,senderName()||"the sender").replace(/\bUPM\b/g,agencyName()||"the team")}; }
 async function runSample(prompt,tier,onStatus){
   if(!aiAvailable()) throw {code:"unavailable",message:"The Alchemist is not available in this view"};
   const gap=o=>GAP_RE.test(String((o&&o.subject)||"")+"\n"+String((o&&o.body)||""));
@@ -5495,6 +5553,7 @@ function revisePrompt(d,instruction){
 async function agentDraft(id,opts){
   opts=opts||{}; const d=ix().deal.get(id); if(!d) return; if(!aiAvailable()){ toast("The Alchemist isn't available in this view"); return; }
   if(agentBusy.has(id)) return;
+  if(opts.quiet){ if(setupNeeded()) return; } else if(!(await ensureSetup())) return;
   if(!opts.quiet&&!opts.statusChecked&&!(await freshenStatus([id]))) return;
   agentBusy.add(id);
   const row=document.querySelector('#wbBody tr[data-id="'+id+'"] [data-a=draftai]'); if(row) row.innerHTML='<span class="spin"></span>';
@@ -5510,6 +5569,7 @@ async function agentDraft(id,opts){
   finally{ agentBusy.delete(id); }
 }
 async function bulkDraft(ids,force){
+  if(ids.length&&!(await ensureSetup())) return;
   if(ids.length&&!(await freshenStatus(ids))) return;
   const todo=ids.filter(id=>{ const d=ix().deal.get(id); return d&&!d.manualOnly&&!d.sentDate&&(force?(!hasDraft(d)||d.draftState==="agent"):!hasDraft(d)); }); const skipped=ids.length-todo.length;
   if(!aiAvailable()){ toast("The Alchemist isn't available in this view"); return; }
@@ -5537,7 +5597,7 @@ function paneAgentState(){
   const box=document.getElementById("pAgent"); if(!box) return;
   if(!aiAvailable()){ box.style.display="none"; return; }
   const has=hasDraft(ix().deal.get(state.wb.active)||{});
-  const chips=[["Shorter","Make it shorter — cut to the essentials, keep the questions."],["More neutral","Remove warmth that reads as flattery; make it neutral and factual."],["Fix to UPM rules","Fix anything that breaks the UPM rules (money talk, flattery, counts, invented facts, placeholders). Keep the meaning."],["More human","Make it sound less templated and more human, without flattery."],["Single ask","Reduce it to one clear question."],["Personalise","Add one specific line about the target's own content using ONLY the facts supplied under TARGET; if there are none, don't add anything and say so in notes."]];
+  const chips=[["Shorter","Make it shorter — cut to the essentials, keep the questions."],["More neutral","Remove warmth that reads as flattery; make it neutral and factual."],["Fix to the rules","Fix anything that breaks the outreach rules (money talk, flattery, counts, invented facts, placeholders). Keep the meaning."],["More human","Make it sound less templated and more human, without flattery."],["Single ask","Reduce it to one clear question."],["Personalise","Add one specific line about the target's own content using ONLY the facts supplied under TARGET; if there are none, don't add anything and say so in notes."]];
   box.style.display=""; box.innerHTML='<div class="agh">✨ The Alchemist</div>'+(has?'<div class="chips">'+chips.map(c=>'<button class="chip" data-p="ai" data-label="'+esc(c[0])+'" data-ins="'+esc(c[1])+'">'+esc(c[0])+'</button>').join("")+'</div><div class="agrow"><input type="text" id="pAiInput" placeholder="Or tell it what to change…"><button class="btn small" data-p="askai">Ask</button></div>':'<div class="mini" style="margin-bottom:6px">No message yet — let the Alchemist write a first pass from the brand brief and this target. It only uses facts on the row.</div><button class="btn small primary" data-p="draftai">✨ Draft with the Alchemist</button>');
   const inp=document.getElementById("pAiInput"); if(inp) inp.addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); const b=box.querySelector('[data-p=askai]'); if(b) b.click(); } });
 }
@@ -5776,7 +5836,7 @@ const PAID_RE=/sponsored (post|content|article|guest)|paid (post|guest|placement
 function dncHit(brand,name,email){ const t=((brand.doNotContact||"")+"").toLowerCase(); if(!t) return false; const dom=(email||"").split("@")[1]||""; return (String(name||"").length>2&&t.includes(String(name).toLowerCase()))||(dom&&t.includes(dom.toLowerCase())); }
 function communityPrompt(r,brand,need,found,seenNames,pass){
   const F=["Reddit communities (subreddits), forums and Q&A sites: find ones where the brand's niche is on topic, then read each one's rules / about page.","chat and group communities: Discord servers, Telegram groups and channels, Slack communities, Facebook and LinkedIn groups, that have a promo / showcase / self-promotion channel or rule.","places that publish OTHER people's work: write-for-us / guest-post pages, newsletters and blogs that take link or story submissions, directories and launch sites to submit to, link roundups and best-of lists that accept suggestions."];
-  return "You are a research agent for United Press Media (UPM), finding FREE organic places where a client can share news, links or a guest post. You have two read-only web tools: web_search and web_fetch.\n\n"
+  return "You are a research agent for "+(agencyName()||"a marketing team")+", finding FREE organic places where a client can share news, links or a guest post. You have two read-only web tools: web_search and web_fetch.\n\n"
    +"BRAND\n"+brandFacts(brand)+"\n\nTASK\n"+(r.brief||"")+"\nFind about "+Math.ceil(need*1.5)+" "+(pass>1?"MORE ":"")+"places (ones that fail checking are dropped, so over-suggest; the goal is "+need+" kept).\n"
    +(found.length||seenNames.length?"\nALREADY HAVE OR REJECTED (do not return these again): "+found.concat(seenNames).slice(0,400).join("; ")+"\nGo for the long tail: smaller niche subreddits, new Discords, specific newsletters and blogs, regional communities.\n":"")
    +"\nHARD RULES\n- The place must be real and you must have SEEN its link (url) in a search result or page during this run. Copy url exactly as it appeared; never construct one from memory.\n- Rules matter more than size. Read the community's rules / about / pinned page when you can (for a subreddit try reddit.com/r/NAME/about/rules or the excerpt in search results; if a page will not open, use what the search excerpt shows and set policy unclear rather than guess).\n- policy must be one of: open = posting links or project news is allowed; thread_only = only in a weekly / monthly self-promo, showcase or promo-channel thread; ask_mods = the rules say to get mod permission first; submission = a form, write-for-us page or pitch email accepts submissions; unclear = could not read the rules; banned = rules forbid self-promotion or outside links.\n- Never suggest a place whose policy is banned. Do not suggest places that need a login to read, are dead (no activity for a long time), are paid advertising slots, or are about something other than the brief.\n- FREE ONLY: many write-for-us / guest-post / submission / directory / launch sites charge (\"sponsored post\", \"pricing\", \"advertise\", \"guest post fee\", \"contributor package\", \"skip the queue\"). Open the page. If any price, fee or sponsored label is shown for posting, drop the place. Keep it only when the page clearly says submissions are free (or there is no mention of money and it is an editorial pitch form). For every such place set cost to free / paid / unclear and costQuote to ONE verbatim sentence (under 160 chars) from that page showing it is free; unclear or paid places are dropped.\n- rulesQuote: copy ONE sentence verbatim (under 160 chars) from the rules / submission page that shows the policy, or leave it empty. Never paraphrase it and never invent one.\n- howToPost: one plain line, e.g. \"Post in the weekly Showcase Saturday thread\", \"Message the mods before posting\", \"Use the Write for us form\", \"Submit the link on the directory form\".\n- contactEmail: only for guest-post / submission routes and only if it is printed on a page you read. Never a generic mailbox (support@, info@, contact@, hello@, help@, admin@, sales@, noreply@): leave it empty and give the submission form or page URL instead. A named editor or a tips / submissions / pitch / editorial / press address is fine.\n- followersText: only if a page states the member / subscriber count, copied as written. Never invent numbers.\n- Skip competitors of the brand"+(brand.competitors?" ("+brand.competitors.trim()+")":"")+", anything on the do-not-contact list"+(brand.doNotContact?": "+brand.doNotContact.trim():"")+(brand.blockWords?" and anything containing: "+brand.blockWords.trim():"")+".\n"
@@ -5819,7 +5879,7 @@ function verifyCommunity(c,run,r,brand){
 function researchPrompt(r,brand,need,found,seenNames,pass){
   const lead=r.flow==="lead"; const cr=r.criteria||{};
   if(r.mode==="communities"&&!lead) return communityPrompt(r,brand,need,found,seenNames,pass);
-  return "You are a research agent for United Press Media (UPM), finding outreach targets for a client. You have two read-only web tools: web_search and web_fetch.\n\n"
+  return "You are a research agent for "+(agencyName()||"a marketing team")+", finding outreach targets for a client. You have two read-only web tools: web_search and web_fetch.\n\n"
    +"BRAND\n"+brandFacts(brand)+"\n\nTASK\n"+(r.brief||"")+"\nFind about "+Math.ceil(need*1.5)+" "+(pass>1?"MORE ":"")+(lead?"lead / intro targets":"coverage options")+" (candidates that fail verification are dropped, so over-suggest; the goal is "+need+" verified).\n"
    +(found.length||seenNames.length?"\nALREADY HAVE OR REJECTED (do not return these again): "+found.concat(seenNames).slice(0,400).join("; ")+"\nMost obvious outlets are already in that list. Look for the long tail: smaller newsletters, niche subreddits, Telegram channels, community Discords, and individual creators or mod authors on X, TikTok, Instagram, Facebook and Twitch."+"\n":"")
    +"\nHARD RULES\n- Every target needs a verified WAY TO REACH THEM that you READ in a tool result during this run. Acceptable routes (set contactVia to one): email = a public email address; form = a contact / business-inquiries / tips / submit-a-story / write-for-us / press / partner page URL; dm = a public X, Instagram, TikTok, Facebook, Twitch or YouTube profile URL whose bio/page says DMs or messages are open or says to contact / collab / business-inquire there; telegram = a t.me channel, group or @handle; discord = a server invite or community page that names a mods/contact channel; reddit = a subreddit URL (reach via modmail) whose rules do not ban outside project posts.\n- Never guess or construct an email or handle, and never use contact details from memory. Generic mailboxes (support@, info@, contact@, hello@, help@, admin@, sales@, noreply@, customer service) are NOT a route: treat the target as having no email and use its contact / tips / submit page or profile instead, or skip it. Copy contactUrl exactly as it appeared.\n- If the brief lists channel types, cover them — spread candidates across the types instead of all one kind.\n- Do not invent audience sizes, rates or facts. Give followersText only if a page states it, copied as written.\n- Skip anything on the do-not-contact list"+(brand.doNotContact?": "+brand.doNotContact:"")+". Never suggest a COMPETITOR of the brand"+(brand.competitors?" ("+brand.competitors.trim()+")":"")+" or a business that sells the same kind of thing (a rival product, a server host, a script store, a marketplace) — only outlets, creators and communities that SELL ATTENTION to the brand's audience. Reaching a competitor's audience through an independent outlet or creator is fine; the competitor's own channels never are."+(brand.blockWords?" Also skip anything whose name, site, niche or type contains: "+brand.blockWords.trim()+".":"")+"\n- Use the brand's audience and where-they-gather notes above to decide who is relevant.\n- Skip anything on the do-not-contact list.\n- Skip channels/sites that look dead (no recent activity), are far outside the requested audience size, or aren't actually about the niche. Search results often include irrelevant pages — judge each one against the brief.\n- Search result entries include an \"emails\" list taken from the page text; use it, and open a page with web_fetch when you need to see a bio, About, tips or contact section.\n"
