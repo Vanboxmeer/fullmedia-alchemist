@@ -728,13 +728,27 @@ function A_split(ctx) {
   const { W, H, C, F, M, S, measure, P, A, r } = ctx;
   const G = groundEl(ctx, S.ground === 'mesh' ? 'ink' : undefined);
   const I = inksFor(G.bg, P);
-  const ph = Math.round(H * r.range(0.46, 0.54));
+  const pts = (C.items || []).filter(Boolean).slice(0, 4);
+  const hasPts = pts.length >= 2;
+  const phRoll = r.range(0.46, 0.54);
+  const ph = Math.round(H * (hasPts ? 0.34 : phRoll));
   // A whole picture (a site's share graphic) always sits on top, with
   // nothing drawn over it: its own words and logo stay readable.
   const whole = ctx.photoFit === 'contain';
-  const imgTop = whole ? true : r.chance(0.6);
+  const imgTopRoll = r.chance(0.6);
+  const imgTop = whole || hasPts ? true : imgTopRoll;
   const maxW = W - 2 * M - (ctx.reserve || 0);
-  const head = fitText(measure, C.headline, { family: F.display, weight: ctx.weights.display, maxW, maxH: (H - ph) * 0.48, min: 36, max: 96, lh: 1.03, upper: S.displayCase === 'upper' });
+  const head = fitText(measure, C.headline, { family: F.display, weight: ctx.weights.display, maxW, maxH: hasPts ? (H - ph) * 0.2 : (H - ph) * 0.48, min: hasPts ? 34 : 36, max: hasPts ? 68 : 96, lh: 1.03, upper: S.displayCase === 'upper' });
+  // Room left under the picture and headline, keeping the footer (QR + CTA) clear.
+  const ptAvail = H - ph - 54 - 50 - (head.height || 0) - 40 - 250;
+  const ptRowH = Math.max(34, Math.min(62, Math.floor((ptAvail - 14 * (pts.length - 1)) / Math.max(1, pts.length))));
+  const ptRows = hasPts ? pts.map((t, i) => {
+    const f = fitText(measure, t, { family: F.body, weight: 600, maxW: maxW - 44 - 20, maxH: ptRowH, min: 20, max: 32, lh: 1.15 });
+    return div({ flexDirection: 'row', alignItems: 'center', gap: 20 }, [
+      div({ width: 44, height: 44, borderRadius: S.corner > 16 ? 999 : S.corner, backgroundColor: i % 2 ? P.second : P.accent, color: i % 2 ? P.onSecond : P.onAccent, fontFamily: F.display, fontWeight: ctx.weights.displayHeavy, fontSize: 24, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }, [String(i + 1)]),
+      textBlock(f, { fontFamily: F.body, fontWeight: 600, color: I.text, flex: 1 }),
+    ]);
+  }) : [];
   const radius = S.corner;
   return {
     G: { bg: G.bg, layers: [
@@ -746,6 +760,7 @@ function A_split(ctx) {
     body: div({ position: 'absolute', left: M, top: imgTop ? ph + 54 : M + 90, width: maxW, flexDirection: 'column', gap: 20 }, [
       labelEl(C.label, ctx, I.text),
       textBlock(head, { fontFamily: F.display, fontWeight: ctx.weights.display, color: I.text }),
+      ...(hasPts ? [div({ flexDirection: 'column', gap: 14, marginTop: 6 }, ptRows)] : []),
     ]),
     footer: true, compactFooter: true, logoTop: !imgTop, noLogoTop: whole || undefined,
   };
@@ -951,7 +966,10 @@ export function chooseKind(C, A, S, r, opts = {}) {
   // new pose) is the star of the card.
   if (opts.preferPhoto && A.photo) {
     if (opts.words === 'none') return 'photoonly';
-    return r.pick(['photo', 'photo', 'split']);
+    // Points on a picture card: only the split card shows them.
+    const pts = (C.items || []).filter(Boolean).length;
+    const pick = r.pick(['photo', 'photo', 'split']);
+    return pts >= 2 && can.has('split') ? 'split' : pick;
   }
   // A pose drawn for this post always gets the character's own card.
   if (opts.preferMascot && A.mascot && can.has('mascot')) return 'mascot';
