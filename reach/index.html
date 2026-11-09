@@ -5475,7 +5475,9 @@ function revisePrompt(d,instruction){
   return AGENT_RULES+"\n\n"+voiceOf(d)+"\n\nBRAND\n"+brandFacts(b)+"\n\nTARGET\n"+targetFacts(d)+campaignBlock(d)+deliveryNote(d)+"\n\nCURRENT MESSAGE\nSubject: "+(d.subject||"")+"\n\n"+(d.draft||"")+"\n\nREVISE AS FOLLOWS\n"+instruction+"\n\nKeep what is already good. Return ONLY JSON: {\"subject\": string, \"body\": string, \"notes\": string (one short line on what you changed or couldn't do)}"; }
 async function agentDraft(id,opts){
   opts=opts||{}; const d=ix().deal.get(id); if(!d) return; if(!aiAvailable()){ toast("The Alchemist isn't available in this view"); return; }
-  if(agentBusy.has(id)) return; agentBusy.add(id);
+  if(agentBusy.has(id)) return;
+  if(!opts.quiet&&!opts.statusChecked&&!(await freshenStatus([id]))) return;
+  agentBusy.add(id);
   const row=document.querySelector('#wbBody tr[data-id="'+id+'"] [data-a=draftai]'); if(row) row.innerHTML='<span class="spin"></span>';
   const res=document.getElementById("agRes"); if(opts.pane&&res) res.innerHTML='<div class="agres"><span class="spin"></span> Drafting…</div>';
   try{
@@ -5489,6 +5491,7 @@ async function agentDraft(id,opts){
   finally{ agentBusy.delete(id); }
 }
 async function bulkDraft(ids,force){
+  if(ids.length&&!(await freshenStatus(ids))) return;
   const todo=ids.filter(id=>{ const d=ix().deal.get(id); return d&&!d.manualOnly&&!d.sentDate&&(force?(!hasDraft(d)||d.draftState==="agent"):!hasDraft(d)); }); const skipped=ids.length-todo.length;
   if(!aiAvailable()){ toast("The Alchemist isn't available in this view"); return; }
   if(!todo.length){ toast(force?"Nothing to redraft — these are sent or hand-edited":"All selected rows already have a message"); return; }
@@ -6173,6 +6176,39 @@ function focusFor0(r,pass){
   return "\nFOCUS THIS ROUND: "+(pass<=3?F[pass-1]:"whatever route types are still missing from the list above")+". Other types are fine if you hit them, but dig deep on this one.\n";
 }
 
+/* Reads the brand's news / blog / changelog and returns a dated status paragraph (facts only from pages read this run). */
+async function pullLatestStatus(brand,run,signal){
+  const src=[brand.newsUrl,brand.officialSite].map(x=>String(x||"").trim()).filter(Boolean);
+  const tools=await connTools("web",run); const today=todayISO();
+  const prompt="You write the CURRENT-STATUS paragraph for outreach messages about a project. Today is "+today+".\n\nBRAND\n"+brandFacts(brand)+"\n\nREAD THESE FIRST with web_fetch: "+src.join(", ")+". If they link to a blog / devblog / changelog / news page, open it too (web_search only to find that page). Find the most recent dated entries (prefer the last 3 weeks).\n\nRULES\n- Facts only from pages you actually read this run. Never state a release date, roadmap item or promise the pages do not state.\n- Name the newest release or milestone with its date, plus one or two other recent highlights. Plain words, 50 to 90 words, no hype, no flattery, no numbers you did not read.\n- If the newest entry is older than 6 weeks, say so plainly in the note.\n\nReturn ONLY JSON: {\"status\":string,\"asOf\":\"YYYY-MM-DD date of the newest entry\",\"items\":[{\"date\":string,\"title\":string (copied from the page),\"url\":string}],\"note\":string}.";
+  const out=await agentWithTools(prompt,tools,{signal:signal},"web",run,"default");
+  const items=(Array.isArray(out.items)?out.items:[]).filter(it=>it&&it.title&&inCorpus(run,String(it.title),4));
+  if(!items.length||!String(out.status||"").trim()) throw {message:"Couldn't read recent updates from "+src.join(" or ")+" — write the status by hand."};
+  return {status:String(out.status).trim(),asOf:out.asOf||items[0].date||"",note:out.note||"",items:items,today:today};
+}
+/* Before drafting or redrafting: if a campaign's saved status is a week old (or undated), offer to read the latest news first. Returns false if cancelled. */
+async function freshenStatus(ids){
+  try{
+    const seen={}, stale=[];
+    ids.forEach(id=>{ const d=ix().deal.get(id); if(!d||d.sentDate) return; const w=waveOf(d); if(!w||!w.id||seen[w.id]) return; seen[w.id]=1;
+      if(!(w.message||"").trim()) return; const age=w.messageAt?Math.floor((Date.now()-w.messageAt)/86400000):999; if(age<7) return;
+      const b=brandById(d.brandId)||{}; if(!String(b.newsUrl||b.officialSite||"").trim()) return; stale.push({w:w,b:b,age:age}); });
+    if(!stale.length||!aiAvailable()||!connUsable("web")) return true;
+    const names=stale.map(x=>(x.w.name||"campaign")+(x.age>=999?" (undated)":" ("+x.age+" days old)")).join(", ");
+    const choice=await new Promise(res=>{
+      openModal('<div class="mhead"><h3>Status is out of date</h3></div><div class="mbody"><div class="mini" style="font-size:13px;line-height:1.5">Drafts only know what the campaign status says, and it is old for: <b>'+esc(names)+'</b>. Your drafting notes can\'t make the Alchemist browse. Read the latest news / blog now, update the status, then draft?</div></div><div class="mfoot"><button class="btn" id="fsNo">Cancel</button><button class="btn" id="fsSkip">Draft with old status</button><button class="btn primary" id="fsGo">Update status, then draft</button></div>');
+      document.getElementById("fsNo").onclick=()=>{ closeModal(); res("no"); }; document.getElementById("fsSkip").onclick=()=>{ closeModal(); res("skip"); }; document.getElementById("fsGo").onclick=()=>{ closeModal(); res("go"); };
+    });
+    if(choice==="no") return false; if(choice==="skip") return true;
+    for(const x of stale){
+      toast("Reading the latest news for "+(x.w.name||"the campaign")+"…");
+      const run=newRun(14,()=>{});
+      try{ const r=await pullLatestStatus(x.b,run); patchDoc("waves",x.w.id,{message:r.status,messageAt:Date.now()}); toast("Status updated — newest item "+(r.asOf||"?")+(r.note?" · "+String(r.note).slice(0,80):"")); }
+      catch(e){ toast(connErr(e,"web")||(e&&e.message)||"Couldn't refresh the status"); const go=await new Promise(res=>{ openModal('<div class="mhead"><h3>Couldn\'t update the status</h3></div><div class="mbody"><div class="mini" style="font-size:13px">'+esc((e&&e.message)||"The latest news couldn\'t be read.")+' Draft with the old status anyway?</div></div><div class="mfoot"><button class="btn" id="fsNo2">Cancel</button><button class="btn primary" id="fsGo2">Draft anyway</button></div>'); document.getElementById("fsNo2").onclick=()=>{ closeModal(); res(false); }; document.getElementById("fsGo2").onclick=()=>{ closeModal(); res(true); }; }); if(!go) return false; }
+    }
+    return true;
+  }catch(e){ return true; }
+}
 /* ---------- "Refresh from latest news": read the brand's news / blog / changelog and write a dated status ---------- */
 function wireStatusRefresh(w,brand){
   const ta=document.getElementById("mMsg"), btn=document.getElementById("mRefresh"), asof=document.getElementById("mMsgAsOf"); if(!ta||!btn) return;
@@ -6185,11 +6221,8 @@ function wireStatusRefresh(w,brand){
     const ac=new AbortController(); btn.disabled=true; const old=btn.textContent; btn.textContent="Reading latest news…";
     const run=newRun(14,(c,t,inp)=>{ const q=inp&&(inp.url||inp.query||inp.objective||""); btn.textContent=(t==="web_fetch"?"Reading ":"Searching ")+hostOf(String(Array.isArray(q)?q[0]:q)||"…").slice(0,28); });
     try{
-      const tools=await connTools("web",run); const today=todayISO();
-      const prompt="You write the CURRENT-STATUS paragraph for outreach messages about a project. Today is "+today+".\n\nBRAND\n"+brandFacts(brand)+"\n\nREAD THESE FIRST with web_fetch: "+src.join(", ")+". If they link to a blog / devblog / changelog / news page, open it too (web_search only to find that page). Find the most recent dated entries (prefer the last 3 weeks).\n\nRULES\n- Facts only from pages you actually read this run. Never state a release date, roadmap item or promise the pages do not state.\n- Name the newest release or milestone with its date, plus one or two other recent highlights. Plain words, 50 to 90 words, no hype, no flattery, no numbers you did not read.\n- If the newest entry is older than 6 weeks, say so plainly in the note.\n\nReturn ONLY JSON: {\"status\":string,\"asOf\":\"YYYY-MM-DD date of the newest entry\",\"items\":[{\"date\":string,\"title\":string (copied from the page),\"url\":string}],\"note\":string}.";
-      const out=await agentWithTools(prompt,tools,{signal:ac.signal},"web",run,"default");
-      const items=(Array.isArray(out.items)?out.items:[]).filter(it=>it&&it.title&&inCorpus(run,String(it.title),4));
-      if(!items.length||!String(out.status||"").trim()) throw {message:"Couldn't read recent updates from "+src.join(" or ")+" — write the status by hand."};
+      const r=await pullLatestStatus(brand,run,ac.signal); const today=r.today, out={asOf:r.asOf,note:r.note}, items=r.items;
+      out.status=r.status;
       ta.value=String(out.status).trim(); if(asof) asof.textContent="Pulled "+today+" · newest item "+(out.asOf||items[0].date||"?")+": "+String(items[0].title).slice(0,70)+(out.note?" — "+String(out.note).slice(0,90):"")+" · review it, then Save";
     }catch(e){ toast(connErr(e,"web")||"Couldn't refresh"); }
     finally{ btn.disabled=false; btn.textContent=old; }
