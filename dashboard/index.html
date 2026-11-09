@@ -3806,9 +3806,22 @@ function vDefaultPlan(slides) {
   });
   return { v: 1, platform: 'tiktok', total_seconds: slides.length * 3, hook: { what_viewers_see: '', on_screen_text: '' }, shots, audio: [], cover: { slide: 1, text: '' }, tips: [], isDefault: true };
 }
+/* A recap is a montage of several earlier posts, so its video is a mashup: the recap's headline over the first
+   picture, then each source post's picture in quick cuts with its own headline, ending on the recap's closing card. */
+function vMashPlan(slides, intro, range) {
+  const shots = []; let t = 0;
+  slides.forEach((sl, i) => {
+    const last = !!sl.closing, first = i === 0, d = last ? 3 : first ? 2.2 : 1.6;
+    const head = first ? String(intro || '') : String((sl.words && sl.words.headline) || '').split(/\s+/).slice(0, 8).join(' ');
+    shots.push({ slide: sl.n, start: t, end: t + d, motion: 'slow zoom', transition: last ? 'fade' : (i % 3 === 2 ? 'push' : 'cut'),
+      text: head && !last ? { words: head, where: first ? 'upper-middle' : (i % 2 ? 'lower-middle' : 'upper-middle'), appears_at: t + 0.15, style: first ? 'bold, white, large' : 'bold, white, small' } : null, sticker: null });
+    t += d;
+  });
+  return { v: 1, mash: true, platform: 'tiktok', total_seconds: t, hook: { what_viewers_see: '', on_screen_text: String(intro || '') }, shots, audio: [], cover: { slide: 1, text: '' }, tips: [], isDefault: false, range: range || '' };
+}
 function vTimeline(plan, n) {
   let t = 0; const hook = plan.hook && plan.hook.on_screen_text;
-  const tl = (plan.shots || []).slice(0, 8).map((s, i) => {
+  const tl = (plan.shots || []).slice(0, plan.mash ? 14 : 8).map((s, i) => {
     const d = Math.max(1.5, Math.min(6, (Number(s.end) - Number(s.start)) || 3)); const st = Number(s.start) || 0;
     const rel = (x) => { const r = Number(x) - st; return Number.isFinite(r) ? Math.max(0, Math.min(d - 0.5, r)) : 0.3; };
     const o = { slide: Math.max(1, Math.min(n, Number(s.slide) || 1)), t0: t, t1: t + d, d, transition: String(s.transition || ''),
@@ -3978,6 +3991,10 @@ async function openVideoStudio(p, mode) {
   const note = () => {
     const n = $('#vsPlan', el);
     const withPhoto = slides.filter((x) => x.photoBmp).length;
+    if (plan && plan.mash) {
+      n.innerHTML = `Recap mashup: ${tl.length - 1} of your posts cut together${plan.range ? ' (' + plan.range + ')' : ''}, ${Math.round(tl[tl.length - 1].t1)} seconds, each with its own headline, ending on the recap card.`;
+      return;
+    }
     n.innerHTML = (plan && !plan.isDefault ? `Using your video plan (${Math.round(tl[tl.length - 1].t1)}s, ${tl.length} shot${tl.length === 1 ? '' : 's'}).` : 'No video plan yet, so this uses a simple default: each slide for 3 seconds with its own headline. A plan adds a hook, timing, stickers and sound ideas.')
       + (withPhoto < slides.length ? ` ${slides.length - withPhoto} of ${slides.length} slide${slides.length - withPhoto === 1 ? ' keeps its' : 's keep their'} words in the picture, so ${isVid ? 'no extra text is added to' : 'only sticker slots are offered on'} ${slides.length - withPhoto === 1 ? 'it' : 'them'}.` : '')
       + ` <button type="button" class="btn btn-sm btn-ghost" id="vsPlanGo">${icons.spark} ${plan && !plan.isDefault ? 'Make a new plan' : 'Make a plan'} (1 credit)</button>`;
@@ -3996,7 +4013,12 @@ async function openVideoStudio(p, mode) {
   s.msg('Getting the pictures ready…');
   const [info] = await Promise.all([api('alchemist-video-plan', { body: { action: 'get', brand: S.brand, sku: p.sku } }).catch(() => null), vFont(br.font)]);
   const sv = info && Array.isArray(info.slides) ? info.slides : [];
-  slides = media.map((u, i) => { const x = sv.find((y) => Number(y.slide) === i + 1) || {}; return { n: i + 1, cardUrl: u, photoUrl: x.photo || '', words: x.words || {} }; });
+  let mash = null;
+  if (/^Recap/i.test(String(p.post_format || ''))) { const r = await api('alchemist-recap-sources', { body: { brand: S.brand, sku: p.sku } }).catch(() => null); if (r && r.recap && Array.isArray(r.sources) && r.sources.length >= 2) mash = r; }
+  if (mash) {
+    slides = mash.sources.map((x, i) => ({ n: i + 1, cardUrl: x.card, photoUrl: x.photo, words: { headline: x.headline } }));
+    slides.push({ n: slides.length + 1, cardUrl: media[media.length - 1], photoUrl: '', words: {}, closing: true });
+  } else slides = media.map((u, i) => { const x = sv.find((y) => Number(y.slide) === i + 1) || {}; return { n: i + 1, cardUrl: u, photoUrl: x.photo || '', words: x.words || {} }; });
   await Promise.all(slides.map(async (sl) => { sl.card = await vLoad(sl.cardUrl); sl.photoBmp = await vLoad(sl.photoUrl); }));
   br.logoBmp = await vLoad(br.logo);
   slides = slides.filter((x) => x.card || x.photoBmp);
@@ -4041,8 +4063,10 @@ async function openVideoStudio(p, mode) {
       z.disabled = false;
     };
   }
-  setPlan(info && info.plan && Array.isArray(info.plan.shots) && info.plan.shots.length ? info.plan : vDefaultPlan(slides));
-  if (isVid) vsAiPanel(el, s, p, slides);
+  const introWords = String(sv[0] && sv[0].words && sv[0].words.headline || '').split(/\s+/).slice(0, 8).join(' ');
+  if (mash) setPlan(vMashPlan(slides, introWords, mash.range));
+  else setPlan(info && info.plan && Array.isArray(info.plan.shots) && info.plan.shots.length ? info.plan : vDefaultPlan(slides));
+  if (isVid && !mash) vsAiPanel(el, s, p, slides);
 }
 
 /* ── Other formats (2026-10-30) ─────────────────────────────────────────

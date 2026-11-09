@@ -2,3 +2,5 @@
 - alchemist-video-plan v5: `get` also returns slides {slide, photo, words} and mode; new action `set_mode` {skus|sku, mode: prepared|short|''}.
 - alchemist-recap v8: 546 fix. Montage tiles and slide renders run one at a time; pictures fetched small.
 The dashboard (dashboard/index.html) draws "Prepared for video" slides and "Make the video" in the browser from the video plan. Nothing is stored.
+
+alchemist-recap-sources v1 (2026-11-09): free read-only; for a recap post returns its source posts' pictures + headlines so the dashboard draws a mashup video. Live-only, not in repo (source mirrored here in README only).
