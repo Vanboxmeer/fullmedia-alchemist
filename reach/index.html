@@ -2956,6 +2956,7 @@ function renderOverview(brand){
   v.innerHTML=html;
   document.getElementById("editBrandBtn").addEventListener("click",()=>openEditBrandModal(brand)); document.getElementById("clientAccessBtn").addEventListener("click",()=>openClientAccess(brand.id));
   document.querySelectorAll(".scopeedit").forEach(el=>el.addEventListener("click",()=>openEditBrandModal(brand)));
+  document.querySelectorAll("[data-editbrand]").forEach(el=>el.addEventListener("click",()=>openEditBrandModal(brand)));
   document.querySelectorAll(".wave-card[data-id]").forEach(el=>el.addEventListener("click",()=>openWave(el.dataset.id)));
   document.querySelectorAll("[data-newwave]").forEach(el=>el.addEventListener("click",()=>openNewWaveModal(brand,el.dataset.newwave)));
 }
@@ -5417,6 +5418,7 @@ const AGENT_RULES=[
  "- Personalise only from the TARGET facts supplied; if there is nothing specific, don't fake it.",
  "- First touch: short (under 120 words) with one or two concrete questions.",
  "- Do not write a signature block or the sender's address — it is appended later. End with a sign-off name only.",
+ "- Proof points and key messages can hold dated facts (releases, milestones). Treat a dated item there as history: never call it the latest, newest or current release unless the campaign message says so. If you are unsure what is current, leave current-status claims out.",
  "- The message must be ready to send exactly as written. Never use square brackets, curly braces or placeholders. If a fact is missing, leave that sentence out."
 ].join("\n");
 function agentErr(e){ const c=e&&e.code; if(c==="not_granted") return "Allow Claude in the permission prompt to use the Alchemist."; if(c==="rate_limited") return "The Alchemist is busy — wait a moment and try again."; return "Alchemist error"+(e&&e.message?": "+String(e.message).slice(0,120):"."); }
