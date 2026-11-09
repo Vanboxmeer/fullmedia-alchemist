@@ -2908,7 +2908,7 @@ function watchFinishing() {
 async function refreshFinishing(posts) {
   if (Date.now() - finishChecked < 8000) return;
   finishChecked = Date.now();
-  const recent = posts.filter((p) => !p.created_at || Date.now() - new Date(p.created_at).getTime() < 15 * 60 * 1000).map((p) => p.sku);
+  const recent = posts.map((p) => p.sku).slice(0, 60);   // any post may have a redraw running, not just new ones
   if (!recent.length) return;
   const had = recent.filter((k) => S.finishing.has(k)).length;
   await checkFinishing(recent);
