@@ -1461,6 +1461,7 @@ function renderShell() {
     e.stopPropagation();
     popMenu(e.currentTarget, `<div class="menu-label">Your brands</div>`
       + S.brands.map((b) => `<button type="button" data-b="${esc(b)}" class="${b === S.brand ? 'cur' : ''}">${brandIco(b)}<span class="bm-name">${esc(b)}</span>${brandMark(b)}</button>`).join('')
+      + (S.brands.some((b) => brandMark(b)) ? `<div class="menu-label" style="text-transform:none;letter-spacing:0;font-size:12px">✓ posted today · ${CLOCK} post due, nothing out yet</div>` : '')
       + `<div class="sep"></div><button type="button" data-new>＋ New brand</button>${(S.archived || []).length ? `<button type="button" data-arch>Archived brands (${S.archived.length})</button>` : ''}`,
       (m) => {
         m.querySelectorAll('[data-b]').forEach((b) => b.onclick = () => enterBrand(b.dataset.b));
@@ -1474,12 +1475,12 @@ function renderShell() {
     popMenu(e.currentTarget, `
       <div class="menu-label">${esc(S.email)}</div>
       ${S.brand ? '<button type="button" data-a="alch">Your Alchemist · rank &amp; badges</button><button type="button" data-a="plan">Plan &amp; credits</button>' : ''}
-      ${S.isAdmin || S.canAdmin ? '<button type="button" data-a="admin">Admin · accounts &amp; comps</button>' : ''}
-      ${S.isAdmin || S.canAdmin ? '<button type="button" data-a="problems">Admin · problem reports</button>' : ''}
-      ${appInstallable() ? '<button type="button" data-a="install">Get the app on this device</button>' : ''}
-      ${S.brand ? '<button type="button" data-a="tour">Take the tour</button>' : ''}
-      <button type="button" data-a="report">Report a problem</button>
       <button type="button" data-a="theme">${currentTheme() === 'dark' ? 'Light mode' : 'Dark mode'}</button>
+      <div class="menu-label">Help</div>
+      ${S.brand ? '<button type="button" data-a="tour">Take the tour</button>' : ''}
+      ${appInstallable() ? '<button type="button" data-a="install">Get the app on this device</button>' : ''}
+      <button type="button" data-a="report">Report a problem</button>
+      ${S.isAdmin || S.canAdmin ? '<div class="menu-label">Admin</div><button type="button" data-a="admin">Accounts &amp; comps</button><button type="button" data-a="problems">Problem reports</button>' : ''}
       <div class="sep"></div>
       <a class="menu-link" href="/terms/" target="_blank" rel="noopener">Terms</a><a class="menu-link" href="/privacy/" target="_blank" rel="noopener">Privacy</a>
       <button type="button" data-a="logout">Log out</button>`,
@@ -6490,7 +6491,7 @@ async function openKnowledge() {
   closeMenus();
   const s = openSheet({
     title: 'The Alchemist’s knowledge',
-    body: `<div class="stack" id="kbBody"><div class="skel" style="height:60px"></div><div class="skel" style="height:120px"></div></div>`,
+    body: `<div class="stack" id="kbBody"><p class="small muted" style="margin:0">Loading what the Alchemist knows about this brand…</p><div class="skel" style="height:60px"></div><div class="skel" style="height:120px"></div></div>`,
     foot: `<span class="msg"></span><button type="button" class="btn btn-ghost" id="kbRescan">Check my site again</button><button type="button" class="btn btn-gold" data-close>Done</button>`,
   });
   const el = s.el; el.classList.add('wide');
