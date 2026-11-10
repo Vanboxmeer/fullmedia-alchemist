@@ -81,6 +81,30 @@ export const STATIC_POSTS: { slug: string; title: string }[] = [
   "title": "Your account, locked down: two-step sign-in, passwords and your data"
  },
  {
+  "slug": "reach-lists-for-coverage-partnerships-communities",
+  "title": "Build your target list in minutes: coverage, partners and communities"
+ },
+ {
+  "slug": "reach-automation-with-claude",
+  "title": "Let your own Claude do the sending: Reach automation"
+ },
+ {
+  "slug": "reach-account-managers-per-brand",
+  "title": "Ten brands, ten account managers: sender, signature and seats"
+ },
+ {
+  "slug": "content-auto-post-with-claude",
+  "title": "Approved posts, posted by your own Claude"
+ },
+ {
+  "slug": "content-short-video-and-recap",
+  "title": "Posts that move: video-ready slides, short video and recaps"
+ },
+ {
+  "slug": "content-tagged-links-utm",
+  "title": "Which post sent the click? Tagged links in Content and Reach"
+ },
+ {
   "slug": "creative-engine-upgrade",
   "title": "The creative engine, rewritten: posts that stop the scroll"
  },
