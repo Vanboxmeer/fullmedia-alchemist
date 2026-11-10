@@ -3394,7 +3394,19 @@ function ackAlert(id,code){ const d=ix().deal.get(id); if(!d) return; patchDeal(
 function sigText(b){ const own=((b&&b.managerSig)||"").trim(); if(own) return own; const mn=((b&&b.managerName)||"").trim(); if(mn){ const ag=agencyName(); return mn+(ag?"\n"+ag:""); } return (wsMeta().signature||"").trim(); }
 /* Add the saved signature once: if the message already ends with the sign-off name alone, expand that line into the full signature; if it already holds the whole signature, leave it. */
 function withSig(body,br){ let b=(body||"").replace(/\s+$/,""); const sig=sigText(br); if(!sig||!b||b.includes(sig)) return b; const first=sig.split("\n")[0].trim(); const lines=b.split("\n"); if(first&&lines[lines.length-1].trim()===first){ lines.pop(); return lines.join("\n").replace(/\s+$/,"")+"\n"+sig; } return b+"\n\n"+sig; }
-function outBody(d){ return withSig(d.draft||"",brandById(d.brandId)); }
+/* Safety net: a sign-off name that nobody gave the writer (it made one up, or lifted one from a website) is replaced with the sender's real name. Only touches a short Capitalised name alone on the last line. */
+function cleanSignoff(body,br){
+  let b=(body||"").replace(/\s+$/,""); if(!b) return b; const lines=b.split("\n"); if(lines.length<3||lines[lines.length-2].trim()!=="") return b;
+  const last=lines[lines.length-1].trim();
+  if(!/^[A-Z][A-Za-z'’.\-]{1,24}(\s+[A-Z][A-Za-z'’.\-]{0,24}){0,2}$/.test(last)) return b;
+  if(/^(thanks|thank you|many thanks|best|regards|best regards|kind regards|warm regards|cheers|sincerely|warmly|thanks again|all the best)$/i.test(last)) return b;
+  const SN=senderName(br), norm=x=>String(x||"").toLowerCase().replace(/[^a-z0-9]/g,""), nl=norm(last);
+  const ok=[SN,(sigText(br).split("\n")[0]||""),agencyName(),brandCall(br||{}),(br&&br.name)||""].map(norm).filter(Boolean);
+  if(ok.some(o=>nl===o||(nl.startsWith(o)&&nl.length<=o.length+6))) return b;
+  lines.pop(); while(lines.length&&!lines[lines.length-1].trim()) lines.pop();
+  return SN?lines.join("\n")+"\n\n"+SN:lines.join("\n");
+}
+function outBody(d){ const br=brandById(d.brandId); return withSig(d.draftState==="agent"?cleanSignoff(d.draft||"",br):(d.draft||""),br); }
 function senderEmail(d){ const b=brandById(d.brandId)||{}; const m=((b.outreachSender||wsMeta().senderEmail||"")+"").match(/[\w.+-]+@[\w.-]+\.\w+/); return m?m[0]:""; }
 function sendAsOf(d){ const b=brandById(d.brandId)||{}; const m=((b.sendAs||"")+"").match(/[\w.+-]+@[\w.-]+\.\w+/); return m?m[0]:""; }
 function gmailHref(d){ const em=emailOf(d); if(!em) return ""; const su=d.subject||""; const sd=senderEmail(d);
@@ -5513,7 +5525,8 @@ const AGENT_RULES=[
  "- Never mention our budget, payment terms, markup, or what a client is paying. (Asking THEM about their current deals or discounts is fine.)",
  "- Personalise only from the TARGET facts supplied; if there is nothing specific, don't fake it.",
  "- First touch: short (under 120 words) with one or two concrete questions.",
- "- Do not write a signature block or the sender's address — it is appended later. End with a sign-off name only.",
+ "- Do not write a signature block or the sender's address — it is appended later. End with a sign-off that is EXACTLY the sender name given in the writing instruction, and nothing else.",
+ "- NEVER invent a person's name, and never use a name you saw on the brand's website, in a forum, in the target's facts or anywhere else as the sender or as 'I'. The only name you may sign with is the sender name in the writing instruction. If no sender name is given, end the message without any name.",
  "- Proof points and key messages can hold dated facts (releases, milestones). Treat a dated item there as history: never call it the latest, newest or current release unless the campaign message says so. If you are unsure what is current, leave current-status claims out.",
  "- The message must be ready to send exactly as written. Never use square brackets, curly braces or placeholders. If a fact is missing, leave that sentence out."
 ].join("\n");
@@ -5534,10 +5547,10 @@ function lastSentOf(d){ const l=(d.sentLog||[]).slice(-1)[0], ph=phaseOf(d); if(
 function campaignBlock0(d){ const w=waveOf(d), b=brandById(d.brandId)||{}; if(!organicOf(d)&&!(w.message||"").trim()) return "";
   return "\n\nCAMPAIGN INSTRUCTIONS ("+(w.name||"this campaign")+")\n"+(organicOf(d)?"This is an ORGANIC campaign: the client has no paid budget this round. Never ask for rates or offer payment or sponsorship. You may name the project.\n":"")+((w.message||"").trim()?"Campaign message"+(w.messageAt?" (status as of "+new Date(w.messageAt).toISOString().slice(0,10)+")":"")+" — the ONLY source for project status/news you may state, say it in your own plain words, never present it as older or newer than its date:\n"+w.message.trim()+"\n":"")+(organicOf(d)&&b.officialSite?"You may include the project's link once, as plain text: "+b.officialSite+"\n":""); }
 function voiceOf(d){ const b=brandById(d.brandId)||{}; const client=(d.ownerType||"").startsWith("Client");
-  if(isCommunity(d)) return "Write as a real person connected to "+brandCall(b)+", posting in a community. Human and transparent, no marketing voice.";
+  if(isCommunity(d)){ const sn=senderName(b); return "Write as a real person connected to "+brandCall(b)+", posting in a community. Human and transparent, no marketing voice. "+(sn?"The sender's name is exactly \""+sn+"\": if you sign off, sign off with exactly that name. Never use any other personal name.":"No sender name is set: do NOT sign with any personal name and do NOT invent one."); }
   const SN=senderName(b), AG=agencyName(), BC=brandCall(b), who=SN+(AG?" from "+AG:""), nm=" Always call the agency exactly \""+(AG||"the agency")+"\" and the brand exactly \""+BC+"\"; never expand or rename them.";
   if(organicOf(d)&&!client) return "Write as "+who+", reaching out on behalf of "+BC+" to invite this person and their audience to check the project out. Organic, free, friendly and low-pressure."+nm;
-  if(client) return "Write as a team member of "+brandCall(b)+" reaching out directly, first person plural.";
+  if(client) return "Write as a team member of "+brandCall(b)+" reaching out directly, first person plural. Sign off as \"the "+brandCall(b)+" team\" — never with a personal name.";
   if(isLead(d)) return "Write as "+who+", introducing "+BC+(AG?" — "+AG+" works with the brand.":".")+nm;
   return "Write as "+who+", arranging a sponsored placement on behalf of a client. Do NOT name the client."+nm; }
 function channelKind(d){ const t=targetForDeal(d), p=((t.platform||"")+" "+(t.type||"")).toLowerCase(), via=(t.contactVia||"").toLowerCase();
@@ -5581,7 +5594,7 @@ async function agentDraft(id,opts){
   const res=document.getElementById("agRes"); if(opts.pane&&res) res.innerHTML='<div class="agres"><span class="spin"></span> Drafting…</div>';
   try{
     const out=await runSample(draftPrompt(d),"default");
-    const subject=(out.subject||"").trim(), bodyTxt=(out.body||"").trim(); if(!bodyTxt) throw {code:"empty",message:"empty draft"};
+    const subject=(out.subject||"").trim(), bodyTxt=cleanSignoff((out.body||"").trim(),brandById(d.brandId)); if(!bodyTxt) throw {code:"empty",message:"empty draft"};
     patchDeal(id,{subject,draft:bodyTxt,draftState:"agent",draftKind:"",template:d.template||""});
     { const cur=ix().deal.get(id); if(cur&&cur.readyAfterDraft){ patchDeal(id,{readyAfterDraft:false}); if(cur.reviewState!=="proposed"&&!hasGaps(cur)) markReady(id); } }
     afterRowChange(id); if(state.wb.active===id) renderPane("msg");
@@ -5606,7 +5619,7 @@ async function agentRevise(id,instruction,label){
   const res=document.getElementById("agRes"); if(res) res.innerHTML='<div class="agres"><span class="spin"></span> '+esc(label||"Revising")+'…</div>';
   try{
     const out=await runSample(revisePrompt(cur,instruction),"quick");
-    const subject=(out.subject==null?cur.subject:String(out.subject)).trim(), bodyTxt=String(out.body||"").trim(); if(!bodyTxt) throw {code:"empty",message:"empty revision"};
+    const subject=(out.subject==null?cur.subject:String(out.subject)).trim(), bodyTxt=cleanSignoff(String(out.body||"").trim(),brandById(cur.brandId)); if(!bodyTxt) throw {code:"empty",message:"empty revision"};
     window.__agentProposal={id,subject,body:bodyTxt,instruction,label};
     if(res&&state.wb.active===id){ res.innerHTML='<div class="agres"><div class="sj">'+(subject?esc(subject):'<span class="mini">(no subject)</span>')+'</div><pre>'+esc(bodyTxt)+'</pre>'+(out.notes?'<div class="nt">'+esc(out.notes)+'</div>':'')+'<div class="btns"><button class="btn small primary" id="agAcc">Use this</button><button class="btn small" id="agRetry">Try again</button><button class="btn small" id="agDis">Discard</button></div></div>';
       document.getElementById("agAcc").addEventListener("click",()=>{ const p=window.__agentProposal; patchDeal(p.id,{subject:p.subject,draft:p.body,draftState:"agent"}); afterRowChange(p.id); renderPane("msg"); toast("Applied"); });
@@ -6416,7 +6429,7 @@ function composeBrief(F){
 function agentPrompt(r){
   const b=brandById(r.brandId)||{};
   if(r.type==="progress") return "Run the Alchemist Reach progress report (request "+r.id+"). Scope: "+(b.name||"all brands")+(r.since?", since "+r.since:"")+". Check the inbox for replies from contacts on rows that are Sent / Awaiting reply, check Sent mail for outgoing messages to contacts on rows that are not marked sent (Ready to send), and check for bounces. Do NOT send anything. For each finding write a `suggest` object on the deal ({type: sent|replied|bounced|noreply_close, date, evidence, threadLink}) and finish by updating the request: status fulfilled, summary, resultCount. Follow the Alchemist Reach agent guide.";
-  return "Run the Alchemist Reach research request "+r.id+".\n\n"+(r.brief||"")+"\n\nAdd each find to the options catalog (verified contact + contactSource + evidence in researchNotes; never invent rates) and as a PROPOSED deal (reviewState: \"proposed\", addedBy: \"agent\", fitReason: one line) in the campaign, with a first-draft message following the UPM outreach rules. Then update the request: status fulfilled, resultCount, summary. Do NOT send anything. Follow the Alchemist Reach agent guide.";
+  return "Run the Alchemist Reach research request "+r.id+".\n\n"+(r.brief||"")+"\n\nAdd each find to the options catalog (verified contact + contactSource + evidence in researchNotes; never invent rates) and as a PROPOSED deal (reviewState: \"proposed\", addedBy: \"agent\", fitReason: one line) in the campaign, with a first-draft message following the Alchemist Reach agent guide. SIGN-OFF: end each message with exactly the sender name "+(senderName(b)||"(none set — then use no personal name)")+" and nothing else; never invent a name and never use a person's name from a website or forum. Then update the request: status fulfilled, resultCount, summary. Do NOT send anything. Follow the Alchemist Reach agent guide.";
 }
 let REACH_PLAN; /* Reach plan key once known: "free" gets small Find batches (2026-10-27) */
 async function loadReachPlan(){ if(REACH_PLAN!==undefined) return; try{ const R=await reachApi(); const p=R&&await R.plans(); REACH_PLAN=(p&&p.reach)||"free"; }catch(e){ /* unknown: leave unset, the server still enforces the allowance */ } }
