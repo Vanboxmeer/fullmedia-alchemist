@@ -1257,6 +1257,8 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
       var q = sb.from(m.t).select(cols(m)).order(order(m)).range(from, from + PAGE - 1);
       if (m.kind) q = q.eq("kind", m.kind);
       if (m.kv) q = q.eq("coll", name);
+      /* settings and key-value rows belong to ONE workspace. A person can see several (their own plus a team workspace), and rows share ids like "workspace", so only read the active one. */
+      if ((m.key || m.kv) && ctx.client) q = q.eq("client_id", ctx.client);
       return q.then(function (r) {
         if (r.error) throw r.error;
         out = out.concat(r.data || []);
