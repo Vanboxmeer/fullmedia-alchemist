@@ -2888,7 +2888,7 @@ function addLeadsToWave(ids,brand,wave){
 /* ---- 2026-11-09: first-run setup. Nobody inherits another person's name, agency or address: each workspace says who it is. ---- */
 function identityMissing(){ const m=wsMeta(), out=[]; if(!((m.senderName||"").trim()||sigText())) out.push("name"); if(!(m.agencyName||"").trim()&&!m.soloSender) out.push("company"); return out; }
 function brandNeedsName(){ return (state.brands||[]).find(b=>!(b.callAs||"").trim()&&/^(my brand|new brand|brand)$/i.test((b.name||"").trim())); }
-function setupNeeded(){ return identityMissing().length>0||!!brandNeedsName(); }
+function setupNeeded(){ if(!loadedCols.has("meta")||!loadedCols.has("brands")) return false; /* never judge before the workspace settings and brands have actually arrived */ return identityMissing().length>0||!!brandNeedsName(); }
 async function saveWorkspaceMeta(patch){ const prev=wsMeta(); const next=Object.assign({wsName:prev.wsName||"My workspace",plan:prev.plan||"Free"},prev,patch); delete next.id; const ex=state.meta.find(x=>x.id==="workspace"); if(ex) Object.assign(ex,next); else state.meta.push(Object.assign({id:"workspace"},next)); markDirty(); noteLocal("meta","workspace"); try{ await D("meta/workspace").set(next); }catch(e){ toast("Couldn't save"); return false; } return true; }
 async function ensureSetup(){ if(!setupNeeded()) return true; openSetupModal(); toast("Finish this quick setup first — drafts need your name and your brand's name"); return false; }
 function openSetupModal(){
