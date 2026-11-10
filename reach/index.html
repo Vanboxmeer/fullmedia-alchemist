@@ -4576,7 +4576,7 @@ function renderTabs(){
   base.forEach(d=>{ const ph=phaseOf(d); VIEWS.forEach(v=>{ if(inView(d,v[0],ph)) counts[v[0]]++; }); });
   const w=state.wb;
   const heldReplies=base.filter(d=>hiddenByHold(d)&&phaseOf(d)==="replied").length;
-  box.innerHTML=VIEWS.filter(v=>!((v[0]==="proposed"||v[0]==="suggested"||v[0]==="hold")&&!counts[v[0]]&&w.view!==v[0])).map(v=>'<button class="vtab'+(w.view===v[0]?" on":"")+'" data-v="'+v[0]+'"'+(v[0]==="hold"&&heldReplies?' title="'+heldReplies+' repl'+(heldReplies===1?'y':'ies')+' in paused campaigns"':'')+'>'+esc(v[1])+' <span class="n'+(((v[0]==="inbox"&&counts.inbox)||(v[0]==="hold"&&heldReplies))?" hot":"")+(counts[v[0]]?"":" zero")+'">'+counts[v[0]]+'</span></button>').join("");
+  box.innerHTML=VIEWS.filter(v=>!(["proposed","suggested","hold","stalled","clientrev","due","replies","deals","closed","review","ready"].includes(v[0])&&!counts[v[0]]&&w.view!==v[0])).map(v=>'<button class="vtab'+(w.view===v[0]?" on":"")+'" data-v="'+v[0]+'"'+(v[0]==="hold"&&heldReplies?' title="'+heldReplies+' repl'+(heldReplies===1?'y':'ies')+' in paused campaigns"':'')+'>'+esc(v[1])+' <span class="n'+(((v[0]==="inbox"&&counts.inbox)||(v[0]==="hold"&&heldReplies))?" hot":"")+(counts[v[0]]?"":" zero")+'">'+counts[v[0]]+'</span></button>').join("");
   try{ const on=box.querySelector(".vtab.on"); if(on&&box.scrollWidth>box.clientWidth) box.scrollLeft=Math.max(0,on.offsetLeft-box.clientWidth/2+on.offsetWidth/2); }catch(e){}
 }
 function wireWorkbench(){
