@@ -3396,18 +3396,25 @@ function sigText(b){ const own=((b&&b.managerSig)||"").trim(); if(own) return ow
 /* Add the saved signature once: if the message already ends with the sign-off name alone, expand that line into the full signature; if it already holds the whole signature, leave it. */
 function withSig(body,br){ let b=(body||"").replace(/\s+$/,""); const sig=sigText(br); if(!sig||!b||b.includes(sig)) return b; const first=sig.split("\n")[0].trim(); const lines=b.split("\n"); if(first&&lines[lines.length-1].trim()===first){ lines.pop(); return lines.join("\n").replace(/\s+$/,"")+"\n"+sig; } return b+"\n\n"+sig; }
 /* Safety net: a sign-off name that nobody gave the writer (it made one up, or lifted one from a website) is replaced with the sender's real name. Only touches a short Capitalised name alone on the last line. */
-function cleanSignoff(body,br){
-  let b=(body||"").replace(/\s+$/,""); if(!b) return b; const lines=b.split("\n"); if(lines.length<3||lines[lines.length-2].trim()!=="") return b;
-  const last=lines[lines.length-1].trim();
-  if(!/^[A-Z][A-Za-z'’.\-]{1,24}(\s+[A-Z][A-Za-z'’.\-]{0,24}){0,2}$/.test(last)) return b;
-  if(/^(thanks|thank you|many thanks|best|regards|best regards|kind regards|warm regards|cheers|sincerely|warmly|thanks again|all the best)$/i.test(last)) return b;
-  const SN=senderName(br), norm=x=>String(x||"").toLowerCase().replace(/[^a-z0-9]/g,""), nl=norm(last);
-  const ok=[SN,(sigText(br).split("\n")[0]||""),agencyName(),brandCall(br||{}),(br&&br.name)||""].map(norm).filter(Boolean);
-  if(ok.some(o=>nl===o||(nl.startsWith(o)&&nl.length<=o.length+6))) return b;
+function cleanSignoff(body,br,clientOwned){
+  let b=(body||"").replace(/\s+$/,""); if(!b) return b; const lines=b.split("\n"); if(lines.length<2) return b;
+  const last=lines[lines.length-1].trim(), prev=lines[lines.length-2].trim();
+  const CLOSER=/^(thanks|thank you|many thanks|best|regards|best regards|kind regards|warm regards|cheers|sincerely|warmly|thanks again|all the best)[,!.]?$/i;
+  if(prev!==""&&!(CLOSER.test(prev)&&/,$/.test(prev))) return b; /* a sign-off sits alone after a blank line or right after "Thanks," */
+  if(CLOSER.test(last)||/[.?!:;]$/.test(last)||last.length>48||last.split(/\s+/).length>6) return b;
+  const norm=x=>String(x||"").toLowerCase().replace(/[^a-z0-9]/g,""), core=last.replace(/^[–—\-~]+\s*/,""), nl=norm(core);
+  const SN=senderName(br), AG=agencyName(), BC=brandCall(br||{}), BN=(br&&br.name)||"";
+  const brandish=[BC,BN,AG].map(norm).filter(Boolean).some(x=>nl.includes(x))||/\bteam\b/i.test(core);
+  const nameLike=/^[A-Z][A-Za-z'’.\-]{1,24}(\s+[A-Z][A-Za-z'’.\-]{0,24}){0,2}$/.test(core);
+  if(!brandish&&!nameLike) return b;
+  const first=norm((sigText(br).split("\n")[0]||"")), sn=norm(SN);
+  if(sn&&(nl===sn||(nl.startsWith(sn)&&nl.length<=sn.length+6))) return b;
+  if(first&&nl===first) return b;
+  if(clientOwned&&brandish) return b; /* a brand's own team may sign for itself */
   lines.pop(); while(lines.length&&!lines[lines.length-1].trim()) lines.pop();
-  return SN?lines.join("\n")+"\n\n"+SN:lines.join("\n");
+  return SN?lines.join("\n")+(CLOSER.test(prev)&&/,$/.test(prev)?"\n":"\n\n")+SN:lines.join("\n");
 }
-function outBody(d){ const br=brandById(d.brandId); return withSig(d.draftState==="agent"?cleanSignoff(d.draft||"",br):(d.draft||""),br); }
+function outBody(d){ const br=brandById(d.brandId); return withSig(d.draftState==="agent"?cleanSignoff(d.draft||"",br,(d.ownerType||"").startsWith("Client")):(d.draft||""),br); }
 function senderEmail(d){ const b=brandById(d.brandId)||{}; const m=((b.outreachSender||wsMeta().senderEmail||"")+"").match(/[\w.+-]+@[\w.-]+\.\w+/); return m?m[0]:""; }
 function sendAsOf(d){ const b=brandById(d.brandId)||{}; const m=((b.sendAs||"")+"").match(/[\w.+-]+@[\w.-]+\.\w+/); return m?m[0]:""; }
 function gmailHref(d){ const em=emailOf(d); if(!em) return ""; const su=d.subject||""; const sd=senderEmail(d);
@@ -5626,7 +5633,7 @@ async function agentDraft(id,opts){
   const res=document.getElementById("agRes"); if(opts.pane&&res) res.innerHTML='<div class="agres"><span class="spin"></span> Drafting…</div>';
   try{
     const out=await runSample(draftPrompt(d),"default");
-    const subject=(out.subject||"").trim(), bodyTxt=cleanSignoff((out.body||"").trim(),brandById(d.brandId)); if(!bodyTxt) throw {code:"empty",message:"empty draft"};
+    const subject=(out.subject||"").trim(), bodyTxt=cleanSignoff((out.body||"").trim(),brandById(d.brandId),(d.ownerType||"").startsWith("Client")); if(!bodyTxt) throw {code:"empty",message:"empty draft"};
     patchDeal(id,{subject,draft:bodyTxt,draftState:"agent",draftKind:"",template:d.template||""});
     { const cur=ix().deal.get(id); if(cur&&cur.readyAfterDraft){ patchDeal(id,{readyAfterDraft:false}); if(cur.reviewState!=="proposed"&&!hasGaps(cur)) markReady(id); } }
     afterRowChange(id); if(state.wb.active===id) renderPane("msg");
@@ -5651,7 +5658,7 @@ async function agentRevise(id,instruction,label){
   const res=document.getElementById("agRes"); if(res) res.innerHTML='<div class="agres"><span class="spin"></span> '+esc(label||"Revising")+'…</div>';
   try{
     const out=await runSample(revisePrompt(cur,instruction),"quick");
-    const subject=(out.subject==null?cur.subject:String(out.subject)).trim(), bodyTxt=cleanSignoff(String(out.body||"").trim(),brandById(cur.brandId)); if(!bodyTxt) throw {code:"empty",message:"empty revision"};
+    const subject=(out.subject==null?cur.subject:String(out.subject)).trim(), bodyTxt=cleanSignoff(String(out.body||"").trim(),brandById(cur.brandId),(cur.ownerType||"").startsWith("Client")); if(!bodyTxt) throw {code:"empty",message:"empty revision"};
     window.__agentProposal={id,subject,body:bodyTxt,instruction,label};
     if(res&&state.wb.active===id){ res.innerHTML='<div class="agres"><div class="sj">'+(subject?esc(subject):'<span class="mini">(no subject)</span>')+'</div><pre>'+esc(bodyTxt)+'</pre>'+(out.notes?'<div class="nt">'+esc(out.notes)+'</div>':'')+'<div class="btns"><button class="btn small primary" id="agAcc">Use this</button><button class="btn small" id="agRetry">Try again</button><button class="btn small" id="agDis">Discard</button></div></div>';
       document.getElementById("agAcc").addEventListener("click",()=>{ const p=window.__agentProposal; patchDeal(p.id,{subject:p.subject,draft:p.body,draftState:"agent"}); afterRowChange(p.id); renderPane("msg"); toast("Applied"); });
