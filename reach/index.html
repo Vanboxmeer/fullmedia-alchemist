@@ -2861,10 +2861,11 @@ function render(){
     if(sec==="requests"){ renderRequestsPage(null); return; }
     if(sec==="stalled"){ renderStalledPage(null); return; }
     if(sec==="knowledge"){ renderKnowledgePage(null); return; }
+    if(sec==="sender"){ renderSenderPage(null); return; }
     title.textContent="Brands"; crumb.textContent=state.brands.length+" brands · all pipelines";
     actions.innerHTML=""; view.innerHTML=renderCommandCenter(); wireCommandCenter(); return;
   }
-  const map={ overview:renderOverview, cov_requests:(b)=>renderRequestsPage(b), deals:()=>renderDealsPage(), options:()=>renderOptionsPage(), stalled:(b)=>renderStalledPage(b), knowledge:(b)=>renderKnowledgePage(b) };
+  const map={ overview:renderOverview, cov_requests:(b)=>renderRequestsPage(b), deals:()=>renderDealsPage(), options:()=>renderOptionsPage(), stalled:(b)=>renderStalledPage(b), knowledge:(b)=>renderKnowledgePage(b), sender:(b)=>renderSenderPage(b) };
   (map[sec]||renderOverview)(brand);
 }
 
@@ -2906,7 +2907,7 @@ function openSetupModal(){
       +'<div class="g2"><div class="field"><label>Brand name in your workbench <span class="mini">(only you see this)</span></label><input type="text" id="suBrand" value="" placeholder="e.g. Acme Spring Launch"></div>'
       +'<div class="field"><label>Name used in messages and subject lines</label><input type="text" id="suCall" value="" placeholder="e.g. Acme"></div></div>'
       +'<div class="g2"><div class="field"><label>Website <span class="mini">(optional)</span></label><input type="text" id="suSite" value="" placeholder="https://"></div><div class="field"><label>What it is <span class="mini">(one line, optional)</span></label><input type="text" id="suWhat" value="" placeholder="e.g. A reading app for kids"></div></div>':'')
-    +'<div class="setupnote" style="margin-top:6px">You can change all of this later: Account menu → Sender profile &amp; plan, and Brand page → Brand details.</div>'
+    +'<div class="setupnote" style="margin-top:6px">You can change all of this later: Account menu → Workspace settings, and the Brand tab (details, sender &amp; signature).</div>'
     +'</div>'+foot("Save and continue"),false);
   wireClose();
   const solo0=document.getElementById("suSolo"), ag=document.getElementById("suAgency");
@@ -2930,13 +2931,13 @@ function openAccountModal(){
   const pcm=(state.meta||[]).find(x=>x.id==='publicContact')||{};
   const m=wsMeta(); const cur=m.plan||"Free"; const wsName=m.wsName||"My workspace";
   const tiers=PLAN_TIERS.map(t=>'<div class="plan'+(t.name===cur?' on':'')+'" data-plan="'+esc(t.name)+'"><div class="ptop"><span class="pname">'+esc(t.name)+'</span><span class="pprice">'+esc(t.price)+'</span></div><div class="pline">'+esc(t.line)+'</div><ul class="pfeat">'+t.feats.map(f=>'<li>'+esc(f)+'</li>').join("")+'</ul><button class="btn small '+(t.name===cur?'':'primary')+'" data-choose="'+esc(t.name)+'" '+(t.name===cur?'disabled':'')+'>'+(t.name===cur?'Current plan':'Choose '+esc(t.name))+'</button></div>').join("");
-  openModal('<div class="mhead"><div><h3>Sender profile &amp; plan</h3><div class="ikstep">'+(viewerIsAdmin?'Agency workspace':'Your private workspace')+'</div></div><button class="iconbtn" id="mClose">&times;</button></div><div class="mbody">'
-    +'<div class="section-title">Who your messages come from</div>'
+  openModal('<div class="mhead"><div><h3>Workspace settings &amp; default sender</h3><div class="ikstep">'+(viewerIsAdmin?'Agency workspace':'Your private workspace')+'</div></div><button class="iconbtn" id="mClose">&times;</button></div><div class="mbody">'
+    +'<div class="section-title">Default sender — used by every brand that doesn\'t set its own</div>'
     +'<div class="hint" style="margin:0 0 8px">Every draft, signature and subject line uses these. They are yours — nothing here is shared with anyone else.</div>'
     +'<div class="g2"><div class="field"><label>My name in messages</label><input type="text" id="mSenderName" value="'+esc(m.senderName||senderName())+'" placeholder="e.g. Sam Lee"></div><div class="field"><label>My company or agency <span class="mini">(what drafts call you; leave blank if you send only for your own brand)</span></label><input type="text" id="mAgency" value="'+esc(m.agencyName||"")+'" placeholder="e.g. Acme Media"></div></div>'
     +'<div class="field"><label>Sending email <span class="mini">(the Gmail address you send from)</span></label><input type="text" id="mSender" value="'+esc(m.senderEmail||(ACCT&&ACCT.email)||"")+'" placeholder="you@yourcompany.com"></div>'
-    +'<div class="field"><label>Email signature <span class="mini">(appended when you copy a message or open Gmail — use the registered business address only)</span></label><textarea id="mSig" rows="4" placeholder="Sam Lee&#10;Acme Media&#10;[registered address]">'+esc(m.signature||"")+'</textarea><div class="mini" style="margin-top:4px">Different account managers per brand? Set a name, signature and sending email on each Brand page → Brand details. These are the defaults.</div></div>'
-    +'<div class="hint" style="margin:0 0 8px">The name a <b>brand</b> goes by in messages and subject lines is set on the brand: Brand page → Brand details → Edit.</div>'
+    +'<div class="field"><label>Email signature <span class="mini">(appended when you copy a message or open Gmail — use the registered business address only)</span></label><textarea id="mSig" rows="4" placeholder="Sam Lee&#10;Acme Media&#10;[registered address]">'+esc(m.signature||"")+'</textarea><div class="mini" style="margin-top:4px">Different account managers per brand? A brand with its own account manager sets a name, signature and sending email under Brand → Sender &amp; signature. These are the defaults for all other brands.</div></div>'
+    +'<div class="hint" style="margin:0 0 8px">The name a <b>brand</b> goes by in messages is set on the brand: Brand → Brand details → Edit.</div>'
     +'<div class="section-title" style="margin-top:14px">Workspace</div>'
     +'<div class="field"><label>Workspace name <span class="mini">(only you see this)</span></label><input type="text" id="mWsName" value="'+esc(wsName)+'"></div>'
     +'<div class="field"><label>Workspace avatar <span class="mini">(shown top right in Reach and Content, so you can tell your workspace from the brand you are on)</span></label><div class="row" style="gap:10px;align-items:center"><span id="mWsAv" style="width:40px;height:40px;border-radius:50%;overflow:hidden;display:inline-grid;place-items:center;background:var(--surface-3);flex:0 0 auto"></span><button class="btn small" id="mWsAvPick" type="button">Choose image…</button><button class="btn small" id="mWsAvRm" type="button" style="display:none">Remove</button></div></div>'
@@ -3223,14 +3224,13 @@ function openEditBrandModal(b){
     +''
     +'<div class="section-title kbs" style="margin:14px 0 10px"><span class="dot" style="background:var(--fg-faint)"></span>Campaign &amp; plan settings</div><div class="row2"><div class="field"><label>Campaign status</label><input type="text" id="mCStatus" value="'+esc(b.campaignStatus||"")+'"></div><div class="field"><label>Primary KPI</label><input type="text" id="mKPI" value="'+esc(b.primaryKPI||"")+'"></div></div>'
     +'<div class="row2"><div class="field"><label>Monthly budget</label><input type="text" id="mBudget" value="'+esc(b.monthlyBudget||"")+'"></div><div class="field"><label>Subscription plan</label><input type="text" id="mPlan" value="'+esc(b.subscriptionPlan||"")+'"></div></div>'
-    +'<div class="row2"><div class="field"><label>Client contact</label><input type="text" id="mCContact" value="'+esc(b.clientContact||"")+'"></div><div class="field"><label>Sending email for this brand <span class="mini">(the Google account its mail is sent from; blank = the workspace email)</span></label><input type="text" id="mSender" value="'+esc(b.outreachSender||"")+'" placeholder="'+esc(wsMeta().senderEmail||"you@yourcompany.com")+'"></div></div>'
-    +'<div class="row2"><div class="field"><label>Account manager <span class="mini">(who signs this brand\'s messages; blank = the workspace sender)</span></label><input type="text" id="mMgr" value="'+esc(b.managerName||"")+'" placeholder="'+esc(wsMeta().senderName||"e.g. Sam Lee")+'"></div><div class="field"><label>Signature for this brand <span class="mini">(optional; blank = account manager + company, or the workspace signature)</span></label><textarea id="mMgrSig" rows="3">'+esc(b.managerSig||"")+'</textarea></div></div>'
-    +'<div class="field"><label>Send-as alias <span class="mini">(the From address this brand uses, if it is an alias of that account)</span></label><input type="text" id="mSendAs" value="'+esc(b.sendAs||"")+'" placeholder="outreach@brand.com"></div>'
+    +'<div class="field"><label>Client contact</label><input type="text" id="mCContact" value="'+esc(b.clientContact||"")+'"></div>'
+    +'<div class="hint" style="margin:0 0 8px">Who signs this brand\'s messages, its signature and sending email are on the <b>Sender &amp; signature</b> page of the Brand tab.</div>'
     +'<div class="field"><label>Deal history / renewal risk</label><input type="text" id="mDeal" value="'+esc(b.dealHistory||"")+'"></div>'
     +'<div class="row2"><div class="field"><label>Free coverage quota</label><input type="number" id="mQuota" value="'+esc(b.planQuota||"")+'"></div><div class="field"><label>Per</label><select id="mPeriod">'+opt(PLAN_PERIODS,b.planPeriod||"per month")+'</select></div></div>'
     +'<div class="field"><label>Notes</label><textarea id="mNotes">'+esc(b.notes||"")+'</textarea></div>'+brandGatesFields(b)+'</div>'+foot("Save"),true);
   wireClose(); wireBrandGates();
-  document.getElementById("mSave").addEventListener("click",async()=>{ const pipe=document.getElementById("mPipe").value; await D("brands/"+b.id).update({name:gv("mName"),callAs:gv("mCallAs"),usesCoverage:pipe!=="lead",usesLeads:pipe!=="coverage",officialSite:gv("mSite"),legalName:gv("mLegal"),whatItIs:gv("mWhat"),targetAudience:gv("mAud"),mission:gv("mMission"),brandTone:gv("mTone"),coverageScope:gv("mCovScope"),leadScope:gv("mLeadScope"),proofPoints:gv("mProof"),doNotContact:gv("mDNC"),audienceHangouts:gv("mHang"),newsUrl:gv("mNews"),keyMessages:gv("mMsgs"),competitors:gv("mComp"),blockWords:gv("mBlock"),campaignStatus:gv("mCStatus"),primaryKPI:gv("mKPI"),monthlyBudget:gv("mBudget"),subscriptionPlan:gv("mPlan"),clientContact:gv("mCContact"),outreachSender:gv("mSender"),managerName:gv("mMgr"),managerSig:(document.getElementById("mMgrSig").value||"").trim(),sendAs:gv("mSendAs"),dealHistory:gv("mDeal"),planQuota:gv("mQuota"),planPeriod:document.getElementById("mPeriod").value,notes:gv("mNotes")}); saveBrandGates(b.id); closeModal(); toast("Saved"); });
+  document.getElementById("mSave").addEventListener("click",async()=>{ const pipe=document.getElementById("mPipe").value; await D("brands/"+b.id).update({name:gv("mName"),callAs:gv("mCallAs"),usesCoverage:pipe!=="lead",usesLeads:pipe!=="coverage",officialSite:gv("mSite"),legalName:gv("mLegal"),whatItIs:gv("mWhat"),targetAudience:gv("mAud"),mission:gv("mMission"),brandTone:gv("mTone"),coverageScope:gv("mCovScope"),leadScope:gv("mLeadScope"),proofPoints:gv("mProof"),doNotContact:gv("mDNC"),audienceHangouts:gv("mHang"),newsUrl:gv("mNews"),keyMessages:gv("mMsgs"),competitors:gv("mComp"),blockWords:gv("mBlock"),campaignStatus:gv("mCStatus"),primaryKPI:gv("mKPI"),monthlyBudget:gv("mBudget"),subscriptionPlan:gv("mPlan"),clientContact:gv("mCContact"),dealHistory:gv("mDeal"),planQuota:gv("mQuota"),planPeriod:document.getElementById("mPeriod").value,notes:gv("mNotes")}); saveBrandGates(b.id); closeModal(); toast("Saved"); });
 }
 function openNewWaveModal(brand,type){
   const isLead=type==="lead";
@@ -4221,7 +4221,7 @@ function wireRequestAccess(){ const b=document.getElementById("reqAccBtn"); if(!
 const TAB_DEFS=[["work","Workbench"],["options","Options"],["requests","Requests"],["overview","Brands"]];
 const SEC_OF_TAB={work:"work",stalled:"stalled",deals:"deals",options:"options",requests:"cov_requests",knowledge:"knowledge",overview:"overview"};
 const TOP_OF_TAB={work:"work",stalled:"stalled",deals:"deals",options:"options",requests:"requests",knowledge:"knowledge",overview:"brands"};
-function curTab(){ const sec=state.currentBrandId?state.currentSection:state.top; return ({work:"work",stalled:"stalled",deals:"deals",options:"options",cov_requests:"requests",requests:"requests",knowledge:"overview",overview:"overview",brands:"overview"})[sec]||"work"; }
+function curTab(){ const sec=state.currentBrandId?state.currentSection:state.top; return ({work:"work",stalled:"stalled",deals:"deals",options:"options",cov_requests:"requests",requests:"requests",knowledge:"overview",sender:"overview",overview:"overview",brands:"overview"})[sec]||"work"; }
 function goTab(t){ if(t==="options"){ OPT_PROFILE=null; LEAD_PROFILE=null; } if(state.currentBrandId) goSection(SEC_OF_TAB[t]||"work"); else goTop(TOP_OF_TAB[t]||"work"); }
 function setScope(id){
   const t=curTab(); state.currentBrandId=id||null; setBrandNav(id||null); state.currentWaveId=null; state.addTargetToWave=null; state.wb.wave=""; state.wb.active=null; state.wb.sel={};
@@ -4257,7 +4257,7 @@ function renderSidebar(){
 /* Account menu + module menu are built by /assets/xpromo.js (one component for Content and Reach). Reach only supplies its own entries. */
 window.xpHostInfo=function(){ const m=wsMeta(); return {workspace:m.wsName||"My workspace"}; };
 window.xpModuleItems=function(){
-  const items=[{label:"Sender profile & plan",fn:()=>openAccountModal()},{label:"Connections",mini:CONNECTORS.filter(c=>connUsable(c.key)).length+"/"+CONNECTORS.length,fn:()=>openConnections()},{label:"Team & brands",fn:()=>openTeam()},{label:"Claude automation",fn:()=>openAutomation()}];
+  const items=[{label:"Workspace settings & default sender",fn:()=>openAccountModal()},{label:"Connections",mini:CONNECTORS.filter(c=>connUsable(c.key)).length+"/"+CONNECTORS.length,fn:()=>openConnections()},{label:"Team & brands",fn:()=>openTeam()},{label:"Claude automation",fn:()=>openAutomation()}];
   items.push({label:"Reach guide",href:"/reach-features/"}); return items; };
 window.xpCloseHostMenus=function(){ closeBrandMenu(); };
 window.xpToggleTheme=function(){ toggleTheme(); };
@@ -5480,10 +5480,41 @@ function renderKnowledgePage0(brand){
   v.querySelectorAll("[data-editbrand]").forEach(el=>el.addEventListener("click",()=>openEditBrandModal(brand)));
 }
 /* 2026-11-09: Brand details and Drafting notes are one page ("Brand") with two panes, not two tabs. */
-function brandPaneBar(active){ return '<div class="paneseg" role="tablist"><button type="button" data-pane="overview" class="'+(active==="overview"?"on":"")+'">Brand details</button><button type="button" data-pane="knowledge" class="'+(active==="knowledge"?"on":"")+'">Drafting notes</button></div>'; }
+function brandPaneBar(active){ return '<div class="paneseg" role="tablist"><button type="button" data-pane="overview" class="'+(active==="overview"?"on":"")+'">Brand details</button><button type="button" data-pane="sender" class="'+(active==="sender"?"on":"")+'">Sender &amp; signature</button><button type="button" data-pane="knowledge" class="'+(active==="knowledge"?"on":"")+'">Drafting notes</button></div>'; }
 function addPaneBar(active){ const v=document.getElementById("view"); if(!v) return; v.insertAdjacentHTML("afterbegin",brandPaneBar(active)); v.querySelectorAll(".paneseg [data-pane]").forEach(b=>b.addEventListener("click",()=>goSection(b.dataset.pane))); }
 function renderOverview(brand){ renderOverview0(brand); addPaneBar("overview"); }
 function renderKnowledgePage(brand){ renderKnowledgePage0(brand); if(brand) addPaneBar("knowledge"); }
+/* 2026-11-10: one place for who messages come from. Workspace default on top, then each brand's own name / signature / sending email (blank = inherits the default). */
+function renderSenderPage(brand){
+  const t=document.getElementById("pageTitle"), c=document.getElementById("pageCrumb"), a=document.getElementById("topActions"), v=document.getElementById("view");
+  t.textContent="Sender & signature"; c.textContent=brand?brand.name:"all brands"; if(a) a.innerHTML="";
+  const m=wsMeta(), dName=(m.senderName||"").trim()||acctName(), dAg=agencyName(), dSig=(m.signature||"").trim(), dMail=(m.senderEmail||(ACCT&&ACCT.email)||"").trim();
+  const defCard='<div class="briefcard" style="padding:16px;margin-top:14px"><div class="kbhead"><div class="kbtitle">Workspace default</div></div><div class="mini" style="margin:2px 0 8px">Used by every brand that leaves a field blank. Set once for the whole workspace.</div>'
+    +'<div class="brow"><div class="bk">NAME</div><div class="bv">'+(dName?esc(dName):'<span class="mini">not set</span>')+(dAg?' · '+esc(dAg):'')+'</div></div>'
+    +'<div class="brow"><div class="bk">SENDING EMAIL</div><div class="bv">'+(dMail?esc(dMail):'<span class="mini">not set</span>')+'</div></div>'
+    +'<div class="brow"><div class="bk">SIGNATURE</div><div class="bv" style="white-space:pre-wrap">'+(dSig?esc(dSig):'<span class="mini">not set</span>')+'</div></div>'
+    +'<div style="margin-top:10px"><button class="btn small" id="snDef" type="button">Edit workspace default</button></div></div>';
+  const rows=state.brands.map(b=>{ const own=!!((b.managerName||"").trim()||(b.managerSig||"").trim()||(b.outreachSender||"").trim()); const mail=(b.outreachSender||"").trim()||dMail;
+    return '<tr data-sb="'+esc(b.id)+'" style="cursor:pointer"><td><b>'+esc(b.name)+'</b></td><td>'+esc(senderName(b)||"—")+'</td><td>'+esc(mail||"—")+'</td><td class="mini">'+(own?"Own settings":"Workspace default")+'</td></tr>'; }).join("");
+  const glance='<div class="briefcard" style="padding:16px;margin-top:14px"><div class="kbhead"><div class="kbtitle">All brands at a glance</div></div><div style="overflow-x:auto"><table class="oltable" style="width:100%"><thead><tr><th>Brand</th><th>Signs as</th><th>Sends from</th><th>Using</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="mini" style="margin-top:6px">Click a brand to edit it.</div></div>';
+  let form='';
+  if(brand){
+    form='<div class="briefcard" style="padding:16px"><div class="kbhead"><div class="kbtitle">Who messages for '+esc(brand.name)+' come from</div></div>'
+      +'<div class="mini" style="margin:2px 0 10px">Leave a field blank to use the workspace default shown in grey. Fill it in when this brand has its own account manager.</div>'
+      +'<div class="row2"><div class="field"><label>Name <span class="mini">(who signs this brand\'s messages)</span></label><input type="text" id="snName" value="'+esc(brand.managerName||"")+'" placeholder="'+esc(dName||"e.g. Sam Lee")+'"></div>'
+      +'<div class="field"><label>Sending email <span class="mini">(the Google account its mail goes out from)</span></label><input type="text" id="snMail" value="'+esc(brand.outreachSender||"")+'" placeholder="'+esc(dMail||"you@yourcompany.com")+'"></div></div>'
+      +'<div class="field"><label>Signature <span class="mini">(blank = this name + company, or the workspace signature)</span></label><textarea id="snSig" rows="3" placeholder="'+esc(dSig||"Name&#10;Company")+'">'+esc(brand.managerSig||"")+'</textarea></div>'
+      +'<div class="field"><label>Send-as alias <span class="mini">(only if this brand sends from an alias of that account)</span></label><input type="text" id="snAlias" value="'+esc(brand.sendAs||"")+'" placeholder="outreach@brand.com"></div>'
+      +'<div style="display:flex;gap:8px;align-items:center"><button class="btn primary" id="snSave" type="button">Save</button><span class="mini" id="snMsg"></span></div></div>';
+  } else form='<div class="briefcard" style="padding:16px"><div class="kbtitle" style="margin-bottom:6px">Pick a brand</div><div class="mini">Choose a brand in the list below, or from the brand switcher at the top, to set who its messages come from.</div></div>';
+  v.innerHTML='<div class="pagewrap" style="max-width:860px">'+form+defCard+glance+'</div>';
+  const q=id=>document.getElementById(id);
+  if(q("snDef")) q("snDef").addEventListener("click",()=>openAccountModal());
+  v.querySelectorAll("[data-sb]").forEach(r=>r.addEventListener("click",()=>{ state.currentBrandId=r.dataset.sb; setBrandNav(r.dataset.sb); state.top="brands"; state.currentSection="sender"; render(); }));
+  if(q("snSave")) q("snSave").addEventListener("click",async()=>{ const g=id=>(q(id).value||"").trim(); const mail=g("snMail"); if(mail&&!/^[\w.+-]+@[\w.-]+\.\w+$/.test(mail)){ q("snMsg").textContent="That sending email doesn't look right."; return; }
+    try{ await D("brands/"+brand.id).update({managerName:g("snName"),outreachSender:mail,managerSig:g("snSig"),sendAs:g("snAlias")}); toast("Saved — drafts for "+brand.name+" will sign as "+(g("snName")||dName||"the workspace sender")); render(); }catch(e){ q("snMsg").textContent="Couldn't save."; } });
+  addPaneBar("sender");
+}
 function kbMissing(b){ return KB_FIELDS.filter(f=>f.need&&!String(b[f.k]||"").trim()); }
 function knowledgeCardHTML(b){
   function row(l,v){ return v&&String(v).trim()?'<div class="brow"><div class="bk">'+l+'</div><div class="bv">'+esc(v)+'</div></div>':''; }
@@ -6154,7 +6185,7 @@ async function openTeam(){
       +(pendRows?'<h4 style="margin:14px 0 4px">Invited</h4>'+pendRows:"")
       +'<h4 style="margin:14px 0 4px">Add an account manager</h4><div class="field"><label>Their email (the one they sign in with)</label><input type="email" id="tmEmail" placeholder="name@youragency.com"></div><div class="mini" style="margin:4px 0 2px">Brands they can work on:</div>'+bl([],"data-nb")
       +'<div class="mfoot" style="padding:10px 0 0"><button class="btn primary" id="tmInv">Add to team</button><span class="mini" id="tmMsg" style="margin-left:10px"></span></div>'
-      +'<div class="fine" style="margin-top:8px">Workspace settings (sender profile, Claude automation) are shared by the whole team. Each brand can have its own account manager name, signature and sending email under Brand details.</div>';
+      +'<div class="fine" style="margin-top:8px">Workspace settings (sender profile, Claude automation) are shared by the whole team. Each brand can have its own account manager name, signature and sending email under Brand → Sender &amp; signature.</div>';
     body.querySelectorAll("[data-tb]").forEach(c=>c.addEventListener("change",async()=>{ const u=c.dataset.u; const ids=Array.from(body.querySelectorAll('[data-tb][data-u="'+u+'"]:checked')).map(x=>x.dataset.tb); if(!ids.length){ toast("Pick at least one brand, or remove the person"); return paint(); } const r=await R.team("set_brands",{userId:u,brandIds:ids}); toast(r&&r.ok?"Saved":((r&&r.error)||"Couldn’t save")); if(!(r&&r.ok)) paint(); }));
     body.querySelectorAll("[data-trm]").forEach(b=>b.addEventListener("click",async()=>{ if(b.dataset.sure!=="1"){ b.dataset.sure="1"; b.textContent="Click again to remove"; return; } const r=await R.team("remove",{userId:b.dataset.trm}); toast(r&&r.ok?"Removed":((r&&r.error)||"Couldn’t remove")); paint(); }));
     body.querySelectorAll("[data-tpx]").forEach(b=>b.addEventListener("click",async()=>{ await R.team("remove",{email:b.dataset.tpx}); paint(); }));
