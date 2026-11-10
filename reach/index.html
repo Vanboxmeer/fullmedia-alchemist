@@ -4246,7 +4246,6 @@ function renderSidebar(){
 window.xpHostInfo=function(){ const m=wsMeta(); return {workspace:m.wsName||"My workspace"}; };
 window.xpModuleItems=function(){
   const items=[{label:"Sender profile & plan",fn:()=>openAccountModal()},{label:"Connections",mini:CONNECTORS.filter(c=>connUsable(c.key)).length+"/"+CONNECTORS.length,fn:()=>openConnections()},{label:"Team & brands",fn:()=>openTeam()},{label:"Claude automation",fn:()=>openAutomation()}];
-  if(state.currentBrandId&&viewerIsAdmin) items.push({label:CLIENT.preview?"Exit client view":"Client view",fn:()=>{ if(CLIENT.preview) exitPreview(); else startPreview(); }});
   items.push({label:"Reach guide",href:"/reach-features/"}); return items; };
 window.xpCloseHostMenus=function(){ closeBrandMenu(); };
 window.xpToggleTheme=function(){ toggleTheme(); };
