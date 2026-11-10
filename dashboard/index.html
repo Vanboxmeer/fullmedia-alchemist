@@ -2269,7 +2269,10 @@ function defaultPlatforms() {
 }
 function campCardHtml(c) {
   const posts = postsFor(c.id);
-  const thumbs = posts.map((p) => (p.media_urls || [])[0]).filter(Boolean).slice(0, 3);
+  /* first image of each post; if fewer than 3 posts have one, fill from the extra slides of those posts */
+  let thumbs = posts.map((p) => (p.media_urls || [])[0]).filter(Boolean);
+  if (thumbs.length < 3) posts.forEach((p) => (p.media_urls || []).slice(1).forEach((u) => { if (u && thumbs.length < 3 && !thumbs.includes(u)) thumbs.push(u); }));
+  thumbs = thumbs.slice(0, 3);
   const approved = posts.filter((p) => String(p.approval_status || '').toLowerCase() === 'approved').length;
   const due = posts.filter(isDueSoon).length;
   const fin = posts.filter(isFinishing).length;
@@ -2279,7 +2282,7 @@ function campCardHtml(c) {
     : fin ? `<span class="camp-due fin">Finishing ${fin}…</span>`
     : due ? `<span class="camp-due${late ? ' late' : ''}">${late ? `${late} overdue` : `${due} due soon`}</span>` : '';
   return `<button type="button" class="card camp" data-id="${esc(c.id)}">${badgeHtml}
-    <div class="camp-thumbs">${thumbs.length ? thumbs.map((u) => `<img loading="lazy" alt="" src="${esc(u)}">`).join('') : '<div class="empty">No posts yet</div>'}</div>
+    <div class="camp-thumbs">${thumbs.length ? thumbs.map((u) => `<img loading="lazy" alt="" src="${esc(u)}">`).join('') : '<div class="empty">${posts.length ? esc(posts.length + ' post' + (posts.length === 1 ? '' : 's') + ' · images not ready yet') : 'No posts yet'}</div>'}</div>
     <div class="camp-body"><h3>${esc(c.name)}</h3>${c.goal ? `<p>${esc(c.goal)}</p>` : ''}
       <div class="camp-meta"><span>${posts.length} post${posts.length === 1 ? '' : 's'}${approved ? ` · ${approved} approved` : ''}</span><span>${esc(fmtDate(c.start_date))}</span></div></div>
   </button>`;
