@@ -536,7 +536,7 @@ details.more[open]>summary{margin-bottom:8px}
 .wbtop{gap:4px;padding-top:4px}
 .wbrow1{display:flex;align-items:flex-end;gap:8px;border-bottom:1px solid var(--border)}
 .wbrow1 .vtabs{flex:1;min-width:0;border-bottom:0;margin:0}
-.wbacts{display:flex;gap:5px;padding:0 0 4px;flex:none}
+.wbacts{display:flex;gap:6px;padding:8px 0 6px;flex:none;flex-wrap:wrap;align-items:center}
 .wbfx{display:flex;flex-direction:column;gap:4px}.wbfx.off{display:none}
 .banner{padding:4px 10px;font-size:12px;gap:8px}
 .campbar{flex-wrap:nowrap;padding:3px 10px;gap:8px}
@@ -2828,7 +2828,7 @@ function cmpVal(a,b){ a=(a==null?"":a); b=(b==null?"":b); const ba=(a===""),bb=(
   return String(a).toLowerCase().localeCompare(String(b).toLowerCase()); }
 function sortRows(rows,acc,dir){ const r=rows.map(x=>[acc(x),x]); r.sort((p,q)=>cmpVal(p[0],q[0])); const out=r.map(p=>p[1]); if(dir==="desc") out.reverse(); return out; }
 function toggleSort(s,col){ if(s.col===col) s.dir=s.dir==="asc"?"desc":"asc"; else {s.col=col;s.dir=(col==="pri"?"desc":"asc");} }
-function sortTh(s,col,label,cls){ const on=s.col===col; return '<th class="sortable'+(cls?" "+cls:"")+'" data-sc="'+col+'">'+esc(label)+(on?' <span class="scar">'+(s.dir==="asc"?"▲":"▼")+'</span>':'')+'</th>'; }
+function sortTh(s,col,label,cls){ const on=s.col===col; return '<th class="sortable'+(cls?" "+cls:"")+'" data-sc="'+col+'"'+(col==="pri"?' title="Higher number = more worth your time now. Replies and follow-ups that are due rank first."':"")+'>'+esc(label)+(on?' <span class="scar">'+(s.dir==="asc"?"▲":"▼")+'</span>':'')+'</th>'; }
 function dnum(v){ if(!v) return ""; const t=Date.parse(v); return isNaN(t)?v:t; }
 function priceNum(v){ if(!v) return ""; const n=parseFloat(String(v).replace(/[^0-9.]/g,"")); return isNaN(n)?v:n; }
 function wireSort(scope,s,redraw){ scope.querySelectorAll("th.sortable").forEach(th=>th.addEventListener("click",()=>{ toggleSort(s,th.dataset.sc); redraw(); })); }
@@ -4512,12 +4512,15 @@ document.addEventListener('click', function (e) {
   try { localStorage.setItem('fm-tip-until', String(Date.now() + 3 * 864e5)); localStorage.setItem('fm-tip-i', String((+localStorage.getItem('fm-tip-i') || 0) + 1)); } catch (x) {}
   var t = b.closest('.fm-tip'); if (t) t.remove();
 });
+let viewChecked=false;
 function renderWorkbench(brand){
   const title=document.getElementById("pageTitle"), crumb=document.getElementById("pageCrumb"), actions=document.getElementById("topActions"), view=document.getElementById("view");
   const w=state.wb, I=ix();
   const wave=w.wave?I.wave.get(w.wave):null; if(w.wave&&!wave) w.wave="";
   title.textContent="Workbench"; crumb.textContent=brand?brand.name:"all brands";
   actions.innerHTML="";
+  /* A view remembered from last time (say "Proposed") can be empty today while other tabs have work. Once per load, open on Act now instead of an empty list. */
+  if(!viewChecked&&!state.loading){ viewChecked=true; try{ const nb={}; wbBase().forEach(d=>{ const ph=phaseOf(d); VIEWS.forEach(v=>{ if(inView(d,v[0],ph)) nb[v[0]]=(nb[v[0]]||0)+1; }); }); if(w.view!=="all"&&!nb[w.view]){ w.view=nb.inbox?"inbox":"all"; try{ saveWb(); }catch(e){} } }catch(e){} }
   if(w.chromeOff===undefined){ try{ w.chromeOff=localStorage.getItem("dealflow_chromeoff")==="1"; }catch(e){ w.chromeOff=false; } }
   const base=wbBase();
   /* banners */
@@ -4551,11 +4554,11 @@ function renderWorkbench(brand){
     +sel("fOwner",w.owner,ownerTypes(),"Any owner")+sel("fSent",w.sent,[["never","Never contacted"],["7","Sent ≤ 7 days"],["30","Sent ≤ 30 days"]],"Any send date")+sel("fTz",w.tz,TZ_FILTER,"Any send timing")
     +'<label class="check"><input type="checkbox" id="fAlerts"'+(w.alertsOnly?" checked":"")+'> Has warnings</label><label class="check" title="The 10 open rows with the highest priority score"><input type="checkbox" id="fTop"'+(w.top?" checked":"")+'> Top 10 prospects</label><div class="reachrow" id="wbReach"></div><span class="sp"></span>'
     +'<button class="btn small" id="fCompact" title="Denser rows">'+(w.compact?"Cozy":"Compact")+'</button><button class="btn small" id="fTsv" title="Copy rows as TSV for Sheets">Copy as TSV</button><button class="btn small" id="fHelp" title="Keyboard shortcuts">⌨ <span class="kbd">?</span></button></div></div><div class="fsback'+(w.fsOpen?" on":"")+'" id="fsback"></div>';
-  const acts='<div class="wbacts"><button class="btn small" id="aFind" title="Add targets: have the Alchemist find creators, leads or free communities, or add from your own library">＋ Add / Find</button><button class="btn small" id="aProg" title="Check inboxes for replies">📬 Check replies</button>'+(brand?'<button class="btn small" id="aBrand" title="Pause or resume the whole brand, or any one of its campaigns">⏸ Pause / resume</button>':'')+'<button class="btn small" id="wbChrome" title="'+(w.chromeOff?"Show":"Hide")+' notices and filters">'+(w.chromeOff?"▾ Filters"+(nMore||w.q||w.wave||w.plat||w.status?" •":""):"▴")+'</button></div>';
+  const acts='<div class="wbacts"><button class="btn small primary" id="aFind" title="Add targets: have the Alchemist find creators, leads or free communities, or add from your own library">＋ Add / Find</button><button class="btn small" id="aProg" title="Check inboxes for replies">📬 Check replies</button>'+(brand?'<button class="btn small" id="aBrand" title="Pause or resume the whole brand, or any one of its campaigns">⏸ Pause / resume</button>':'')+'<button class="btn small" id="wbChrome" title="'+(w.chromeOff?"Show":"Hide")+' notices and filters">'+(w.chromeOff?"▾ Filters"+(nMore||w.q||w.wave||w.plat||w.status?" •":""):"▴")+'</button></div>';
   const items=banners.split(/(?=<div class="banner )/).filter(Boolean);
   const nbtn=(t)=>'<button class="btn small nmore" data-bn="notices">'+t+'</button>';
   const notices=items.length<=1?items.join(""):'<div class="nrow">'+items[0]+nbtn(w.noticesOpen?"Fewer":"+"+(items.length-1)+" more")+'</div>'+(w.noticesOpen?items.slice(1).join(""):"");
-  view.innerHTML='<div class="wbroot'+(w.active?" paneopen":"")+'"><div class="wbtop"><div class="wbrow1"><div class="vtabs" id="wbTabs"></div>'+acts+'</div><div class="wbfx'+(w.chromeOff?" off":"")+'">'+fmTipHtml("reach")+notices+camp+filters+'</div><div id="wbBulk"></div></div>'
+  view.innerHTML='<div class="wbroot'+(w.active?" paneopen":"")+'"><div class="wbtop"><div class="wbrow1"><div class="vtabs" id="wbTabs"></div></div>'+acts+'<div class="wbfx'+(w.chromeOff?" off":"")+'">'+fmTipHtml("reach")+notices+camp+filters+'</div><div id="wbBulk"></div></div>'
     +'<div class="wbsplit'+(w.active?" paneopen":"")+'" id="wbSplit"><div class="wbgrid" id="wbGrid"></div><aside id="wbPane"></aside></div></div>';
   wireWorkbench();
   renderTabs(); drawGrid(); if(w.active) renderPane();
@@ -4575,6 +4578,7 @@ function renderTabs(){
   const w=state.wb;
   const heldReplies=base.filter(d=>hiddenByHold(d)&&phaseOf(d)==="replied").length;
   box.innerHTML=VIEWS.filter(v=>!((v[0]==="proposed"||v[0]==="suggested"||v[0]==="hold")&&!counts[v[0]]&&w.view!==v[0])).map(v=>'<button class="vtab'+(w.view===v[0]?" on":"")+'" data-v="'+v[0]+'"'+(v[0]==="hold"&&heldReplies?' title="'+heldReplies+' repl'+(heldReplies===1?'y':'ies')+' in paused campaigns"':'')+'>'+esc(v[1])+' <span class="n'+(((v[0]==="inbox"&&counts.inbox)||(v[0]==="hold"&&heldReplies))?" hot":"")+(counts[v[0]]?"":" zero")+'">'+counts[v[0]]+'</span></button>').join("");
+  try{ const on=box.querySelector(".vtab.on"); if(on&&box.scrollWidth>box.clientWidth) box.scrollLeft=Math.max(0,on.offsetLeft-box.clientWidth/2+on.offsetWidth/2); }catch(e){}
 }
 function wireWorkbench(){
   const w=state.wb, $=(id)=>document.getElementById(id);
@@ -6508,7 +6512,7 @@ function renderRequestsPage(brand){
     return '<div class="reqcard" data-id="'+esc(r.id)+'"><div class="rh"><span class="pill '+cls+'">'+esc(r.status||"pending")+'</span><b>'+(r.type==="progress"?"📬 Progress report":"✨ Find "+esc(r.count||"")+" "+(r.flow==="lead"?"leads":(r.mode==="communities"?"communities":"options")))+'</b><span class="mini">'+esc(b.name||"All brands")+(w?" · "+esc(w.name):"")+' · '+esc(agoText(r.requestedDate))+'</span><span style="flex:1"></span>'
       +(r.status==="fulfilled"&&r.type==="research"?'<button class="btn small" data-rq="proposed">Review proposed</button>':'')+(r.status==="fulfilled"&&r.type==="progress"?'<button class="btn small" data-rq="suggested">Review suggestions</button>':'')
       +(runnable(r)&&aiAvailable()&&(r.status==="pending"||r.status==="failed"||(r.status==="working"&&Date.now()-(r.startedAt||0)>15*60000))&&!state.run?'<button class="btn small primary" data-rq="run">▶ Run now</button>':'')+''+(r.status==="fulfilled"||r.status==="cancelled"?'<button class="btn small" data-rq="reopen">Reopen</button>':'<button class="btn small" data-rq="done">Mark fulfilled</button>')+'<button class="btn small danger" data-rq="del">Delete</button></div>'
-      +(r.type==="research"?'<div style="font-size:12.5px;color:var(--fg-dim);margin-top:8px;white-space:pre-wrap">'+esc(String(r.brief||"").split("\n").slice(0,4).join("\n"))+'</div>':'<div style="font-size:12.5px;color:var(--fg-dim);margin-top:8px">Since '+esc(fmtDate(r.since))+' · '+esc(r.tracked||0)+' rows tracked</div>')
+      +(r.type==="research"?'<details style="margin-top:8px"><summary style="font-size:12.5px;color:var(--fg-dim);cursor:pointer">Show what was asked</summary><div style="font-size:12.5px;color:var(--fg-dim);margin-top:6px;white-space:pre-wrap">'+esc(String(r.brief||""))+'</div></details>':'<div style="font-size:12.5px;color:var(--fg-dim);margin-top:8px">Since '+esc(fmtDate(r.since))+' · '+esc(r.tracked||0)+' rows tracked</div>')
       +(r.summary?'<div class="al '+(r.status==="failed"?"warn":"good")+'" style="margin-top:8px"><span class="t">'+esc(r.summary)+(r.resultCount!=null?" ("+esc(r.resultCount)+")":"")+'</span></div>':'')+'</div>'; }).join("");
   v.innerHTML=html;
   document.getElementById("rqFind").addEventListener("click",()=>openFindOptions()); const qc=document.getElementById("rqConn"); if(qc) qc.addEventListener("click",()=>openConnections()); document.getElementById("rqProg").addEventListener("click",()=>openProgressModal());
@@ -6666,12 +6670,13 @@ function renderOptionsPage(){
     const acc={name:o=>o.channelName||"",plat:o=>o.platform||"",niche:o=>o.niche||"",lang:o=>o.language||"",loc:o=>o.location||"",fol:o=>priceNum(o.followers),price:o=>{ const g=priceGlance(o); return g?priceNum(g.txt):""; },resp:o=>{ const r=stats.get(o.id).rate; return r==null?"":r; },brands:o=>stats.get(o.id).brands.length,last:o=>stats.get(o.id).last||""};
     if(os.col&&acc[os.col]) rows=sortRows(rows,acc[os.col],os.dir); else rows=rows.slice().sort((x,y)=>(stats.get(y.id).last||"").localeCompare(stats.get(x.id).last||"")||String(x.channelName).localeCompare(String(y.channelName)));
     const total=rows.length, shown=rows.slice(0,OL.limit);
+    const cLoc=rows.some(o=>o.location), cFol=rows.some(o=>o.followers), cPrice=rows.some(o=>priceGlance(o));
     const route=(o)=>{ const r=[]; if(o.contactEmail) r.push("✉"); if(o.contactLink) r.push("↗"); if(o.contactOther) r.push("DM"); return r.length?'<span class="mini">'+r.join(" ")+'</span>':'<span class="mini" style="color:var(--bad)">none</span>'; };
-    body.innerHTML=total?'<div class="mini" style="margin:0 0 6px">'+total+' match'+(total===1?"":"es")+' · click a row to open its profile</div><div class="tablewrap"><table class="oltable"><thead><tr>'+sortTh(os,"name","Option")+sortTh(os,"plat","Platform")+sortTh(os,"niche","Niche")+sortTh(os,"lang","Language")+sortTh(os,"loc","Location")+sortTh(os,"fol","Followers","num")+sortTh(os,"price","Pricing")+sortTh(os,"resp","Response","num")+sortTh(os,"brands","Brands","num")+sortTh(os,"last","Last touched")+'<th>Reach</th></tr></thead><tbody>'
+    body.innerHTML=total?'<div class="mini" style="margin:0 0 6px">'+total+' match'+(total===1?"":"es")+' · click a row to open its profile</div><div class="tablewrap"><table class="oltable"><thead><tr>'+sortTh(os,"name","Option")+sortTh(os,"plat","Platform")+sortTh(os,"niche","Niche")+sortTh(os,"lang","Language")+(cLoc?sortTh(os,"loc","Location"):"")+(cFol?sortTh(os,"fol","Followers","num"):"")+(cPrice?sortTh(os,"price","Pricing"):"")+sortTh(os,"resp","Response","num")+sortTh(os,"brands","Brands","num")+sortTh(os,"last","Last touched")+'<th>Reach</th></tr></thead><tbody>'
       +shown.map(o=>{ const s=stats.get(o.id), g=priceGlance(o);
         const bchips=s.brands.slice(0,3).map(id=>{ const b=brandById(id); return b?'<span class="olb" style="background:'+esc(b.color||"var(--fg-faint)")+'" title="'+esc(b.name)+'"></span>':""; }).join("");
-        return '<tr data-opt="'+esc(o.id)+'"><td><b>'+esc(o.channelName)+'</b>'+(o.type?'<div class="mini">'+esc(o.type)+(o.optionId?" · "+esc(o.optionId):"")+'</div>':'')+'</td><td>'+esc(o.platform||"—")+'</td><td class="ellipsis" style="max-width:150px">'+esc(o.niche||"—")+'</td><td>'+esc(o.language||"—")+'</td><td>'+(o.location?esc(o.location):'<span class="mini">—</span>')+'</td><td class="num">'+fmtFollowers(o.followers)+'</td>'
-        +'<td class="ellipsis" style="max-width:170px">'+(g?'<b>'+esc(g.txt)+'</b> <span class="mini">'+esc(g.tag)+'</span>':'<span class="mini">—</span>')+'</td><td class="num">'+(s.sent?s.replied+"/"+s.sent+' <span class="mini">'+ratePct(s)+'</span>':'<span class="mini">—</span>')+'</td><td class="num">'+(bchips||'<span class="mini">—</span>')+'</td><td class="mini">'+(s.last?esc(agoText(s.last)):"—")+'</td><td>'+route(o)+'</td></tr>'; }).join("")+'</tbody></table></div>'
+        return '<tr data-opt="'+esc(o.id)+'"><td><b>'+esc(o.channelName)+'</b>'+(o.type?'<div class="mini">'+esc(o.type)+(o.optionId?" · "+esc(o.optionId):"")+'</div>':'')+'</td><td>'+esc(o.platform||"—")+'</td><td class="ellipsis" style="max-width:150px">'+esc(o.niche||"—")+'</td><td>'+esc(o.language||"—")+'</td>'+(cLoc?'<td>'+(o.location?esc(o.location):'<span class="mini">—</span>')+'</td>':'')+(cFol?'<td class="num">'+fmtFollowers(o.followers)+'</td>':'')
+        +(cPrice?'<td class="ellipsis" style="max-width:170px">'+(g?'<b>'+esc(g.txt)+'</b> <span class="mini">'+esc(g.tag)+'</span>':'<span class="mini">—</span>')+'</td>':'')+'<td class="num">'+(s.sent?s.replied+"/"+s.sent+' <span class="mini">'+ratePct(s)+'</span>':'<span class="mini">—</span>')+'</td><td class="num">'+(bchips||'<span class="mini">—</span>')+'</td><td class="mini">'+(s.last?esc(agoText(s.last)):"—")+'</td><td>'+route(o)+'</td></tr>'; }).join("")+'</tbody></table></div>'
       +(total>shown.length?'<div style="text-align:center;margin:12px"><button class="btn" id="olMore">Show '+Math.min(120,total-shown.length)+' more ('+(total-shown.length)+' hidden)</button></div>':'')
       :(state.options.length?'<div class="empty"><div class="big">No options match</div>Clear a filter, or add a new option.</div>':'<div class="empty"><div class="big">Your library is empty</div>Start from the public library — hundreds of ready-to-order outlets and creators — or add your own.<div style="margin-top:12px"><button class="btn primary" id="olGoPub">Browse the public library</button></div></div>');
     wireSort(body,os,draw); const gp=document.getElementById("olGoPub"); if(gp) gp.addEventListener("click",()=>{ OL.seg="public"; renderOptionsPage(); });
