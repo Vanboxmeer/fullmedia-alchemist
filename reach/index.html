@@ -417,6 +417,10 @@ table.wbt{border-collapse:separate;border-spacing:0;font-size:12.5px;width:100%;
 .wbt tbody tr.moved td{opacity:.55}
 .wbempty{padding:50px 20px;text-align:center;color:var(--fg-dim)} .wbempty .big{font-family:var(--font-display);font-size:18px;color:var(--fg);margin-bottom:6px}
 .wbt.compact td{height:30px;padding-top:1px;padding-bottom:1px}
+@media (min-width:761px){.wbt.hc-camp .c-camp,.wbt.hc-contact .c-contact,.wbt.hc-msg .c-msg,.wbt.hc-next .c-next,.wbt.hc-fu .c-fu,.wbt.hc-rate .c-rate,.wbt.hc-sent .c-sent,.wbt.hc-touch .c-touch{display:none}}
+.colmenu{position:absolute;z-index:40;background:var(--surface,#fff);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:170px}
+.colmenu label{display:flex;gap:8px;align-items:center;padding:5px 2px;font-size:13px;cursor:pointer}
+@media (max-width:760px){#fCols{display:none}}
 
 /* ---- detail pane ---- */
 #wbPane{width:440px;flex:0 0 440px;border-left:1px solid var(--border);background:var(--surface);overflow:hidden;display:none;flex-direction:column;min-height:0}
@@ -2586,13 +2590,13 @@ function activeCols(){ return CLIENT.brandId?CLIENT_COLS:(viewerIsAdmin?COLS:BAS
 let state = {
   brands:[], waves:[], options:[], leads:[], deals:[], rates:[], comms:[], clients:[], requests:[], meta:[], feedback:[], access:[], share:[],
   loading:true, top:"work", currentBrandId:null, currentSection:"work", currentWaveId:null, addTargetToWave:null, intake:null, sentPrompt:null,
-  wb:{view:"inbox", flow:"", wave:"", status:"", plat:"", reach:"", q:"", owner:"", sent:"", alertsOnly:false, top:false, sort:{col:"",dir:"asc"}, active:null, sel:{}, limit:150, compact:false}
+  wb:{view:"inbox", flow:"", wave:"", status:"", plat:"", reach:"", q:"", owner:"", sent:"", alertsOnly:false, top:false, sort:{col:"",dir:"asc"}, active:null, sel:{}, limit:150, compact:false, hide:[]}
 };
 function wsMeta(){ return (state.meta||[]).find(m=>m.id==="workspace")||{}; }
 try{ const t=localStorage.getItem("dealflow_theme")||localStorage.getItem("fa-theme"); if(t) document.documentElement.setAttribute("data-theme",t); }catch(e){}
 try{ state.currentBrandId=localStorage.getItem("dealflow_brand")||null; }catch(e){}
-try{ const w=JSON.parse(localStorage.getItem("dealflow_wb")||"null"); if(w){ ["view","flow","status","plat","reach","owner","sent","compact"].forEach(k=>{ if(w[k]!==undefined) state.wb[k]=w[k]; }); if(w.sort&&w.sort.col!==undefined) state.wb.sort=w.sort; } }catch(e){}
-function saveWb(){ try{ const w=state.wb; localStorage.setItem("dealflow_wb",JSON.stringify({view:w.view,flow:w.flow,status:w.status,plat:w.plat,reach:w.reach,owner:w.owner,sent:w.sent,compact:w.compact,sort:w.sort})); }catch(e){} }
+try{ const w=JSON.parse(localStorage.getItem("dealflow_wb")||"null"); if(w){ ["view","flow","status","plat","reach","owner","sent","compact","hide"].forEach(k=>{ if(w[k]!==undefined) state.wb[k]=w[k]; }); if(w.sort&&w.sort.col!==undefined) state.wb.sort=w.sort; } }catch(e){}
+function saveWb(){ try{ const w=state.wb; localStorage.setItem("dealflow_wb",JSON.stringify({view:w.view,flow:w.flow,status:w.status,plat:w.plat,reach:w.reach,owner:w.owner,sent:w.sent,compact:w.compact,hide:w.hide,sort:w.sort})); }catch(e){} }
 
 function uid(p){ return p+"_"+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 function esc(s){ return (s==null?"":String(s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -4572,7 +4576,7 @@ function renderWorkbench(brand){
     +'<div class="wbmore'+(w.moreOpen?" open":"")+'" id="wbMore">'+sel("fFlow",w.flow,[["coverage","Coverage"],["lead","Partnerships & Intros"],["community","Communities"]],"All pipelines")
     +sel("fOwner",w.owner,ownerTypes(),"Any owner")+sel("fSent",w.sent,[["never","Never contacted"],["7","Sent ≤ 7 days"],["30","Sent ≤ 30 days"]],"Any send date")+sel("fTz",w.tz,TZ_FILTER,"Any send timing")
     +'<label class="check"><input type="checkbox" id="fAlerts"'+(w.alertsOnly?" checked":"")+'> Has warnings</label><label class="check" title="The 10 open rows with the highest priority score"><input type="checkbox" id="fTop"'+(w.top?" checked":"")+'> Top 10 prospects</label><div class="reachrow" id="wbReach"></div><span class="sp"></span>'
-    +'<button class="btn small" id="fCompact" title="Denser rows">'+(w.compact?"Cozy":"Compact")+'</button><button class="btn small" id="fTsv" title="Copy rows as TSV for Sheets">Copy as TSV</button><button class="btn small" id="fHelp" title="Keyboard shortcuts">⌨ <span class="kbd">?</span></button></div></div><div class="fsback'+(w.fsOpen?" on":"")+'" id="fsback"></div>';
+    +'<button class="btn small" id="fCompact" title="Denser rows">'+(w.compact?"Cozy":"Compact")+'</button><button class="btn small" id="fCols" title="Choose which columns to show">Columns</button><button class="btn small" id="fTsv" title="Copy rows as TSV for Sheets">Copy as TSV</button><button class="btn small" id="fHelp" title="Keyboard shortcuts">⌨ <span class="kbd">?</span></button></div></div><div class="fsback'+(w.fsOpen?" on":"")+'" id="fsback"></div>';
   const acts='<div class="wbacts"><button class="btn small primary" id="aFind" title="Add targets: have the Alchemist find creators, leads or free communities, or add from your own library">＋ Add / Find</button><button class="btn small" id="aProg" title="Check inboxes for replies">📬 Check replies</button>'+(brand?'<button class="btn small" id="aBrand" title="Pause or resume the whole brand, or any one of its campaigns">⏸ Pause / resume</button>':'')+'<button class="btn small" id="wbChrome" title="'+(w.chromeOff?"Show":"Hide")+' notices and filters">'+(w.chromeOff?"▾ Filters"+(nMore||w.q||w.wave||w.plat||w.status?" •":""):"▴")+'</button></div>';
   const items=banners.split(/(?=<div class="banner )/).filter(Boolean);
   const nbtn=(t)=>'<button class="btn small nmore" data-bn="notices">'+t+'</button>';
@@ -4619,6 +4623,16 @@ function wireWorkbench(){
   $("fTop").addEventListener("change",()=>{ w.top=$("fTop").checked; if(w.top){ w.sort={col:"pri",dir:"desc"}; } drawGrid(); });
   $("fClear").addEventListener("click",()=>{ w.q=""; w.flow=""; w.status=""; w.plat=""; w.reach=""; w.owner=""; w.sent=""; w.tz=""; w.alertsOnly=false; w.top=false; saveWb(); render(); });
   $("fCompact").addEventListener("click",()=>{ w.compact=!w.compact; saveWb(); render(); });
+  $("fCols").addEventListener("click",ev=>{ ev.stopPropagation(); const old=document.getElementById("colMenu"); if(old){ old.remove(); return; }
+    const opts=[["camp",state.currentBrandId?"Campaign":"Brand · campaign"],["contact","Reach"],["msg","Message"],["next","Next action"],["fu","Follow-up"],["rate","Quote"],["sent","Sent"],["touch","Touched"]];
+    const m=document.createElement("div"); m.className="colmenu"; m.id="colMenu";
+    m.innerHTML=opts.map(([k,l])=>'<label><input type="checkbox" data-hk="'+k+'"'+((w.hide||[]).includes(k)?"":" checked")+'> '+esc(l)+'</label>').join("")+'<button class="btn small" id="colReset" style="margin-top:6px">Show all</button>';
+    const r=ev.currentTarget.getBoundingClientRect(); m.style.left=Math.max(8,Math.min(r.left+scrollX,innerWidth-190))+"px"; m.style.top=(r.bottom+scrollY+4)+"px"; document.body.appendChild(m);
+    m.addEventListener("click",e=>e.stopPropagation());
+    m.addEventListener("change",e=>{ const k=e.target.getAttribute("data-hk"); if(!k) return; const h=new Set(w.hide||[]); if(e.target.checked) h.delete(k); else h.add(k); w.hide=[...h]; saveWb(); const t=document.querySelector("table.wbt"); if(t) t.className="wbt"+(w.compact?" compact":"")+w.hide.map(x=>" hc-"+x).join(""); });
+    m.querySelector("#colReset").addEventListener("click",()=>{ w.hide=[]; saveWb(); m.remove(); drawGrid(); });
+    setTimeout(()=>document.addEventListener("click",function f(){ const x=document.getElementById("colMenu"); if(x) x.remove(); document.removeEventListener("click",f); }),0);
+  });
   $("fTsv").addEventListener("click",copyTsv); $("fHelp").addEventListener("click",openHelp);
   wireHoldBanner(document.getElementById("view"));
   $("wbChrome").addEventListener("click",()=>{ w.chromeOff=!w.chromeOff; try{ localStorage.setItem("dealflow_chromeoff",w.chromeOff?"1":"0"); }catch(e){} render(); });
@@ -4668,7 +4682,7 @@ function drawGrid(){ wbMoved.clear();
     const a=document.getElementById("eAdd"); if(a) a.addEventListener("click",()=>openPicker()); const f=document.getElementById("eFind"); if(f) f.addEventListener("click",()=>openFindOptions()); const al=document.getElementById("eAll"); if(al) al.addEventListener("click",()=>{ w.view="all"; w.q=""; w.flow=""; w.status=""; w.plat=""; w.reach=""; w.owner=""; w.sent=""; w.tz=""; w.alertsOnly=false; saveWb(); render(); });
     renderBulk(); return; }
   const sortChips='<div class="msort" role="group" aria-label="Sort the cards"><span class="msl">Sort</span>'+[["pri","Priority"],["target","Name"],["status","Status"],["touch","Touched"],["fu","Follow-up"],["sent","Sent"]].map(([c,l])=>'<button type="button" class="sortchip'+(w.sort.col===c?' on':'')+'" data-sc="'+c+'">'+l+(w.sort.col===c?(w.sort.dir==="asc"?" ▲":" ▼"):"")+'</button>').join("")+'</div>';
-  g.innerHTML=sortChips+'<table class="wbt'+(w.compact?" compact":"")+'">'+head+'<tbody id="wbBody">'+shown.map(rowHtml).join("")+'</tbody></table>'+(rows.length>shown.length?'<div class="wbmore"><button class="btn" id="wbMore">Show '+Math.min(150,rows.length-shown.length)+' more ('+(rows.length-shown.length)+' hidden)</button></div>':'');
+  g.innerHTML=sortChips+'<table class="wbt'+(w.compact?" compact":"")+(w.hide||[]).map(k=>" hc-"+k).join("")+'">'+head+'<tbody id="wbBody">'+shown.map(rowHtml).join("")+'</tbody></table>'+(rows.length>shown.length?'<div class="wbmore"><button class="btn" id="wbMore">Show '+Math.min(150,rows.length-shown.length)+' more ('+(rows.length-shown.length)+' hidden)</button></div>':'');
   g.querySelectorAll("th.sortable").forEach(th=>th.addEventListener("click",()=>{ toggleSort(w.sort,th.dataset.sc); saveWb(); drawGrid(); }));
   g.querySelectorAll(".msort [data-sc]").forEach(b=>b.addEventListener("click",()=>{ toggleSort(w.sort,b.dataset.sc); saveWb(); drawGrid(); }));
   const sa=document.getElementById("selAllRows"); if(sa){ sa.checked=shown.length>0&&shown.every(d=>w.sel[d.id]); sa.addEventListener("change",()=>{ shown.forEach(d=>{ if(sa.checked) w.sel[d.id]=true; else delete w.sel[d.id]; }); g.querySelectorAll("input[data-a=sel]").forEach(c=>c.checked=sa.checked); renderBulk(); }); }
