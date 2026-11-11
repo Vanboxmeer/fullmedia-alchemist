@@ -117,6 +117,10 @@ export const STATIC_POSTS: { slug: string; title: string }[] = [
   "title": "Follow-ups that run themselves, for every brand you tick"
  },
  {
+  "slug": "reach-approved-replies",
+  "title": "Keep the conversation going: replies you approve, Claude sends"
+ },
+ {
   "slug": "creative-engine-upgrade",
   "title": "The creative engine, rewritten: posts that stop the scroll"
  },
