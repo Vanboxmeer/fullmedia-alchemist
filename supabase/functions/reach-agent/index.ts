@@ -98,7 +98,7 @@ async function domainReceivesMail(domain: string): Promise<boolean> {
   return ok;
 }
 
-type Route = { route: "email" | "form" | "manual"; reason: string; to: string; link: string };
+type Route = { route: "email" | "form" | "manual" | "linkedin"; reason: string; to: string; link: string };
 function routeOf(row: any, t: any, brand: any): Route {
   const name = clean(t?.name || row.target_name, 120);
   const dnc = String(brand?.data?.doNotContact || "").toLowerCase();
@@ -112,6 +112,7 @@ function routeOf(row: any, t: any, brand: any): Route {
   if (EMAIL.test(to)) return { route: "email", reason: "", to: to.toLowerCase(), link: "" };
   const link = clean(t?.contact_link || row.contact_link || row.data?.contactLink, 400);
   const hay = [t?.platform, t?.type, t?.data?.howToPost].filter(Boolean).join(" ");
+  if (link && /^https?:\/\/([a-z0-9-]+\.)?linkedin\.com\/in\/[^\s]+/i.test(link)) return { route: "linkedin", reason: "", to: "", link };
   if (STRICT_WORDS.test(hay) || (link && STRICT_HOST.test(hostOf(link))))
     return { route: "manual", reason: "Strict site (social network, community or forum). Accounts get banned for automated messages, and each place has its own rules — do this one yourself.", to: "", link };
   if (link && /^https?:\/\//i.test(link)) return { route: "form", reason: "", to: "", link };
@@ -153,7 +154,7 @@ async function getSettings(client: string) {
   const brands: Record<string, boolean> = {}; Object.keys(d.brands || {}).forEach((k) => { if (d.brands[k] === true) brands[k] = true; });
   const accounts: Record<string, { sendFrom: string; preflight: boolean }> = {};
   Object.keys(d.accounts || {}).forEach((k) => { const a = d.accounts[k] || {}; const sf = String(a.sendFrom || "").trim().toLowerCase(); if (EMAIL.test(sf)) accounts[k] = { sendFrom: sf, preflight: a.preflight === true }; });
-  return { on: d.on === true, autoReady: d.autoReady === true, autoFu: d.autoFu === true, brands, dailyCap: Math.max(1, Math.min(40, Number(d.dailyCap) || 15)), gapSec: Math.max(30, Math.min(900, Number(d.gapSec) || 120)), sendFrom: EMAIL.test(String(d.sendFrom || "").trim()) ? String(d.sendFrom).trim().toLowerCase() : "", preflight: d.preflight === true, accounts };
+  return { on: d.on === true, autoReady: d.autoReady === true, autoFu: d.autoFu === true, brands, dailyCap: Math.max(1, Math.min(40, Number(d.dailyCap) || 15)), gapSec: Math.max(30, Math.min(900, Number(d.gapSec) || 120)), sendFrom: EMAIL.test(String(d.sendFrom || "").trim()) ? String(d.sendFrom).trim().toLowerCase() : "", preflight: d.preflight === true, accounts, li: { on: d.li?.on === true, dailyCap: Math.max(1, Math.min(25, Number(d.li?.dailyCap) || 10)), gapSec: Math.max(120, Math.min(1800, Number(d.li?.gapSec) || 240)) } };
 }
 
 async function loadRows(client: string, brandOnly: string | null) {
@@ -184,7 +185,7 @@ function flat(r: any) {
   });
 }
 
-type Item = { id: string; brandId: string; brand: string; name: string; kind: "first" | "followup" | "reply" | "manual" | "blocked"; route: Route; subject: string; hasDraft: boolean; approved: boolean; flag: any; dueDate: string; followUps: number; ph: string; reason: string; sent: string; lastSent: string; via: string; notes: string; sentSubject: string };
+type Item = { id: string; brandId: string; brand: string; name: string; kind: "first" | "followup" | "reply" | "liprep" | "lireply" | "licheck" | "manual" | "blocked"; route: Route; subject: string; hasDraft: boolean; approved: boolean; flag: any; dueDate: string; followUps: number; ph: string; reason: string; sent: string; lastSent: string; via: string; notes: string; sentSubject: string };
 
 // money talk: a reply that touches prices, a deal or payment is never sent automatically; the user does those by hand
 const MONEY = /[$€£]|\b(usd|eur|gbp|price|prices|pricing|rate|rates|fee|fees|cost|costs|budget|invoice|invoices|payment|payments|pay|paid|paypal|stripe|wire|quote|quoted|contract|agreement|deal|deals|sponsor|sponsored|sponsorship|commission|retainer|discount|per post|terms|negotiate)\b/i;
@@ -199,6 +200,21 @@ function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, toda
   const route = routeOf(r, t, b);
   if (d.manualOnly && (ph === "ready" || ph === "sent")) return { ...base, kind: "manual", route, reason: "Marked Manual only. You send this one yourself." };
   const snoozed = d.stallSnooze && String(d.stallSnooze).slice(0, 10) > today;
+  if (route.route === "linkedin") {
+    // LinkedIn assist: Claude only PREPARES the text in LinkedIn's box. The user presses Send.
+    if (ph === "ready") {
+      if (base.sent || base.lastSent) return { ...base, kind: "blocked", route, reason: "Already has a sent date (" + (base.sent || base.lastSent) + "). Check it before anything is prepared." };
+      if (!draft) return { ...base, kind: "blocked", route, reason: "No message written yet." };
+      return { ...base, kind: "liprep", route, reason: "" };
+    }
+    if (ph === "replied" && d.draftKind === "reply" && draft) {
+      if (MONEY.test(draft) || MONEY.test(clean(d.responseReceived, 1500)) || clean(d.quotedRate, 80) || Number(d.rateUSD) > 0) return { ...base, kind: "manual", route, reason: "Pricing, a deal or payment is involved. You review and send this one yourself." };
+      const ok = !!(d.replyOk && d.replyOk.h === replyHash(d));
+      return { ...base, kind: "lireply", route, reason: "", approved: ok };
+    }
+    if (ph === "sent" && base.sent && (!base.via || base.via === "dm" || base.via === "linkedin")) return { ...base, kind: "licheck", route, reason: "", approved: true };
+    return null;
+  }
   if (ph === "ready") {
     // never send a first message to a row that already shows it was contacted
     if (base.sent || base.lastSent) return { ...base, kind: "blocked", route, reason: "Already has a sent date (" + (base.sent || base.lastSent) + "). Check it before anything is sent." };
@@ -323,6 +339,77 @@ async function keyScope(req: Request): Promise<Scope | null> {
   return { keyId: (data as any).id, client: (data as any).client_id, brand: (data as any).brand_id };
 }
 
+// ---------- LinkedIn assist: Claude only PREPARES text in LinkedIn's box; the user presses Send ----------
+function liProfileOf(bd: any, ws: any) { const u = clean(bd?.linkedinUrl, 300) || clean(ws?.linkedinUrl, 300); return /^https?:\/\/([a-z0-9-]+\.)?linkedin\.com\/in\/[^\s]+/i.test(u) ? u : ""; }
+function liSenderName(bd: any, ws: any) { return clean(bd?.managerName, 120) || clean(ws?.senderName, 120); }
+async function liCount(client: string, since: string, actions: string[], outcomes: string[]) {
+  const { count } = await admin.from("ar_agent_log").select("id", { count: "exact", head: true }).eq("client_id", client).in("action", actions).in("outcome", outcomes).gte("created_at", since);
+  return count || 0;
+}
+async function liLast(client: string): Promise<number> {
+  const { data } = await admin.from("ar_agent_log").select("created_at").eq("client_id", client).in("action", ["li_prepare", "li_reply", "li_check"]).order("created_at", { ascending: false }).limit(1);
+  return data && data[0] ? new Date((data[0] as any).created_at).getTime() : 0;
+}
+const LI_COMMON = " LinkedIn rules: work in the user's own signed-in LinkedIn tab only, one profile at a time, at a calm human pace (pause a few seconds between steps, type the text in at normal speed, no rapid clicking). Visit nothing except what this task names. NEVER click Send, Send now, Post, or the final Connect/Send-invitation button: the user presses Send themselves. If LinkedIn shows a warning, a verification step, a CAPTCHA, a login page or any 'restricted' notice, stop everything and call reach_flag_for_user with kind li_restricted. IDENTITY CHECK FIRST: confirm the LinkedIn account you are signed into is yourProfile (compare the name and profile address under Me, or open linkedin.com/in/me/). If you cannot tell or it is a different person, do nothing and call reach_flag_for_user with kind li_identity.";
+function liTask(it: Item, r: any, today: string, profile: string, sender: string) {
+  const d = r.data || {};
+  const common = { id: it.id, brand: it.brand, target: it.name, route: "linkedin", today, profileUrl: it.route.link, yourProfile: profile, yourName: sender || undefined };
+  if (it.kind === "liprep") return { ...common, action: "linkedin_prepare", text: clean(d.draft, 3000), connectNoteLimit: 200, instructions: "Open profileUrl. If a Message button is there (you are connected), open the message box and type exactly the text, then stop with it unsent. If only Connect is available, click Connect, choose Add a note and type exactly the text ONLY if it fits the note limit shown (200 characters, or 300 if the counter allows); if it is too long or there is no note option, do not shorten it: call reach_flag_for_user with kind li_too_long. Never send an invitation without the note. Never change the wording." + LI_COMMON + " Then call reach_report_result with outcome \"prepared\" and evidence saying which box you filled and that nothing was sent." };
+  if (it.kind === "lireply") return { ...common, action: "linkedin_reply_prepare", text: clean(d.draft, 3000), theirLastMessage: clean(d.responseReceived, 600) || undefined, instructions: "The user read and approved THIS reply. Open the existing conversation with this person in LinkedIn Messaging and read their newest message. If it is not the one in theirLastMessage, or it raises prices, a deal, terms, a contract or payment, do NOT prepare anything: call reach_flag_for_user with kind conversation_changed and say what they wrote. Otherwise type exactly the text into the reply box and stop with it unsent. Never change the wording." + LI_COMMON + " Then call reach_report_result with outcome \"prepared\" and evidence saying the reply box is filled and nothing was sent." };
+  return { ...common, action: "linkedin_check_reply", firstSentOn: clean(d.sentDate, 10), instructions: "Read only. Open the existing LinkedIn conversation with this person (Messaging, search their name) and look for any message from THEM after " + clean(d.sentDate, 10) + ". Do not type or send anything. If they replied, call reach_report_result with outcome \"replied_seen\" and put their newest message word for word (up to 250 characters) in evidence. If there is no reply, call reach_report_result with outcome \"checked\" and evidence \"no reply yet\"." + LI_COMMON };
+}
+async function liQueue(sc: Scope): Promise<any | null> {
+  const st = await getSettings(sc.client);
+  if (!st.li.on) return null;
+  const today = iso(new Date());
+  const { bmap, rows, tmap } = await loadRows(sc.client, sc.brand);
+  const ws = await wsOf(sc.client);
+  const start = today + "T00:00:00Z";
+  const eligible: { r: any; it: Item; profile: string }[] = []; const needProfile = new Set<string>(); let queued = 0;
+  for (const r of rows) {
+    if (!st.brands[r.brand_id]) continue;
+    const it = classify(r, tmap, bmap, today);
+    if (!it || it.flag || !["liprep", "lireply", "licheck"].includes(it.kind)) continue;
+    const bd = (bmap.get(r.brand_id) || {}).data || {};
+    const d = r.data || {};
+    if (it.kind !== "licheck" && !it.approved) continue;
+    const profile = liProfileOf(bd, ws);
+    if (!profile) { if (it.kind !== "licheck") needProfile.add(String((bmap.get(r.brand_id) || {}).name || "a brand")); continue; }
+    if (it.kind !== "licheck" && d.liPrepared && d.liPrepared.h === replyHash(d)) continue;
+    if (it.kind === "licheck" && d.liCheckedAt && Date.now() - Number(d.liCheckedAt) < 12 * 3600_000) continue;
+    const claim = d.agentClaim;
+    if (claim && claim.at) {
+      if (Date.now() - Number(claim.at) >= 30 * 60_000) {
+        const d2 = Object.assign({}, d); delete d2.agentClaim; delete d2.replyOk;
+        d2.agentFlag = { kind: "no_result", reason: "The automation was given this LinkedIn task but never reported back. Check LinkedIn before doing it yourself.", at: Date.now() }; d2.updatedAt = Date.now();
+        await admin.from("ar_deals").update({ data: d2 }).eq("id", r.id);
+        await logIt(sc.client, r.brand_id, r.id, sc.keyId, "li_" + it.kind.slice(2), "no_result", "No result reported after being handed out");
+      }
+      continue;
+    }
+    queued++; eligible.push({ r, it, profile });
+  }
+  if (!eligible.length) return { ok: true, tasks: [], status: "empty", queued: 0, needProfile: [...needProfile], message: needProfile.size ? "LinkedIn is on but these brands have no LinkedIn profile saved: " + [...needProfile].join(", ") + ". Tell the user to add it in Alchemist Reach → Brand → Sender & signature." : "No LinkedIn tasks right now." };
+  const prepDone = await liCount(sc.client, start, ["li_prepare", "li_reply"], ["prepared"]);
+  const checkDone = await liCount(sc.client, start, ["li_check"], ["checked", "replied_seen"]);
+  const since = (Date.now() - (await liLast(sc.client))) / 1000;
+  // a small, steady jitter so the pace is not a perfect metronome
+  const gap = Math.round(st.li.gapSec * (0.8 + ((Math.floor(Date.now() / 60000) % 9) / 9) * 0.5));
+  if (since < gap) return { ok: true, tasks: [], status: "wait", waitSeconds: Math.ceil(gap - since), queued, message: queued + " LinkedIn task(s) queued. Pace yourself: ask again in " + Math.ceil(gap - since) + " seconds." };
+  // prepares first (they need a human anyway), then read-only reply checks
+  const preps = eligible.filter((e) => e.it.kind !== "licheck"), checks = eligible.filter((e) => e.it.kind === "licheck");
+  let pick: { r: any; it: Item; profile: string } | null = null;
+  if (preps.length && prepDone < st.li.dailyCap) pick = preps[0];
+  else if (checks.length && checkDone < 15) pick = checks[0];
+  if (!pick) return { ok: true, tasks: [], status: "daily_cap", queued, message: "LinkedIn daily limit reached (" + st.li.dailyCap + " prepared today). Stop LinkedIn work for today." };
+  const { r, it, profile } = pick;
+  const bd = (bmap.get(it.brandId) || {}).data || {};
+  const task = liTask(it, flat(r), today, profile, liSenderName(bd, ws));
+  const d3 = Object.assign({}, r.data || {}); d3.agentClaim = { at: Date.now(), kind: it.kind }; d3.updatedAt = Date.now();
+  await admin.from("ar_deals").update({ data: d3 }).eq("id", r.id);
+  return { ok: true, tasks: [task], status: "task", queued, remainingToday: st.li.dailyCap - prepDone, minGapSeconds: gap, message: queued + " LinkedIn task(s) queued; this is the first. The user approved it, and you only PREPARE the text: never press Send. Report the result, then ask for the next task." };
+}
+
 async function agentQueue(sc: Scope) {
   const today = iso(new Date());
   const st = await getSettings(sc.client);
@@ -394,7 +481,7 @@ async function logIt(client: string, brand: string | null, deal: string | null, 
 
 async function agentResult(sc: Scope, a: any) {
   const id = String(a.id || ""), outcome = String(a.outcome || "");
-  if (!["sent", "submitted", "needs_user", "failed", "replied_seen", "not_free", "bounced"].includes(outcome)) return { ok: false, error: "outcome must be sent, submitted, needs_user, failed, replied_seen, not_free or bounced" };
+  if (!["sent", "submitted", "needs_user", "failed", "replied_seen", "not_free", "bounced", "prepared", "checked"].includes(outcome)) return { ok: false, error: "outcome must be sent, submitted, prepared, checked, needs_user, failed, replied_seen, not_free or bounced" };
   const today = iso(new Date());
   const { bmap, rows, tmap } = await loadRows(sc.client, sc.brand);
   const raw = rows.find((r: any) => r.id === id);
@@ -423,8 +510,31 @@ async function agentResult(sc: Scope, a: any) {
     await logIt(sc.client, raw.brand_id, id, sc.keyId, "email", "bounced", (em ? em + " \u2014 " : "") + why);
     return { ok: true, message: "Recorded. The address is blocked for everyone and the card is flagged for the user. Move on." };
   }
+  if (outcome === "prepared" || outcome === "checked") {
+    const liK = it?.kind;
+    if (!it || !["liprep", "lireply", "licheck"].includes(liK as string)) return { ok: false, error: "This row isn't a LinkedIn task, so nothing was recorded." };
+    if (outcome === "prepared") {
+      if (liK === "licheck" || !it.approved) return { ok: false, error: "This LinkedIn message isn't approved, so nothing was recorded." };
+      if (evidence.length < 6) return { ok: false, error: "Give a short note in 'evidence' saying which box was filled and that nothing was sent." };
+      d.liPrepared = { at: Date.now(), h: replyHash(d), kind: liK }; d.agentFlag = null; d.updatedAt = Date.now();
+      d.nextAction = "Your text is in the LinkedIn box. Press Send there, then mark Sent here.";
+      await admin.from("ar_deals").update({ data: d }).eq("id", id);
+      await logIt(sc.client, raw.brand_id, id, sc.keyId, liK === "lireply" ? "li_reply" : "li_prepare", "prepared", evidence);
+      return { ok: true, message: "Recorded as prepared. The user presses Send. Wait for the pause, then ask for the next task." };
+    }
+    if (liK !== "licheck") return { ok: false, error: "'checked' is only for reply checks." };
+    d.liCheckedAt = Date.now(); d.updatedAt = Date.now();
+    await admin.from("ar_deals").update({ data: d }).eq("id", id);
+    await logIt(sc.client, raw.brand_id, id, sc.keyId, "li_check", "checked", evidence || "no reply yet");
+    return { ok: true, message: "Recorded. Ask for the next task." };
+  }
   if (outcome === "needs_user" || outcome === "failed") {
-    if (it?.kind === "reply") delete d.replyOk;
+    if (it?.kind === "reply" || it?.kind === "lireply") delete d.replyOk;
+    if (it && ["liprep", "lireply", "licheck"].includes(it.kind) && ["li_restricted", "li_identity"].includes(clean(a.kind, 30))) {
+      const { data: cur } = await admin.from("ar_settings").select("data").eq("client_id", sc.client).eq("key", "automation").maybeSingle();
+      const cd: any = Object.assign({}, (cur as any)?.data || {}); cd.li = Object.assign({}, cd.li || {}, { on: false });
+      await admin.from("ar_settings").upsert({ client_id: sc.client, key: "automation", data: cd, updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
+    }
     d.agentFlag = { kind: clean(a.kind, 30) || (outcome === "failed" ? "failed" : "other"), reason: reason || (outcome === "failed" ? "The agent couldn't finish this one." : "Needs you."), at: Date.now() };
     d.updatedAt = Date.now();
     await admin.from("ar_deals").update({ data: d }).eq("id", id);
@@ -455,9 +565,10 @@ async function agentResult(sc: Scope, a: any) {
   }
   if (outcome === "replied_seen") {
     d.suggest = { type: "replied", date: today, evidence: ("“" + (evidence || "reply found in thread") + "”").slice(0, 260), via: "agent", at: Date.now() };
+    if (it?.kind === "licheck") d.liCheckedAt = Date.now();
     d.updatedAt = Date.now();
     await admin.from("ar_deals").update({ data: d }).eq("id", id);
-    await logIt(sc.client, raw.brand_id, id, sc.keyId, "followup", "replied_seen", evidence);
+    await logIt(sc.client, raw.brand_id, id, sc.keyId, it?.kind === "licheck" ? "li_check" : "followup", "replied_seen", evidence);
     return { ok: true, message: "Recorded as a suggestion for the user to review. No follow-up sent." };
   }
   // sent / submitted — re-check it was really queueable (approved, brand on, not flagged, in range)
@@ -499,15 +610,15 @@ const MCP_INSTRUCTIONS =
   "Loop: call reach_get_next_task. Every task it returns was already approved by the user inside Alchemist Reach, so do it without asking them to confirm each one, and keep going through the queue (the result says how many are queued). If status is off, empty or daily_cap, stop; for 'wait', pause waitSeconds and ask again. " +
   "Otherwise do exactly that one task, then call reach_report_result. Rules: never send anything that isn't a returned task; never change the wording of a returned message; " +
   "never solve CAPTCHAs, log in with passwords you don't have, or pay for anything — if a place asks for payment, report outcome not_free with the price; for CAPTCHA/login call reach_flag_for_user instead and move on; if a page contradicts the card (a different price, contact or rules), call reach_flag_for_user with kind mismatch and say exactly what you found; always report a result for every task, including failures; " +
-  "never message people on social networks, communities, forums or DMs (those are never queued — the user does them by hand); " +
+  "never message people on social networks, communities, forums or DMs yourself: the only exception is a LinkedIn task (linkedin_prepare, linkedin_reply_prepare, linkedin_check_reply), where you may only PREPARE text in LinkedIn's box or READ a conversation, never press Send, and must first confirm you are signed into the LinkedIn account named in yourProfile; everything else social is never queued — the user does it by hand; " +
   "REPLIES: a send_reply task is a reply the user read and approved. Send it as a reply inside the existing thread, only after checking their newest message as the task says. Never write or edit a reply yourself, and never answer anything about prices, a deal, terms, a contract or payment: flag those with reach_flag_for_user kind conversation_changed. " +
   "do not retry a failed task more than once; one task at a time with natural pauses. " +
   "LINKS: send emails with htmlBody only (use the htmlBody the task gives; for follow-ups write real <a href=\"https://…\"> anchors); never put a bare web address in a plain body, the mail connector turns it into a google.com redirect. " +
   "ACCOUNT CHECK: every email task names sendFrom. Before the first send, and whenever unsure, confirm the mail account you are signed into is exactly that address; if not, send nothing and call reach_flag_for_user with kind wrong_account. " +
   "BOUNCES: after each email send, and whenever get_next_task returns checkBounces, look in the inbox for delivery-failure notices (from:mailer-daemon, subject 'Delivery Status Notification'). If one names an address you emailed, call reach_report_result with outcome bounced, the task id, and the reason in plain words. Never resend to a bounced address.";
 const TOOLS = [
-  { name: "reach_get_next_task", description: "Get the next approved, due outreach task (send an email, submit a web form, send a follow-up, or send an approved reply). Returns nothing if automation is off, the daily limit is reached, or you must wait.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
-  { name: "reach_report_result", description: "Report what happened with a task. outcome: sent (email, follow-up or reply sent), submitted (web form submitted), replied_seen (they already replied — nothing sent), not_free (the place charges money — nothing submitted; put the price in 'cost' and the page's wording in 'evidence'), failed, needs_user, bounced (the email came back undeliverable — put the bounce reason in 'reason'; the address is then blocked for all users). Include proof in 'evidence' (subject line sent, or the form's confirmation text). For follow-ups also include the text you sent as 'message'.", inputSchema: { type: "object", properties: { id: { type: "string" }, outcome: { type: "string", enum: ["sent", "submitted", "replied_seen", "not_free", "failed", "needs_user", "bounced"] }, evidence: { type: "string" }, cost: { type: "string" }, message: { type: "string" }, reason: { type: "string" } }, required: ["id", "outcome"], additionalProperties: false } },
+  { name: "reach_get_next_task", description: "Get the next approved, due outreach task (send an email, submit a web form, send a follow-up, or send an approved reply, or prepare / check a LinkedIn message). Returns nothing if automation is off, the daily limit is reached, or you must wait.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
+  { name: "reach_report_result", description: "Report what happened with a task. outcome: sent (email, follow-up or reply sent), prepared (LinkedIn text is in the box, NOT sent), checked (LinkedIn: no reply yet), submitted (web form submitted), replied_seen (they already replied — nothing sent), not_free (the place charges money — nothing submitted; put the price in 'cost' and the page's wording in 'evidence'), failed, needs_user, bounced (the email came back undeliverable — put the bounce reason in 'reason'; the address is then blocked for all users). Include proof in 'evidence' (subject line sent, or the form's confirmation text). For follow-ups also include the text you sent as 'message'.", inputSchema: { type: "object", properties: { id: { type: "string" }, outcome: { type: "string", enum: ["sent", "submitted", "replied_seen", "not_free", "failed", "needs_user", "bounced"] }, evidence: { type: "string" }, cost: { type: "string" }, message: { type: "string" }, reason: { type: "string" } }, required: ["id", "outcome"], additionalProperties: false } },
   { name: "reach_flag_for_user", description: "Hand a task back to the user because a person has to do it (CAPTCHA, login, payment, a field you can't fill, or anything unexpected). Say why in plain words.", inputSchema: { type: "object", properties: { id: { type: "string" }, kind: { type: "string", enum: ["captcha", "login", "payment", "missing_info", "mismatch", "wrong_account", "other"] }, reason: { type: "string" } }, required: ["id", "reason"], additionalProperties: false } },
 ];
 async function mcp(req: Request, body: any) {
@@ -522,7 +633,11 @@ async function mcp(req: Request, body: any) {
   if (m === "tools/call") {
     const name = String(body.params?.name || ""), a = body.params?.arguments || {};
     let out: any;
-    if (name === "reach_get_next_task") out = await agentQueue(sc);
+    if (name === "reach_get_next_task") {
+      const li = await liQueue(sc);
+      if (li && li.tasks.length) out = li;
+      else { out = await agentQueue(sc); if (li && li.status === "wait" && (!out.tasks || !out.tasks.length) && out.status === "empty") out = li; }
+    }
     else if (name === "reach_report_result") out = await agentResult(sc, a);
     else if (name === "reach_flag_for_user") out = await agentResult(sc, { id: a.id, outcome: "needs_user", kind: a.kind, reason: a.reason });
     else return J({ jsonrpc: "2.0", id, error: { code: -32602, message: "Unknown tool" } });
@@ -547,19 +662,30 @@ async function appStatus(client: string) {
   const st = await getSettings(client);
   const { bmap, rows, tmap } = await loadRows(client, null);
   const items: Item[] = [];
-  for (const r of rows) { const it = classify(r, tmap, bmap, today); applyAuto(it, st, r); if (it) items.push(it); }
+  const wsA = await wsOf(client);
+  const liNeed = new Set<string>();
+  for (const r of rows) {
+    const it = classify(r, tmap, bmap, today); applyAuto(it, st, r);
+    if (!it) continue;
+    if (it.kind === "licheck") continue;
+    if (it.kind === "liprep" || it.kind === "lireply") {
+      if (!st.li.on) { it.kind = "manual"; it.reason = "LinkedIn assist is off. You do this one yourself."; }
+      else if (!liProfileOf((bmap.get(r.brand_id) || {}).data || {}, wsA)) liNeed.add(it.id);
+    }
+    items.push(it);
+  }
   // where everything sits on the way to Automation (all brands)
   const pipe = { proposed: 0, review: 0, ready: 0, waiting: 0 };
   for (const r of rows) { const f = flat(r), d = f.data || {}, ph = phaseOf(f); if (d.reviewState === "proposed") { pipe.proposed++; continue; } if (ph === "research" && clean(d.draft, 20)) pipe.review++; else if (ph === "ready") pipe.ready++; else if (ph === "sent") pipe.waiting++; }
   const rowsById = new Map<string, any>(); rows.forEach((r: any) => rowsById.set(r.id, r));
-  const pub = (it: Item) => ({ id: it.id, brandId: it.brandId, brand: it.brand, name: it.name, kind: it.kind, route: it.route.route, to: it.route.to || undefined, link: it.route.link || undefined, subject: it.subject, approved: it.approved, flag: it.flag, reason: it.reason, due: it.dueDate || undefined, sent: it.sent || undefined, lastSent: it.lastSent || undefined, via: it.via || undefined, followUps: it.followUps, draft: it.kind === "reply" ? clean((rowsById.get(it.id) || {}).data?.draft, 1500) : undefined, theirs: it.kind === "reply" ? clean((rowsById.get(it.id) || {}).data?.responseReceived, 500) : undefined });
+  const pub = (it: Item) => ({ id: it.id, brandId: it.brandId, brand: it.brand, name: it.name, kind: it.kind, route: it.route.route, to: it.route.to || undefined, link: it.route.link || undefined, subject: it.subject, approved: it.approved, flag: it.flag, reason: it.reason, due: it.dueDate || undefined, sent: it.sent || undefined, lastSent: it.lastSent || undefined, via: it.via || undefined, followUps: it.followUps, draft: (it.kind === "reply" || it.kind === "lireply" || it.kind === "liprep") ? clean((rowsById.get(it.id) || {}).data?.draft, 1500) : undefined, theirs: (it.kind === "reply" || it.kind === "lireply") ? clean((rowsById.get(it.id) || {}).data?.responseReceived, 500) : undefined, needProfile: liNeed.has(it.id) || undefined, prepared: (it.kind === "liprep" || it.kind === "lireply") && (rowsById.get(it.id) || {}).data?.liPrepared?.h === replyHash((rowsById.get(it.id) || {}).data || {}) ? true : undefined });
   const { data: keys } = await admin.from("ar_agent_keys").select("id,brand_id,label,key_prefix,created_at,last_used_at").eq("client_id", client).is("revoked_at", null).order("created_at", { ascending: false });
   const { data: log } = await admin.from("ar_agent_log").select("deal_id,action,outcome,detail,created_at").eq("client_id", client).order("created_at", { ascending: false }).limit(15);
   const names = new Map<string, string>(); rows.forEach((r: any) => names.set(r.id, clean((tmap.get(r.target_id) || {}).name || r.target_name, 80)));
   return {
     ok: true, settings: st, pipe, today, doneToday: await todayCount(client),
-    brands: [...bmap.values()].map((b: any) => ({ id: b.id, name: b.name, on: !!st.brands[b.id] })),
-    ready: items.filter((i) => i.kind === "first" || i.kind === "followup" || i.kind === "reply").map(pub),
+    brands: [...bmap.values()].map((b: any) => ({ id: b.id, name: b.name, on: !!st.brands[b.id], li: liProfileOf(b.data || {}, wsA) || undefined })),
+    ready: items.filter((i) => i.kind === "first" || i.kind === "followup" || i.kind === "reply" || i.kind === "liprep" || i.kind === "lireply").map(pub),
     manual: items.filter((i) => i.kind === "manual").map(pub),
     blocked: items.filter((i) => i.kind === "blocked").map(pub),
     needsYou: items.filter((i) => i.flag).map(pub),
@@ -577,7 +703,7 @@ async function appAction(u: any, client: string, body: any) {
     const sf = String(body.sendFrom || "").trim().toLowerCase();
     const accounts: Record<string, { sendFrom: string; preflight: boolean }> = {};
     Object.keys(body.accounts || {}).forEach((k) => { if (!mine.has(k)) return; const a = body.accounts[k] || {}; const f = String(a.sendFrom || "").trim().toLowerCase(); if (EMAIL.test(f)) accounts[k] = { sendFrom: f, preflight: a.preflight === true }; });
-    const data = { on: body.on === true, autoReady: body.autoReady === true, autoFu: body.autoFu === true, sendFrom: EMAIL.test(sf) ? sf : "", preflight: body.preflight === true && EMAIL.test(sf), brands, accounts, dailyCap: Math.max(1, Math.min(40, Number(body.dailyCap) || 15)), gapSec: Math.max(30, Math.min(900, Number(body.gapSec) || 120)) };
+    const data = { on: body.on === true, autoReady: body.autoReady === true, autoFu: body.autoFu === true, sendFrom: EMAIL.test(sf) ? sf : "", preflight: body.preflight === true && EMAIL.test(sf), brands, accounts, dailyCap: Math.max(1, Math.min(40, Number(body.dailyCap) || 15)), gapSec: Math.max(30, Math.min(900, Number(body.gapSec) || 120)), li: { on: body.li && body.li.on === true, dailyCap: Math.max(1, Math.min(25, Number(body.li && body.li.dailyCap) || 10)), gapSec: Math.max(120, Math.min(1800, Number(body.li && body.li.gapSec) || 240)) } };
     const { error } = await admin.from("ar_settings").upsert({ client_id: client, key: "automation", data, updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
     return { ok: !error, settings: data, error: error ? "Couldn't save" : undefined };
   }
@@ -593,8 +719,10 @@ async function appAction(u: any, client: string, body: any) {
       const raw = byId.get(id); if (!raw) { skipped.push({ id, why: "Not found" }); continue; }
       const it = classify(raw, tmap, bmap, today);
       const wasApproved = !!(raw.data || {}).autoOk; applyAuto(it, stA, raw);
-      if (on && (!it || (it.kind !== "first" && it.kind !== "followup" && it.kind !== "reply"))) { skipped.push({ id, why: it?.reason || "Not ready to send" }); continue; }
+      if (on && (!it || !["first", "followup", "reply", "liprep", "lireply"].includes(it.kind))) { skipped.push({ id, why: it?.reason || "Not ready to send" }); continue; }
       const d = Object.assign({}, raw.data || {});
+      if (on && it && (it.kind === "liprep" || it.kind === "lireply")) { if (!stA.li.on) { skipped.push({ id, why: "LinkedIn assist is off." }); continue; } if (!liProfileOf((bmap.get(raw.brand_id) || {}).data || {}, await wsOf(client))) { skipped.push({ id, why: "Add this brand's LinkedIn profile first." }); continue; } }
+      if (it?.kind === "lireply") { if (on) { d.replyOk = { h: replyHash(d), at: Date.now(), by: u.uid }; delete d.autoHold; } else delete d.replyOk; d.updatedAt = Date.now(); await admin.from("ar_deals").update({ data: d }).eq("id", id); changed++; continue; }
       if (it?.kind === "reply") { if (on) { d.replyOk = { h: replyHash(d), at: Date.now(), by: u.uid }; delete d.autoHold; } else delete d.replyOk; d.updatedAt = Date.now(); await admin.from("ar_deals").update({ data: d }).eq("id", id); changed++; continue; }
       if (on) { d.autoOk = { at: Date.now(), by: u.uid }; delete d.autoHold; } else { delete d.autoOk; if (wasApproved || it?.approved) d.autoHold = true; } d.updatedAt = Date.now();
       await admin.from("ar_deals").update({ data: d }).eq("id", id); changed++;
