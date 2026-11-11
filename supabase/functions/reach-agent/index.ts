@@ -184,7 +184,12 @@ function flat(r: any) {
   });
 }
 
-type Item = { id: string; brandId: string; brand: string; name: string; kind: "first" | "followup" | "manual" | "blocked"; route: Route; subject: string; hasDraft: boolean; approved: boolean; flag: any; dueDate: string; followUps: number; ph: string; reason: string; sent: string; lastSent: string; via: string; notes: string; sentSubject: string };
+type Item = { id: string; brandId: string; brand: string; name: string; kind: "first" | "followup" | "reply" | "manual" | "blocked"; route: Route; subject: string; hasDraft: boolean; approved: boolean; flag: any; dueDate: string; followUps: number; ph: string; reason: string; sent: string; lastSent: string; via: string; notes: string; sentSubject: string };
+
+// money talk: a reply that touches prices, a deal or payment is never sent automatically; the user does those by hand
+const MONEY = /[$€£]|\b(usd|eur|gbp|price|prices|pricing|rate|rates|fee|fees|cost|costs|budget|invoice|invoices|payment|payments|pay|paid|paypal|stripe|wire|quote|quoted|contract|agreement|deal|deals|sponsor|sponsored|sponsorship|commission|retainer|discount|per post|terms|negotiate)\b/i;
+function hashStr(x: string) { let h = 5381; for (let i = 0; i < x.length; i++) h = ((h << 5) + h + x.charCodeAt(i)) | 0; return String(h >>> 0); }
+function replyHash(d: any) { return hashStr(clean(d.subject, 200) + "\n" + clean(d.draft, 8000)); }
 
 function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, today: string): Item | null {
   const r = flat(raw), d = r.data || {}, ph = phaseOf(r);
@@ -201,6 +206,14 @@ function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, toda
     if (!draft) return { ...base, kind: "blocked", route, reason: "No message written yet." };
     if (route.route === "email" && !base.subject) return { ...base, kind: "blocked", route, reason: "No subject line yet." };
     return { ...base, kind: "first", route, reason: "" };
+  }
+  if (ph === "replied" && d.draftKind === "reply" && draft) {
+    if (d.manualOnly) return { ...base, kind: "manual", route, reason: "Marked Manual only. You send this one yourself." };
+    if (route.route !== "email") return { ...base, kind: "manual", route, reason: "Replies by email only. You send this one yourself." };
+    if (!base.subject) return { ...base, kind: "blocked", route, reason: "No subject line on the reply yet." };
+    if (MONEY.test(draft) || MONEY.test(clean(d.responseReceived, 1500)) || clean(d.quotedRate, 80) || Number(d.rateUSD) > 0) return { ...base, kind: "manual", route, reason: "Pricing, a deal or payment is involved. You review and send this one yourself." };
+    const ok = !!(d.replyOk && d.replyOk.h === replyHash(d));
+    return { ...base, kind: "reply", route, reason: "", approved: ok };
   }
   if (ph === "sent" && !snoozed) {
     if (route.route !== "email") return null; // forms/posts have no follow-ups
@@ -249,6 +262,9 @@ function taskOf(it: Item, r: any, t: any, sig: string, today: string, sendFrom: 
     return it.route.route === "email"
       ? { ...common, action: "send_email", to: it.route.to, subject: it.subject, htmlBody: toHtml(body, trk), body, instructions: "Send exactly this message from the user's own mail account. Do not change the wording." + LINKS + ACCT + " Then call reach_report_result with outcome \"sent\" and the subject line as evidence. Then, about a minute later, check the inbox for a bounce (see checkBounces)." }
       : { ...common, action: "submit_web_form", url: it.route.link, message: body, subject: it.subject || undefined, notes: clean(t?.data?.howToPost, 300) || undefined, instructions: "Open the page, fill the form using only this message and the brand details the user's Reach profile gives (never invent details). If the form needs a CAPTCHA, a login, a payment, or fields you cannot fill from this information, STOP and call reach_flag_for_user. After submitting, call reach_report_result with outcome \"submitted\" and the confirmation text on the page as evidence." };
+  }
+  if (it.kind === "reply") {
+    return { ...common, action: "send_reply", to: it.route.to, subject: it.subject, htmlBody: toHtml(body, trk), body, originalSubject: it.sentSubject || it.subject, gmailThread: clean(d.gmailThread, 200) || undefined, theirLastMessage: clean(d.responseReceived, 600) || undefined, instructions: "The user read and approved THIS exact reply. First open the existing thread with this person (search the mail for their address and originalSubject) and read their newest message. If their newest message is not the one in theirLastMessage, or it raises prices, budget, a deal, terms, a contract, payment or an invoice, or asks something this reply does not answer, do NOT send: call reach_flag_for_user with kind conversation_changed and say what they wrote. Otherwise send exactly this text as a REPLY inside that thread (use the mail connector's reply, not a new message). Do not change the wording." + LINKS + ACCT + " Then call reach_report_result with outcome \"sent\", the subject line as evidence, and the text you sent as 'message'." };
   }
   const n = it.followUps + 1;
   return { ...common, action: "send_followup", to: it.route.to, followUpNumber: n, originalSubject: it.sentSubject || it.subject, ownerDraftingNotes: it.notes || undefined, firstSentOn: clean(d.sentDate, 10), gmailThread: clean(d.gmailThread, 200) || undefined, instructions: "First open the original thread. When you write the follow-up, obey every line of ownerDraftingNotes (if present); they override your default style. If the person has replied, do NOT send anything: call reach_report_result with outcome \"replied_seen\" and a short quote. Otherwise write and send follow-up " + n + " in the same thread. " + FOLLOWUP_RULES + " Pass the text you sent as 'message' in reach_report_result (outcome \"sent\")." + LINKS.replace("exactly as given", "with real <a href> anchors for any links") + ACCT };
@@ -321,12 +337,12 @@ async function agentQueue(sc: Scope) {
     const it = classify(r, tmap, bmap, today);
     applyAuto(it, st, r);
     if (!it || !it.approved || it.flag) continue;
-    if (it.kind !== "first" && it.kind !== "followup") continue;
+    if (it.kind !== "first" && it.kind !== "followup" && it.kind !== "reply") continue;
     if (!acctOf(st, (bmap.get(r.brand_id) || {}).data || {}, r.brand_id).ok) { needAcct.add(String((bmap.get(r.brand_id) || {}).name || "a brand")); continue; }
     const claim = (r.data || {}).agentClaim;
     if (claim && claim.at) {
       if (Date.now() - Number(claim.at) >= 30 * 60_000) {
-        const d2 = Object.assign({}, r.data || {}); delete d2.agentClaim;
+        const d2 = Object.assign({}, r.data || {}); delete d2.agentClaim; delete d2.replyOk;
         d2.agentFlag = { kind: "no_result", reason: "The automation was given this one but never reported back, so it may or may not have gone out. Check your sent mail before sending it again.", at: Date.now() }; d2.updatedAt = Date.now();
         await admin.from("ar_deals").update({ data: d2 }).eq("id", r.id);
         await logIt(sc.client, r.brand_id, r.id, sc.keyId, it.kind, "no_result", "No result reported after being handed out");
@@ -408,12 +424,13 @@ async function agentResult(sc: Scope, a: any) {
     return { ok: true, message: "Recorded. The address is blocked for everyone and the card is flagged for the user. Move on." };
   }
   if (outcome === "needs_user" || outcome === "failed") {
+    if (it?.kind === "reply") delete d.replyOk;
     d.agentFlag = { kind: clean(a.kind, 30) || (outcome === "failed" ? "failed" : "other"), reason: reason || (outcome === "failed" ? "The agent couldn't finish this one." : "Needs you."), at: Date.now() };
     d.updatedAt = Date.now();
     await admin.from("ar_deals").update({ data: d }).eq("id", id);
     await logIt(sc.client, raw.brand_id, id, sc.keyId, it?.kind || "unknown", outcome, d.agentFlag.reason);
     if (d.agentFlag.kind === "wrong_account") {
-      delete d.autoOk; await admin.from("ar_deals").update({ data: d }).eq("id", id);
+      delete d.autoOk; delete d.replyOk; await admin.from("ar_deals").update({ data: d }).eq("id", id);
       const { data: cur } = await admin.from("ar_settings").select("data").eq("client_id", sc.client).eq("key", "automation").maybeSingle();
       await admin.from("ar_settings").upsert({ client_id: sc.client, key: "automation", data: unconfirm((cur as any)?.data || {}, raw.brand_id), updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
       return { ok: true, message: "Stopped. Automation is paused until the user re-confirms the mail account in Alchemist Reach. Do not send anything else. Tell the user which account you were signed into." };
@@ -447,7 +464,7 @@ async function agentResult(sc: Scope, a: any) {
   const st = await getSettings(sc.client);
   applyAuto(it, st, raw);
   if (!st.on || !st.brands[raw.brand_id]) return { ok: false, error: "Automation is off for this brand." };
-  if (!it || !it.approved || it.flag || (it.kind !== "first" && it.kind !== "followup")) return { ok: false, error: "This row isn't approved and due, so nothing was recorded." };
+  if (!it || !it.approved || it.flag || (it.kind !== "first" && it.kind !== "followup" && it.kind !== "reply")) return { ok: false, error: "This row isn't approved and due, so nothing was recorded." };
   if (evidence.length < 6) return { ok: false, error: "Give proof in 'evidence' (the subject line sent, or the form's confirmation text)." };
   if ((await todayCount(sc.client)) >= st.dailyCap) return { ok: false, error: "Daily limit reached." };
   const via = it.route.route === "form" ? "form" : "email";
@@ -457,6 +474,11 @@ async function agentResult(sc: Scope, a: any) {
     d.sentDate = first; d.lastSentDate = today; d.sentVia = via; d.followUps = Number(d.followUps) || 0;
     d.followUpDue = via === "email" ? addDays(today, FU1_DAYS) : "";
     if (raw.deal_type === "lead" || d.dealType === "lead") d.dealStage = "Contacted"; else { d.outreachStatus = "Sent - Awaiting Reply"; status = "Sent - Awaiting Reply"; }
+  } else if (it.kind === "reply") {
+    const sentBody = clean(d.draft, 8000);
+    if (sentBody) { const log = (Array.isArray(d.sentLog) ? d.sentLog : []).slice(); log.push({ date: today, subject: clean(d.subject, 200), body: sentBody, kind: "reply" }); d.sentLog = log.slice(-6); }
+    d.lastSentDate = today; d.sentVia = "email"; d.draft = ""; d.draftKind = ""; d.draftState = ""; d.fuv = 1; delete d.replyOk;
+    d.nextAction = "Reply sent. Waiting for their answer.";
   } else {
     const n = it.followUps + 1;
     d.lastSentDate = today; d.followUps = n; d.sentVia = "email";
@@ -465,7 +487,7 @@ async function agentResult(sc: Scope, a: any) {
   }
   d.suggest = null; d.reviewState = ""; d.draftState = ""; d.agentFlag = null; d.autoSentBy = "agent"; d.updatedAt = Date.now();
   await admin.from("ar_deals").update({ data: d, outreach_status: status }).eq("id", id);
-  const summary = (it.kind === "followup" ? "Follow-up " + d.followUps + ": " : "") + (clean(a.message, 160) || it.subject || "Message") + " (sent by agent)";
+  const summary = (it.kind === "followup" ? "Follow-up " + d.followUps + ": " : it.kind === "reply" ? "Reply: " : "") + (clean(a.message, 160) || it.subject || "Message") + " (sent by agent)";
   await admin.from("ar_comms").insert({ brand_id: raw.brand_id, deal_id: id, channel: via, direction: "Sent", data: { summary, date: today, createdAt: Date.now(), via: "agent", evidence } });
   await logIt(sc.client, raw.brand_id, id, sc.keyId, it.kind, outcome, evidence);
   return { ok: true, message: "Recorded. " + (d.followUpDue ? "Follow-up due " + d.followUpDue + "." : "No follow-up needed.") + (via === "email" ? " Before the next task, check the inbox (from:mailer-daemon, newer_than:1h) for a delivery failure for this address; if it bounced, call reach_report_result with outcome bounced and the reason." : "") + " Ask for the next task (it may tell you to wait)." };
@@ -478,13 +500,14 @@ const MCP_INSTRUCTIONS =
   "Otherwise do exactly that one task, then call reach_report_result. Rules: never send anything that isn't a returned task; never change the wording of a returned message; " +
   "never solve CAPTCHAs, log in with passwords you don't have, or pay for anything — if a place asks for payment, report outcome not_free with the price; for CAPTCHA/login call reach_flag_for_user instead and move on; if a page contradicts the card (a different price, contact or rules), call reach_flag_for_user with kind mismatch and say exactly what you found; always report a result for every task, including failures; " +
   "never message people on social networks, communities, forums or DMs (those are never queued — the user does them by hand); " +
+  "REPLIES: a send_reply task is a reply the user read and approved. Send it as a reply inside the existing thread, only after checking their newest message as the task says. Never write or edit a reply yourself, and never answer anything about prices, a deal, terms, a contract or payment: flag those with reach_flag_for_user kind conversation_changed. " +
   "do not retry a failed task more than once; one task at a time with natural pauses. " +
   "LINKS: send emails with htmlBody only (use the htmlBody the task gives; for follow-ups write real <a href=\"https://…\"> anchors); never put a bare web address in a plain body, the mail connector turns it into a google.com redirect. " +
   "ACCOUNT CHECK: every email task names sendFrom. Before the first send, and whenever unsure, confirm the mail account you are signed into is exactly that address; if not, send nothing and call reach_flag_for_user with kind wrong_account. " +
   "BOUNCES: after each email send, and whenever get_next_task returns checkBounces, look in the inbox for delivery-failure notices (from:mailer-daemon, subject 'Delivery Status Notification'). If one names an address you emailed, call reach_report_result with outcome bounced, the task id, and the reason in plain words. Never resend to a bounced address.";
 const TOOLS = [
-  { name: "reach_get_next_task", description: "Get the next approved, due outreach task (send an email, submit a web form, or send a follow-up). Returns nothing if automation is off, the daily limit is reached, or you must wait.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
-  { name: "reach_report_result", description: "Report what happened with a task. outcome: sent (email or follow-up sent), submitted (web form submitted), replied_seen (they already replied — nothing sent), not_free (the place charges money — nothing submitted; put the price in 'cost' and the page's wording in 'evidence'), failed, needs_user, bounced (the email came back undeliverable — put the bounce reason in 'reason'; the address is then blocked for all users). Include proof in 'evidence' (subject line sent, or the form's confirmation text). For follow-ups also include the text you sent as 'message'.", inputSchema: { type: "object", properties: { id: { type: "string" }, outcome: { type: "string", enum: ["sent", "submitted", "replied_seen", "not_free", "failed", "needs_user", "bounced"] }, evidence: { type: "string" }, cost: { type: "string" }, message: { type: "string" }, reason: { type: "string" } }, required: ["id", "outcome"], additionalProperties: false } },
+  { name: "reach_get_next_task", description: "Get the next approved, due outreach task (send an email, submit a web form, send a follow-up, or send an approved reply). Returns nothing if automation is off, the daily limit is reached, or you must wait.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
+  { name: "reach_report_result", description: "Report what happened with a task. outcome: sent (email, follow-up or reply sent), submitted (web form submitted), replied_seen (they already replied — nothing sent), not_free (the place charges money — nothing submitted; put the price in 'cost' and the page's wording in 'evidence'), failed, needs_user, bounced (the email came back undeliverable — put the bounce reason in 'reason'; the address is then blocked for all users). Include proof in 'evidence' (subject line sent, or the form's confirmation text). For follow-ups also include the text you sent as 'message'.", inputSchema: { type: "object", properties: { id: { type: "string" }, outcome: { type: "string", enum: ["sent", "submitted", "replied_seen", "not_free", "failed", "needs_user", "bounced"] }, evidence: { type: "string" }, cost: { type: "string" }, message: { type: "string" }, reason: { type: "string" } }, required: ["id", "outcome"], additionalProperties: false } },
   { name: "reach_flag_for_user", description: "Hand a task back to the user because a person has to do it (CAPTCHA, login, payment, a field you can't fill, or anything unexpected). Say why in plain words.", inputSchema: { type: "object", properties: { id: { type: "string" }, kind: { type: "string", enum: ["captcha", "login", "payment", "missing_info", "mismatch", "wrong_account", "other"] }, reason: { type: "string" } }, required: ["id", "reason"], additionalProperties: false } },
 ];
 async function mcp(req: Request, body: any) {
@@ -528,14 +551,15 @@ async function appStatus(client: string) {
   // where everything sits on the way to Automation (all brands)
   const pipe = { proposed: 0, review: 0, ready: 0, waiting: 0 };
   for (const r of rows) { const f = flat(r), d = f.data || {}, ph = phaseOf(f); if (d.reviewState === "proposed") { pipe.proposed++; continue; } if (ph === "research" && clean(d.draft, 20)) pipe.review++; else if (ph === "ready") pipe.ready++; else if (ph === "sent") pipe.waiting++; }
-  const pub = (it: Item) => ({ id: it.id, brandId: it.brandId, brand: it.brand, name: it.name, kind: it.kind, route: it.route.route, to: it.route.to || undefined, link: it.route.link || undefined, subject: it.subject, approved: it.approved, flag: it.flag, reason: it.reason, due: it.dueDate || undefined, sent: it.sent || undefined, lastSent: it.lastSent || undefined, via: it.via || undefined, followUps: it.followUps });
+  const rowsById = new Map<string, any>(); rows.forEach((r: any) => rowsById.set(r.id, r));
+  const pub = (it: Item) => ({ id: it.id, brandId: it.brandId, brand: it.brand, name: it.name, kind: it.kind, route: it.route.route, to: it.route.to || undefined, link: it.route.link || undefined, subject: it.subject, approved: it.approved, flag: it.flag, reason: it.reason, due: it.dueDate || undefined, sent: it.sent || undefined, lastSent: it.lastSent || undefined, via: it.via || undefined, followUps: it.followUps, draft: it.kind === "reply" ? clean((rowsById.get(it.id) || {}).data?.draft, 1500) : undefined, theirs: it.kind === "reply" ? clean((rowsById.get(it.id) || {}).data?.responseReceived, 500) : undefined });
   const { data: keys } = await admin.from("ar_agent_keys").select("id,brand_id,label,key_prefix,created_at,last_used_at").eq("client_id", client).is("revoked_at", null).order("created_at", { ascending: false });
   const { data: log } = await admin.from("ar_agent_log").select("deal_id,action,outcome,detail,created_at").eq("client_id", client).order("created_at", { ascending: false }).limit(15);
   const names = new Map<string, string>(); rows.forEach((r: any) => names.set(r.id, clean((tmap.get(r.target_id) || {}).name || r.target_name, 80)));
   return {
     ok: true, settings: st, pipe, today, doneToday: await todayCount(client),
     brands: [...bmap.values()].map((b: any) => ({ id: b.id, name: b.name, on: !!st.brands[b.id] })),
-    ready: items.filter((i) => i.kind === "first" || i.kind === "followup").map(pub),
+    ready: items.filter((i) => i.kind === "first" || i.kind === "followup" || i.kind === "reply").map(pub),
     manual: items.filter((i) => i.kind === "manual").map(pub),
     blocked: items.filter((i) => i.kind === "blocked").map(pub),
     needsYou: items.filter((i) => i.flag).map(pub),
@@ -569,8 +593,10 @@ async function appAction(u: any, client: string, body: any) {
       const raw = byId.get(id); if (!raw) { skipped.push({ id, why: "Not found" }); continue; }
       const it = classify(raw, tmap, bmap, today);
       const wasApproved = !!(raw.data || {}).autoOk; applyAuto(it, stA, raw);
-      if (on && (!it || (it.kind !== "first" && it.kind !== "followup"))) { skipped.push({ id, why: it?.reason || "Not ready to send" }); continue; }
-      const d = Object.assign({}, raw.data || {}); if (on) { d.autoOk = { at: Date.now(), by: u.uid }; delete d.autoHold; } else { delete d.autoOk; if (wasApproved || it?.approved) d.autoHold = true; } d.updatedAt = Date.now();
+      if (on && (!it || (it.kind !== "first" && it.kind !== "followup" && it.kind !== "reply"))) { skipped.push({ id, why: it?.reason || "Not ready to send" }); continue; }
+      const d = Object.assign({}, raw.data || {});
+      if (it?.kind === "reply") { if (on) { d.replyOk = { h: replyHash(d), at: Date.now(), by: u.uid }; delete d.autoHold; } else delete d.replyOk; d.updatedAt = Date.now(); await admin.from("ar_deals").update({ data: d }).eq("id", id); changed++; continue; }
+      if (on) { d.autoOk = { at: Date.now(), by: u.uid }; delete d.autoHold; } else { delete d.autoOk; if (wasApproved || it?.approved) d.autoHold = true; } d.updatedAt = Date.now();
       await admin.from("ar_deals").update({ data: d }).eq("id", id); changed++;
     }
     return { ok: true, changed, skipped };
