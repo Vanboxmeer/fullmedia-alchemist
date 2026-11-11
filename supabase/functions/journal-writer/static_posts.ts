@@ -105,6 +105,18 @@ export const STATIC_POSTS: { slug: string; title: string }[] = [
   "title": "Which post sent the click? Tagged links in Content and Reach"
  },
  {
+  "slug": "reach-many-brands-at-once",
+  "title": "Run outreach for every brand at once: tick, start, done"
+ },
+ {
+  "slug": "reach-pick-campaigns-and-outreach-types",
+  "title": "Tick a brand, a campaign, or a type of message: start only what you want"
+ },
+ {
+  "slug": "reach-follow-ups-across-brands",
+  "title": "Follow-ups that run themselves, for every brand you tick"
+ },
+ {
   "slug": "creative-engine-upgrade",
   "title": "The creative engine, rewritten: posts that stop the scroll"
  },
