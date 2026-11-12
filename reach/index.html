@@ -3358,6 +3358,7 @@ function alertsFor(d){
   if(hasDraft(d)&&GAP_RE.test(subj+" "+body)) add("placeholder","bad","The message has a [gap] still to fill in — it can't be sent like this.","Fill the gap");
   if(hasDraft(d)&&(ph==="ready"||ph==="research")&&!d.sentDate&&d.draftKind!=="reply"){
     if(/budget|mark-?up|payment terms|we can pay|[$€£]\s?\d/i.test(body)) add("money","warn","First-touch copy mentions money — keep budget, payment terms and markup out of outreach.","Mentions money");
+    { const ci=claimIssues(d,body); if(ci.length) add("claims","bad","Claims nobody gave the Alchemist: "+ci.slice(0,3).join(", ")+". If it is not in your brand facts it may be made up. Remove it before approving.","Unsupported claim"); }
     if(/amazing|incredible|huge fan|big fan|love your (channel|content|videos)|great channel/i.test(body)) add("flatter","warn","Reads as flattery. Keep it factual and neutral.","Flattery");
     if(/\b\d[\d,.]*\s?(k|m)?\s?(views|subs|subscribers|followers)\b/i.test(body)) add("counts","warn","Cites view / follower counts — many are inflated; leave them out.","Cites counts");
     const w=body.trim().split(/\s+/).length; if(w>150) add("long","info","Long for a first message ("+w+" words). Two clear questions is usually enough.","Long ("+w+"w)");
@@ -5578,6 +5579,7 @@ const AGENT_RULES=[
  "- Use the agency and brand names exactly as given in the writing instruction. Never expand, shorten or change them.",
  "- Never mention any former or previous name of a brand or product (for example \"Content Conveyor Belt\"). Use only the current name.",
  "- Never invent facts, numbers, names, prices or reasons. If something isn't supplied below, leave it out.",
+ "- Everything in the TARGET section is about THEM only (their history, years in business, experience, location). Never present it as a fact about us, our brand or our product. Never say when we built, launched or started using anything, never say how long ('since 2009', 'for 10 years'), and never claim usage, client work, results or customers, unless that exact claim is written in the brand's Proof points, Key messages or the campaign message. If the product is new, do not imply otherwise.",
  "- Factual and neutral. No flattery or praise, no view or follower counts, no 'your amazing channel'.",
  "- Never mention our budget, payment terms, markup, or what a client is paying. (Asking THEM about their current deals or discounts is fine.)",
  "- Personalise only from the TARGET facts supplied; if there is nothing specific, don't fake it.",
@@ -5635,6 +5637,23 @@ async function runSample(prompt,tier,onStatus){
   return out;
 }
 const agentBusy=new Set(); const pendingDraft=new Set(); /* rows whose first draft is still being written by a Find run */
+/* Deterministic check: history / usage / year claims in a draft must be backed by the brand facts, the campaign message or the draft notes the user wrote. */
+function claimIssues(d,body){
+  const b=brandById(d.brandId)||{}; const w=(typeof waveOf==="function"?waveOf(d):{})||{};
+  const allowed=[b.name,b.callAs,b.whatItIs,b.mission,b.proofPoints,b.keyMessages,b.targetAudience,w.message,w.name].concat((dnList(b)||[]).map(n=>n&&n.text)).filter(Boolean).join(" ").toLowerCase();
+  const txt=String(body||""); const out=[]; const seen={};
+  const add=m=>{ const k=m.toLowerCase(); if(!seen[k]){ seen[k]=1; out.push(m); } };
+  (txt.match(/\b(19[89]\d|20[0-3]\d)\b/g)||[]).forEach(y=>{ if(!allowed.includes(y)) add('the year "'+y+'"'); });
+  const pats=[/\b(?:for|over|more than|nearly|almost|about)?\s*(?:\d+\+?|two|three|four|five|six|seven|eight|nine|ten|twenty)\s+(?:years|yrs|decades)\b/gi,
+    /\b(?:a|the last|over a)\s+decade\b/gi,
+    /\bwe['\u2019]?(?:ve| have)\s+(?:been\s+)?(?:used|using|built|run|running|worked|working|helped|served|delivered|launched)\b/gi,
+    /\b(?:proven|battle-tested|trusted by|used by|relied on by)\b/gi,
+    /\b(?:our|real|existing)\s+(?:clients|customers)\b/gi,
+    /\b(?:\d[\d,]*\+?|dozens of|hundreds of|thousands of)\s+(?:clients|customers|brands|agencies|users|businesses|campaigns|posts)\b/gi,
+    /\bsince\s+(?:we|our|the)\b[^.]{0,40}/gi];
+  pats.forEach(re=>{ (txt.match(re)||[]).forEach(m=>{ const k=m.replace(/\s+/g," ").trim().toLowerCase(); if(k&&!allowed.includes(k)) add('"'+m.replace(/\s+/g," ").trim()+'"'); }); });
+  return out;
+}
 function draftPrompt(d,extra){
   const b=brandById(d.brandId)||{}; const tg=templateGuide(d);
   return AGENT_RULES+"\n\n"+voiceOf(d)+"\n\nBRAND\n"+brandFacts(b)+"\n\nTARGET\n"+targetFacts(d)+campaignBlock(d)+priorContactBlock(d)+"\n\nWHAT TO WRITE\n"+tg.text+deliveryNote(d)+(extra?("\n\nEXTRA INSTRUCTION\n"+extra):"")+"\n\nReturn ONLY JSON: {\"subject\": string (empty string for a DM/no-subject channel), \"body\": string, \"notes\": string (one short line: what you used, or what was missing so nothing was invented)}"; }
@@ -5650,10 +5669,13 @@ async function agentDraft(id,opts){
   const row=document.querySelector('#wbBody tr[data-id="'+id+'"] [data-a=draftai]'); if(row) row.innerHTML='<span class="spin"></span>';
   const res=document.getElementById("agRes"); if(opts.pane&&res) res.innerHTML='<div class="agres"><span class="spin"></span> Drafting…</div>';
   try{
-    const out=await runSample(draftPrompt(d),"default");
-    const subject=(out.subject||"").trim(), bodyTxt=cleanSignoff((out.body||"").trim(),brandById(d.brandId),(d.ownerType||"").startsWith("Client")); if(!bodyTxt) throw {code:"empty",message:"empty draft"};
-    patchDeal(id,{subject,draft:bodyTxt,draftState:"agent",draftKind:"",template:d.template||""});
-    { const cur=ix().deal.get(id); if(cur&&cur.readyAfterDraft){ patchDeal(id,{readyAfterDraft:false}); if(cur.reviewState!=="proposed"&&!hasGaps(cur)) markReady(id); } }
+    let out=await runSample(draftPrompt(d),"default"), clean=bb=>cleanSignoff((bb||"").trim(),brandById(d.brandId),(d.ownerType||"").startsWith("Client"));
+    let bad=claimIssues(d,clean(out.body));
+    if(bad.length){ try{ const o2=await runSample(draftPrompt(d,"Your last draft was rejected because it stated things nobody gave you: "+bad.join(", ")+". Rewrite it and leave out every history, usage, year, duration and client claim about us. Say only what the brand facts say; if the product is new, say nothing that implies otherwise."),"default"); if(o2&&o2.body){ out=o2; bad=claimIssues(d,clean(out.body)); } }catch(e2){} }
+    const subject=(out.subject||"").trim(), bodyTxt=clean(out.body); if(!bodyTxt) throw {code:"empty",message:"empty draft"};
+    patchDeal(id,{subject,draft:bodyTxt,draftState:"agent",draftKind:"",template:d.template||"",autoOk:false});
+    { const cur=ix().deal.get(id); if(cur&&cur.readyAfterDraft){ patchDeal(id,{readyAfterDraft:false}); if(cur.reviewState!=="proposed"&&!hasGaps(cur)&&!bad.length) markReady(id); } }
+    if(bad.length&&!opts.quiet) toast("Check this draft: it still says "+bad[0]+", which isn\u2019t in your brand facts");
     afterRowChange(id); if(state.wb.active===id) renderPane("msg");
     if(!opts.quiet) toast("Draft ready — "+nameOf(d)+(out.notes?" · "+String(out.notes).slice(0,80):""));
   }catch(e){ toast(agentErr(e)); if(row) row.textContent="✨ Draft"; if(res) res.innerHTML=""; }
