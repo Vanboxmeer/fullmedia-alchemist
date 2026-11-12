@@ -3219,7 +3219,7 @@ async function saveIntakeBrand(){
 function openEditBrandModal(b){
   openModal('<div class="mhead"><h3>Edit '+esc(b.name)+'</h3><button class="iconbtn" id="mClose">&times;</button></div><div class="mbody">'
     +'<div class="row2"><div class="field"><label>Brand name in your workbench <span class="mini">(only you see this)</span></label><input type="text" id="mName" value="'+esc(b.name)+'"></div><div class="field"><label>Pipelines</label><select id="mPipe">'+['both','coverage','lead'].map(v=>'<option value="'+v+'" '+((b.usesCoverage!==false&&b.usesLeads!==false&&v==="both")||(b.usesCoverage!==false&&b.usesLeads===false&&v==="coverage")||(b.usesLeads!==false&&b.usesCoverage===false&&v==="lead")?"selected":"")+'>'+(v==="both"?"Both":v==="coverage"?"Coverage only":"Leads only")+'</option>').join("")+'</select></div></div>'
-    +'<div class="field"><label>Name used in messages and subject lines <span class="mini">(required for drafts. This is the only name contacts see; the workbench name above is never used in messages)</span></label><input type="text" id="mCallAs" value="'+esc(b.callAs||"")+'" placeholder="The name the public knows, e.g. SpinQuest"></div>'
+    +'<div class="field"><label>Name used in messages and subject lines <span class="mini">(this is the only name contacts see; the workbench name above is never used in messages.'+(onlyRealBrand(b)&&wsPublicName()?" Left blank, it uses your account name, "+esc(wsPublicName())+".":" Required for drafts.")+')</span></label><input type="text" id="mCallAs" value="'+esc(b.callAs||"")+'" placeholder="'+esc(onlyRealBrand(b)&&wsPublicName()?wsPublicName():"The name the public knows, e.g. SpinQuest")+'"></div>'
     +'<div class="row2"><div class="field"><label>Official site</label><input type="text" id="mSite" value="'+esc(b.officialSite||"")+'"></div><div class="field"><label>Legal name</label><input type="text" id="mLegal" value="'+esc(b.legalName||"")+'"></div></div>'
     +'<div class="field"><label>What it is</label><textarea id="mWhat">'+esc(b.whatItIs||"")+'</textarea></div>'
     +brandKnowledgeFields(b)
@@ -3358,7 +3358,7 @@ function alertsFor(d){
   if(hasDraft(d)&&GAP_RE.test(subj+" "+body)) add("placeholder","bad","The message has a [gap] still to fill in — it can't be sent like this.","Fill the gap");
   if(hasDraft(d)&&(ph==="ready"||ph==="research")&&!d.sentDate&&d.draftKind!=="reply"){
     if(/budget|mark-?up|payment terms|we can pay|[$€£]\s?\d/i.test(body)) add("money","warn","First-touch copy mentions money — keep budget, payment terms and markup out of outreach.","Mentions money");
-    { const wb=(brand&&brand.name||"").trim(), pn=(brand&&brand.callAs||"").trim();
+    { const wb=(brand&&brand.name||"").trim(), pn=brandCall(brand);
       if(!pn) add("noname","bad","No public name is set for this brand, so messages can't name it. Set \u201cName used in messages\u201d in Brand \u2192 Brand details, then redraft.","No public name");
       else if(wb&&wb.toLowerCase()!==pn.toLowerCase()&&new RegExp("(^|[^a-z0-9])"+wb.replace(/[.*+?^${}()|[\]\\\/]/g,"\\$&")+"([^a-z0-9]|$)","i").test(subj+" "+body)) add("wbname","bad","This message uses the workbench name \u201c"+wb+"\u201d, not the name you set for contacts (\u201c"+pn+"\u201d). Redraft it or fix the text.","Wrong brand name"); }
     { const ci=claimIssues(d,body); if(ci.length) add("claims","bad","Claims nobody gave the Alchemist: "+ci.slice(0,3).join(", ")+". If it is not in your brand facts it may be made up. Remove it before approving.","Unsupported claim"); }
@@ -3543,7 +3543,7 @@ async function reconcileDrafts(){
   reconBusy=true;
   try{
     const todo=[], bt=[]; let sweptSent=0, madeFu=0;
-    state.brands.forEach(b=>{ const p={}; Object.keys(b).forEach(k=>{ if(typeof b[k]==="string"&&OLD_NAME_RE.test(b[k])) p[k]=scrubOld(b[k],b.callAs); }); if(Object.keys(p).length) bt.push([b.id,p]); });
+    state.brands.forEach(b=>{ const p={}; Object.keys(b).forEach(k=>{ if(typeof b[k]==="string"&&OLD_NAME_RE.test(b[k])) p[k]=scrubOld(b[k],brandCall(b)); }); if(Object.keys(p).length) bt.push([b.id,p]); });
     state.deals.forEach(d=>{
       const ph=phaseOf(d); let p={};
       if(ph==="sent"){
@@ -3682,8 +3682,12 @@ function acctName(){ const n=String((ACCT&&ACCT.name)||"").trim(); return n&&!/@
 function senderName(b){ const bn=((b&&b.managerName)||"").trim(); if(bn) return bn; return (wsMeta().senderName||"").trim()||(sigText().split("\n")[0]||"").trim()||acctName(); }
 /* what drafts call the agency and the brand: the user decides (workspace settings / brand "Refer to this brand as") */
 function agencyName(){ return (wsMeta().agencyName||"").trim(); }
-function brandCall(b){ b=b||{}; return (b.callAs||"").trim(); }   /* the PUBLIC name only. The workbench / dropdown name is private and never goes into a message. */
-function noPublicName(brandId){ const b=brandById(brandId); return b&&!(b.callAs||"").trim()?b:null; }
+/* The PUBLIC name only. The workbench / dropdown name is private and never goes into a message.
+   Order: the brand's "Name used in messages"; else, when the workspace has just ONE real brand, the company / workspace name from Account settings (that is the name they signed up with); else nothing (Reach asks). */
+function onlyRealBrand(b){ const real=(state.brands||[]).filter(x=>!isPlaceholderBrand(x)&&!x.archivedAt); return real.length===1&&b&&real[0].id===b.id; }
+function wsPublicName(){ const m=wsMeta(); return (m.agencyName||m.wsName||"").trim(); }
+function brandCall(b){ b=b||{}; const c=(b.callAs||"").trim(); if(c) return c; return onlyRealBrand(b)?wsPublicName():""; }
+function noPublicName(brandId){ const b=brandById(brandId); return b&&!brandCall(b)?b:null; }
 /* Asks for the public name once (never pre-filled with the workbench name) and saves it. Resolves true when set. */
 function ensurePublicName(brandId){
   const b=noPublicName(brandId); if(!b) return Promise.resolve(true);
@@ -5610,7 +5614,7 @@ const AGENT_RULES=[
  "- The message must be ready to send exactly as written. Never use square brackets, curly braces or placeholders. If a fact is missing, leave that sentence out."
 ].join("\n");
 function agentErr(e){ const c=e&&e.code; if(c==="not_granted") return "Allow Claude in the permission prompt to use the Alchemist."; if(c==="rate_limited") return "The Alchemist is busy — wait a moment and try again."; return "Alchemist error"+(e&&e.message?": "+String(e.message).slice(0,120):"."); }
-function brandFacts(b){ return [(b.callAs||"").trim()?"Brand name to use in messages (exactly this): "+(b.callAs||"").trim():"No public brand name is set. Do NOT name the brand anywhere in the message; say \u201cour product\u201d or leave the name out.",b.whatItIs&&"What it is: "+b.whatItIs,b.mission&&"Mission: "+b.mission,b.targetAudience&&"Audience: "+b.targetAudience,b.brandTone&&"Tone / voice: "+b.brandTone,b.proofPoints&&"Proof points (the ONLY facts about the brand you may cite): "+b.proofPoints,b.audienceHangouts&&"Where the audience gathers: "+b.audienceHangouts,b.keyMessages&&"Key messages (what may be said): "+b.keyMessages,b.competitors&&"COMPETITORS — never suggest, contact, mention or compare to these: "+b.competitors,b.blockWords&&"Blocked words — never suggest an option whose name, site or niche contains: "+b.blockWords,b.doNotContact&&"Do-not-contact list: "+b.doNotContact].filter(Boolean).map(x=>scrubOld(x,b.callAs)).join("\n"); }
+function brandFacts(b){ return [brandCall(b)?"Brand name to use in messages (exactly this): "+brandCall(b):"No public brand name is set. Do NOT name the brand anywhere in the message; say \u201cour product\u201d or leave the name out.",b.whatItIs&&"What it is: "+b.whatItIs,b.mission&&"Mission: "+b.mission,b.targetAudience&&"Audience: "+b.targetAudience,b.brandTone&&"Tone / voice: "+b.brandTone,b.proofPoints&&"Proof points (the ONLY facts about the brand you may cite): "+b.proofPoints,b.audienceHangouts&&"Where the audience gathers: "+b.audienceHangouts,b.keyMessages&&"Key messages (what may be said): "+b.keyMessages,b.competitors&&"COMPETITORS — never suggest, contact, mention or compare to these: "+b.competitors,b.blockWords&&"Blocked words — never suggest an option whose name, site or niche contains: "+b.blockWords,b.doNotContact&&"Do-not-contact list: "+b.doNotContact].filter(Boolean).map(x=>scrubOld(x,brandCall(b))).join("\n"); }
 function targetFacts(d){ const t=targetForDeal(d); const L=[ "Name: "+nameOf(d) ];
   if(isLead(d)){ [["Category",t.category],["What they do",t.whatTheyDo],["Website",t.website],["Contact name",t.contactName],["Notes",t.notes],["Intro type",d.introType]].forEach(([k,v])=>{ if(v) L.push(k+": "+v); }); }
   else { [["Platform",t.platform],["Type",t.type],["Niche",t.niche],["Language",t.language],["How to post",t.howToPost],["Rules / policy",t.rulesNote],["Contact name",t.contactName],["Research notes",t.researchNotes],["Personalisation line supplied by the sender",d.personalisation]].forEach(([k,v])=>{ if(v) L.push(k+": "+v); }); }
@@ -5660,7 +5664,7 @@ const agentBusy=new Set(); const pendingDraft=new Set(); /* rows whose first dra
 /* Deterministic check: history / usage / year claims in a draft must be backed by the brand facts, the campaign message or the draft notes the user wrote. */
 function claimIssues(d,body){
   const b=brandById(d.brandId)||{}; const w=(typeof waveOf==="function"?waveOf(d):{})||{};
-  const allowed=[b.callAs,b.whatItIs,b.mission,b.proofPoints,b.keyMessages,b.targetAudience,w.message,w.name].concat((dnList(b)||[]).map(n=>n&&n.text)).filter(Boolean).join(" ").toLowerCase();
+  const allowed=[brandCall(b),b.whatItIs,b.mission,b.proofPoints,b.keyMessages,b.targetAudience,w.message,w.name].concat((dnList(b)||[]).map(n=>n&&n.text)).filter(Boolean).join(" ").toLowerCase();
   const txt=String(body||""); const out=[]; const seen={};
   const add=m=>{ const k=m.toLowerCase(); if(!seen[k]){ seen[k]=1; out.push(m); } };
   (txt.match(/\b(19[89]\d|20[0-3]\d)\b/g)||[]).forEach(y=>{ if(!allowed.includes(y)) add('the year "'+y+'"'); });
@@ -5685,7 +5689,7 @@ async function agentDraft(id,opts){
   if(agentBusy.has(id)) return;
   if(opts.quiet){ if(setupNeeded()) return; } else if(!(await ensureSetup())) return;
   if(!opts.quiet&&!opts.statusChecked&&!(await freshenStatus([id]))) return;
-  if(!(b0=>!b0||(b0.callAs||"").trim())(brandById(d.brandId))){ if(opts.quiet){ return; } if(!(await ensurePublicName(d.brandId))) return; }
+  if(noPublicName(d.brandId)){ if(opts.quiet){ return; } if(!(await ensurePublicName(d.brandId))) return; }
   agentBusy.add(id);
   const row=document.querySelector('#wbBody tr[data-id="'+id+'"] [data-a=draftai]'); if(row) row.innerHTML='<span class="spin"></span>';
   const res=document.getElementById("agRes"); if(opts.pane&&res) res.innerHTML='<div class="agres"><span class="spin"></span> Drafting…</div>';
