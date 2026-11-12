@@ -83,6 +83,9 @@ Deno.serve(async (req: Request) => {
       (data || []).forEach((r: any) => cls.set(String(r.id), { app: r.app, internal: !!r.internal }));
       if (!data || data.length < 1000) break;
     }
+    // real last activity (a refreshed sign-in session means the app was open); last_sign_in_at misses people who stay signed in
+    const lastActive = new Map<string, string>();
+    try { const { data: la } = await supabase.rpc('admin_last_active'); (la || []).forEach((r: any) => lastActive.set(String(r.user_id), r.last_active)); } catch (_e) { /* function not created yet */ }
     const planById = new Map((plans || []).map((p: any) => [p.id, p]));
     const subByClient = new Map((subs || []).map((s: any) => [s.client_id, s]));
     const arPlanByKey = new Map((arPlans || []).map((p: any) => [p.key, p]));
@@ -114,7 +117,7 @@ Deno.serve(async (req: Request) => {
       const um = u.user_metadata || {};
       return {
         id: u.id, email: u.email, name: um.full_name || um.name || null,
-        created_at: u.created_at, last_sign_in_at: u.last_sign_in_at || null, signup_app: um.signup_app || null,
+        created_at: u.created_at, last_sign_in_at: u.last_sign_in_at || null, last_active: lastActive.get(u.id) || u.last_sign_in_at || null, signup_app: um.signup_app || null,
         app: haveView ? (cls.get(u.id)?.app || 'other') : null,
         internal: haveView ? !!cls.get(u.id)?.internal : ADMIN_EMAILS.includes(u.email || ''),
         provider: (u.app_metadata && u.app_metadata.provider) || ((u.identities && u.identities[0] && u.identities[0].provider) || 'email'),

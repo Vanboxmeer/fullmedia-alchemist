@@ -32,5 +32,18 @@ Deno.serve(async (req: Request) => {
   try { const b = await req.json(); days = Math.max(1, Math.min(365, Number(b?.days) || 30)); } catch (_e) { /* default */ }
   const { data, error: e2 } = await sb.rpc('admin_stats', { p_days: days });
   if (e2) return J({ error: 'Could not build the report' }, 500);
-  return J({ ok: true, ...data });
+  // extra numbers (real activity, conversion, support, team usage). Optional: the page still works if the database function is not there yet.
+  let plus: Record<string, unknown> = {};
+  try { const { data: p2 } = await sb.rpc('admin_stats_plus', { p_days: days }); if (p2 && typeof p2 === 'object') plus = p2 as Record<string, unknown>; } catch (_e) { /* not created yet */ }
+  try {
+    const recent = (data as any)?.recent as any[] | undefined;
+    if (recent?.length) {
+      const { data: accts } = await sb.from('fma_accounts').select('id, email').in('email', recent.map((r) => String(r.email || '').toLowerCase()));
+      const { data: la } = await sb.rpc('admin_last_active');
+      const idByEmail = new Map((accts || []).map((a: any) => [String(a.email), String(a.id)]));
+      const act = new Map((la || []).map((r: any) => [String(r.user_id), r.last_active]));
+      recent.forEach((r) => { const id = idByEmail.get(String(r.email || '').toLowerCase()); if (id && act.get(id)) r.last_active = act.get(id); });
+    }
+  } catch (_e) { /* optional */ }
+  return J({ ok: true, ...data, ...plus });
 });

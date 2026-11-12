@@ -43,6 +43,12 @@
   if (!first) { refHost = ""; src = ""; med = ""; camp = ""; }
   ev("view");
   if (/^\/pricing(\/|$)/.test(location.pathname)) ev("pricing");
+  // "engaged": a real person scrolled, clicked, touched or typed (bots that only load the page never do). Sent once per tab session.
+  (function () {
+    var done = false, evs = ["scroll", "pointerdown", "keydown", "touchstart", "mousemove"];
+    function fire() { if (done) return; done = true; evs.forEach(function (n) { window.removeEventListener(n, fire, true); }); try { if (sessionStorage.getItem("fma-eng")) return; sessionStorage.setItem("fma-eng", "1"); } catch (e) {} ev("engaged"); }
+    evs.forEach(function (n) { window.addEventListener(n, fire, { capture: true, passive: true }); });
+  })();
   document.addEventListener("click", function (e) {
     var a = e.target && e.target.closest ? e.target.closest("a,button") : null;
     if (!a) return;

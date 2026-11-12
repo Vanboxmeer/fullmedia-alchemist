@@ -85,6 +85,13 @@ a{color:var(--gold)}
 @media (max-width:760px){.prh{grid-template-columns:1fr 1fr}.phd{display:none}}
 .seg2{display:inline-flex;gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden}.seg2 button{border:0;border-radius:0;background:none}.seg2 button[aria-pressed=true]{background:var(--surface-2);color:var(--gold)}
 @media (max-width:560px){.bar{grid-template-columns:96px 1fr 92px}}
+.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin:0 0 16px;padding-bottom:0;-webkit-overflow-scrolling:touch}
+.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--muted);padding:9px 14px;white-space:nowrap;font-weight:500}
+.tabs button[aria-selected=true]{color:var(--gold);border-bottom-color:var(--gold)}
+.tabs button:hover{color:var(--ink)}
+.badge{display:inline-block;min-width:18px;padding:0 6px;border-radius:99px;background:var(--red);color:#fff;font-size:11px;font-weight:600;text-align:center}
+h2.sec{font:600 18px/1.2 var(--display);letter-spacing:0;text-transform:none;color:var(--ink);margin:6px 0 12px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 4px 0 8px;vertical-align:baseline}
 </style>
 </head>
 <body>
@@ -166,96 +173,165 @@ a{color:var(--gold)}
   }
 
   var STAGE = { signed_up: "Signed up only", added_brand: "Added a brand", made_content: "Made content", paying: "Paying" };
+  /* ---------- tabs ---------- */
+  var TABS = [["overview", "Overview"], ["traffic", "Traffic & app stats"], ["users", "Users & comps"], ["revenue", "Revenue & plans"], ["product", "Content & Reach"], ["support", "Support"]];
+  var tab = "overview", J = null;
+  try { var hh = (location.hash || "").replace("#", ""); if (TABS.some(function (t) { return t[0] === hh; })) tab = hh; } catch (e) {}
+  function stacked(rows) {   // rows: {l, a, b, c} people / unconfirmed / bots
+    var max = Math.max.apply(null, rows.map(function (r) { return r.a + r.b + r.c; }).concat([1]));
+    var w = 640, h = 130, bw = w / Math.max(rows.length, 1), out = '<svg viewBox="0 0 ' + w + " " + (h + 20) + '" width="100%" role="img" aria-label="Visits per day">';
+    out += '<line x1="0" x2="' + w + '" y1="' + h + '" y2="' + h + '" stroke="var(--line)"/><line x1="0" x2="' + w + '" y1="' + (h / 2) + '" y2="' + (h / 2) + '" stroke="var(--line)" stroke-dasharray="3 4"/>';
+    rows.forEach(function (r, i) {
+      var x = (i * bw + bw * 0.14).toFixed(1), ww = (bw * 0.72).toFixed(1), y = h, parts = [[r.a, "var(--green)", "people"], [r.b, "var(--gold)", "unconfirmed"], [r.c, "var(--muted)", "bots"]];
+      parts.forEach(function (p) { var bh = Math.round(p[0] / max * (h - 6)); if (!bh) return; y -= bh; out += '<rect x="' + x + '" y="' + y + '" width="' + ww + '" height="' + bh + '" fill="' + p[1] + '"><title>' + esc(r.l + " · " + p[2] + ": " + n(p[0])) + "</title></rect>"; });
+    });
+    out += '<text x="0" y="' + (h + 14) + '">' + esc(rows.length ? rows[0].l : "") + '</text><text x="' + w + '" y="' + (h + 14) + '" text-anchor="end">' + esc(rows.length ? rows[rows.length - 1].l : "") + '</text><text x="' + w + '" y="12" text-anchor="end">peak ' + n(max === 1 ? 0 : max) + "</text></svg>";
+    return out + '<p class="note" style="margin:6px 0 0"><span class="dot" style="background:var(--green)"></span> people <span class="dot" style="background:var(--gold)"></span> unconfirmed <span class="dot" style="background:var(--muted)"></span> bots</p>';
+  }
+  function waiting() { return '<p class="muted">Waiting for the database update that adds this. Everything else on the page is live.</p>'; }
+
   function insights(j) {
-    var out = [], s = j.site, f = s.funnel, ch = s.channels || [];
-    if (s.visits < 25) out.push("Only " + n(s.visits) + " tracked visits so far — the counter is new, so give it a week or two before reading much into the percentages.");
+    var out = [], s = j.site, f = s.funnel, ch = s.channels || [], pl = s.visits_people != null, ppl = pl ? s.visits_people : s.visits;
+    if (pl && s.visits_unconfirmed + s.visits_bots > s.visits_people * 2 && s.visits_people + s.visits_unconfirmed + s.visits_bots >= 25) out.push("Most visits (" + n(s.visits_unconfirmed + s.visits_bots) + " of " + n(s.visits_all) + ") are bots or single-page visits with no scroll or click, so they are not counted as real visitors. That is why the real numbers are lower than the old total.");
+    if (ppl < 25) out.push("Only " + n(ppl) + " real visitors so far. Give the counter a couple of weeks before reading much into the percentages.");
     var steps = [["visit", f.visits], ["pricing view", f.pricing], ["demo try", f.tried], ["sign-up click", f.signup_click], ["sign-up", f.signup]];
     var worst = null;
     for (var i = 1; i < steps.length; i++) { if (steps[i - 1][1] >= 10) { var r = steps[i][1] / steps[i - 1][1]; if (!worst || r < worst.r) worst = { r: r, a: steps[i - 1][0], b: steps[i][0] }; } }
-    if (worst && s.visits >= 25) out.push("Biggest drop-off: " + worst.a + " → " + worst.b + " (only " + Math.round(worst.r * 100) + "% continue). Fix that step first.");
-    var good = ch.filter(function (c) { return c.visits >= 10; }).sort(function (a, b) { return b.signups / b.visits - a.signups / a.visits; })[0];
-    if (good && good.signups) out.push("Best converting source: " + good.channel + " (" + pct(good.signups, good.visits) + " of " + n(good.visits) + " visits sign up). Do more of that.");
-    ch.filter(function (c) { return c.visits >= 15 && !c.signups; }).slice(0, 2).forEach(function (c) { out.push(c.channel + " sent " + n(c.visits) + " visits and no sign-ups — check the page they land on or stop spending time there."); });
-    var mob = (s.devices || []).filter(function (d) { return d.device === "mobile"; })[0];
-    if (mob && s.visits >= 25 && mob.visits / s.visits > 0.5) out.push(Math.round(mob.visits / s.visits * 100) + "% of visitors are on phones — check the homepage and sign-up on mobile first.");
+    if (worst && ppl >= 25) out.push("Biggest drop-off: " + worst.a + " → " + worst.b + " (only " + Math.round(worst.r * 100) + "% continue). Fix that step first.");
+    var key = pl ? "people" : "visits";
+    var good = ch.filter(function (c) { return c[key] >= 10; }).sort(function (a, b) { return b.signups / b[key] - a.signups / a[key]; })[0];
+    if (good && good.signups) out.push("Best converting source: " + good.channel + " (" + pct(good.signups, good[key]) + " of " + n(good[key]) + " visitors sign up).");
+    var b = s.blog; if (b && b.landed >= 10) out.push("Blog: " + n(b.landed) + " visits started on a blog post and " + n(b.landed_signup_clicks) + " clicked sign up. " + (b.landed_signup_clicks ? "" : "Add a clearer next step at the end of each post."));
     var a = j.activation;
     if (a.signed_up >= 5) {
-      if (a.brand / a.signed_up < 0.6) out.push("Only " + pct(a.brand, a.signed_up) + " of new accounts add a brand — onboarding is losing people before they see value.");
-      else if (a.brand && a.generated / a.brand < 0.6) out.push("Of accounts that add a brand, only " + pct(a.generated, a.brand) + " generate any content — the first-post step needs to be easier.");
+      if (a.brand / a.signed_up < 0.6) out.push("Only " + pct(a.brand, a.signed_up) + " of new accounts add a brand. Onboarding is losing people before they see value.");
+      else if (a.brand && a.generated / a.brand < 0.6) out.push("Of accounts that add a brand, only " + pct(a.generated, a.brand) + " generate any content. The first-post step needs to be easier.");
     }
-    if (j.accounts.new && !a.paying) out.push(n(j.accounts.new) + " new accounts in this period and none paying yet.");
+    var cv = j.conversion; if (cv && cv.ext_accounts && !cv.paying) out.push(n(cv.ext_accounts) + " customer accounts and none paying yet. " + n(cv.activated) + " have made content: those are the ones to talk to.");
+    var act = j.activity; if (act && act.signed_in_but_stale) out.push(n(act.signed_in_but_stale) + " customer(s) are using the app but signed in more than a week ago. They now count as active (the old numbers missed them).");
     var rc = j.reach, rm = j.revenue.reach_mrr_cents;
-    if (rc.est_cost_cents > 0 && rm > 0 && rc.est_cost_cents > rm * 0.3) out.push("Reach AI cost (" + usd(rc.est_cost_cents) + " est.) is over 30% of Reach monthly revenue — watch plan limits.");
-    if (rc.calls && rc.failed / rc.calls > 0.05) out.push(Math.round(rc.failed / rc.calls * 100) + "% of Reach AI calls failed — check the logs.");
+    if (rc.est_cost_cents > 0 && rm > 0 && rc.est_cost_cents > rm * 0.3) out.push("Reach AI cost (" + usd(rc.est_cost_cents) + " est.) is over 30% of Reach monthly revenue. Watch plan limits.");
+    if (rc.calls && rc.failed / rc.calls > 0.05) out.push(Math.round(rc.failed / rc.calls * 100) + "% of Reach AI calls failed. Check the logs.");
     var stuck = (j.recent || []).filter(function (x) { return (x.stage === "signed_up" || x.stage === "added_brand") && (Date.now() - Date.parse(x.created_at)) / 86400000 >= 2; });
     if (stuck.length) out.push(n(stuck.length) + " of your last " + n((j.recent || []).length) + " accounts joined 2+ days ago and never made content. See Newest accounts and email them.");
-    if (j.accounts.unsure) out.push(n(j.accounts.unsure) + " new account(s) can\u2019t be told apart between Alchemist and SpinQuest yet. Check People \u2192 Alchemist \u2192 \u201capp unclear\u201d.");
-    var lp = (s.landing || []).filter(function (x) { return x.visits >= 15; })[0];
-    if (lp && s.visits >= 25 && !lp.pricing) out.push("People who land on " + lp.path + " (" + n(lp.visits) + " visits) never reach pricing. Make the next step obvious there.");
+    if (j.support && j.support.open_tickets) out.push(n(j.support.open_tickets) + " open problem report(s) waiting. See the Support tab.");
+    if (j.accounts.unsure) out.push(n(j.accounts.unsure) + " new account(s) can’t be told apart between Alchemist and SpinQuest yet. Check Users → “app unclear”.");
     if (!out.length) out.push("Nothing alarming. Numbers are steady for this period.");
     return out;
   }
 
-  function render(j) {
-    var s = j.site, f = s.funnel, a = j.accounts, v = j.revenue, ac = j.activation, c = j.content, rc = j.reach;
-    var mrr = (v.content_mrr_cents || 0) + (v.reach_mrr_cents || 0);
-    var conv = pct(f.signup, f.visits);
-    var h = "";
-    h += '<header><div><h1>Alchemist Admin</h1><div class="muted">Last ' + j.days + ' days · UTC · updated ' + esc(new Date(j.generated_at).toLocaleTimeString()) + '</div></div>' +
+  function header(j) {
+    return '<header><div><h1>Alchemist Admin</h1><div class="muted">Last ' + j.days + ' days · UTC · updated ' + esc(new Date(j.generated_at).toLocaleTimeString()) + '</div></div>' +
       '<div class="tools"><select id="rng" aria-label="Date range"><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="365">12 months</option></select>' +
-      '<button id="rf">Refresh</button><button id="nt" title="Stops the visit counter in this browser">' + (notrack() ? "Counting me: off" : "Counting me: on") + '</button></div></header>';
-    h += '<div class="grid kpis">' +
-      kpi("Visits", n(s.visits), n(s.pageviews) + " page views") +
+      '<button id="rf">Refresh</button><button id="nt" title="Stops the visit counter in this browser">' + (notrack() ? "Counting me: off" : "Counting me: on") + '</button></div></header>' +
+      '<nav class="tabs" role="tablist">' + TABS.map(function (t) { var badge = t[0] === "support" && j.support && j.support.open_tickets ? ' <span class="badge">' + n(j.support.open_tickets) + "</span>" : ""; return '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' + (tab === t[0]) + '">' + esc(t[1]) + badge + "</button>"; }).join("") + "</nav>";
+  }
+
+  function tOverview(j) {
+    var s = j.site, f = s.funnel, a = j.accounts, v = j.revenue, ac = j.activation, act = j.activity || {}, cv = j.conversion || {}, pl = s.visits_people != null;
+    var mrr = (v.content_mrr_cents || 0) + (v.reach_mrr_cents || 0), ppl = pl ? s.visits_people : s.visits;
+    var h = '<div class="grid kpis">' +
+      kpi(pl ? "Real visitors" : "Visits", n(ppl), pl ? n(s.visits_unconfirmed) + " unconfirmed · " + n(s.visits_bots) + " bots" : n(s.pageviews) + " page views") +
       kpi("Sign-ups", n(a.new), delta(a.new, a.new_prev)) +
-      kpi("Visit → sign-up", conv, n(f.signup) + " from tracked visits") +
+      kpi("Visitor → sign-up", pct(f.signup, f.visits), n(f.signup) + " sign-ups") +
       kpi("Monthly revenue", usd(mrr), n(v.content_paying + v.reach_paying) + " paying · " + n(v.comped) + " comped") +
-      kpi("Active this week", n(a.active_7d), n(a.active_30d) + " in 30 days · " + n(a.total) + " total") +
-      kpi("Bounce", pct(s.bounce, s.visits), "left after 1 page") + "</div>";
-    if (a.internal != null) h += '<p class="note" style="margin:-4px 0 14px">Alchemist accounts only. Left out: ' + n(a.internal) + ' of your own accounts and ' + n(a.other_apps) + ' accounts from other apps (SpinQuest).' + (a.unsure ? ' ' + n(a.unsure) + ' new account(s) could not be placed in either app yet. They show in People under Alchemist as \u201capp unclear\u201d.' : '') + ' Times are UTC.</p>';
+      kpi("Customers active this week", n(act.ext_active_7d != null ? act.ext_active_7d : a.active_7d), n(act.ext_active_30d != null ? act.ext_active_30d : a.active_30d) + " in 30 days · " + n(act.ext_total != null ? act.ext_total : a.total) + " customer accounts") +
+      kpi("Open reports", n(j.support ? j.support.open_tickets : 0), j.support ? n(j.support.open_feedback) + " open feedback" : "") + "</div>";
+    if (a.internal != null) h += '<p class="note" style="margin:-4px 0 14px">Customers means real Alchemist accounts. Left out: ' + n(a.internal) + ' of your own team logins and ' + n(a.other_apps) + ' accounts from other apps (SpinQuest). Activity uses real app sessions, so people who stay signed in count as active.' + (a.unsure ? ' ' + n(a.unsure) + ' new account(s) are not placed in either app yet.' : '') + '</p>';
     h += '<section class="card insights"><h2>What to look at</h2><ul>' + insights(j).map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul></section>";
+    h += '<div class="grid two"><section class="card"><h2>Real visitors per day</h2>' + (pl ? stacked((s.daily || []).map(function (d) { return { l: short(d.d), a: d.people, b: d.unconfirmed, c: d.bots }; })) : bars((s.daily || []).map(function (d) { return { l: short(d.d), v: d.visits }; }), "var(--gold)")) + "</section>" +
+      '<section class="card"><h2>New accounts per day</h2>' + bars((a.daily || []).map(function (d) { return { l: short(d.d), v: d.n }; }), "var(--green)") + "</section></div>";
     h += '<section class="card" style="margin-bottom:14px"><h2>Newest accounts</h2>' + table(["Account", "Joined", "Last seen", "Where they are"], (j.recent || []).map(function (x) {
       var age = (Date.now() - Date.parse(x.created_at)) / 86400000, stalled = (x.stage === "signed_up" || x.stage === "added_brand") && age >= 2;
-      return [esc(x.email), esc(ago(x.created_at)), esc(ago(x.last_seen)), '<span class="pill ' + (x.stage === "paying" || x.stage === "made_content" ? "ok" : stalled ? "warn" : "") + '">' + esc(STAGE[x.stage] || x.stage) + (stalled ? " \u00b7 follow up" : "") + "</span>" + (x.comped ? ' <span class="pill warn">comp</span>' : "")];
+      return [esc(x.email), esc(ago(x.created_at)), esc(ago(x.last_active || x.last_seen)), '<span class="pill ' + (x.stage === "paying" || x.stage === "made_content" ? "ok" : stalled ? "warn" : "") + '">' + esc(STAGE[x.stage] || x.stage) + (stalled ? " · follow up" : "") + "</span>" + (x.comped ? ' <span class="pill warn">comp</span>' : "")];
     })) + '<p class="note">The last 15 accounts and how far each got. Orange means two or more days with no progress: a good moment to email them.</p></section>';
-    h += '<section class="card" id="pp" style="margin-bottom:14px"><h2>People</h2><div id="ppBody" class="muted">Loading\u2026</div></section>';
-    h += '<section class="card" id="tk" style="margin-bottom:14px"><h2>Problem reports</h2><div id="tkBody" class="muted">Loading\u2026</div></section>';
-    h += '<div class="grid two"><section class="card"><h2>Visits per day</h2>' + bars((s.daily || []).map(function (d) { return { l: short(d.d), v: d.visits }; }), "var(--gold)") + "</section>" +
-      '<section class="card"><h2>New accounts per day</h2>' + bars((a.daily || []).map(function (d) { return { l: short(d.d), v: d.n }; }), "var(--green)") + "</section></div>";
-    h += '<div class="grid two"><section class="card"><h2>Visitor journey</h2>' + funnel([
-      { l: "Visited", v: f.visits }, { l: "Saw pricing", v: f.pricing }, { l: "Tried the demo", v: f.tried }, { l: "Clicked sign up", v: f.signup_click }, { l: "Signed up", v: f.signup }]) +
-      '<p class="note">Counted per visit (one browser tab session). A visit can skip steps, so a later step can be larger than an earlier one.</p></section>' +
-      '<section class="card"><h2>After sign-up (accounts made in this period)</h2>' + funnel([
-        { l: "Signed up", v: ac.signed_up }, { l: "Added a brand", v: ac.brand }, { l: "Made content", v: ac.generated }, { l: "Paying", v: ac.paying }]) +
-      '<p class="note">Tells you where new accounts stall: no brand, no first post, or no upgrade.' + (ac.signed_up ? " " + n(ac.returned) + " of " + n(ac.signed_up) + " came back on another day." : "") + '</p></section></div>';
-    h += '<section class="card" style="margin-bottom:14px"><h2>Traffic sources</h2>' + table(["Source", "Visits", "Saw pricing", "Tried demo", "Sign-ups", "Rate"],
-      (s.channels || []).map(function (x) { return [esc(x.channel), n(x.visits), n(x.pricing), n(x.tried), n(x.signups), pct(x.signups, x.visits)]; })) +
-      (s.signup_sources && s.signup_sources.length ? '<h3 style="margin:16px 0 6px;font-size:14px">Where this period\u2019s accounts came from</h3>' + table(["Source", "New accounts"], s.signup_sources.map(function (x) { return [esc(x.channel), n(x.n)]; })) + '<p class="note">Counts real new accounts. \u201cunknown\u201d = we could not link the account to a tracked visit (common with Google sign-in or a link opened in another tab).</p>' : "") +
-      '<p class="note">Add <b>?utm_source=…&amp;utm_campaign=…</b> to any link you post (bio, newsletter, outreach) and it shows up here by name.</p></section>';
-    h += '<div class="grid two"><section class="card"><h2>Your tagged links</h2>' + table(["Campaign", "Source", "Visits", "Sign-ups"],
-      (s.campaigns || []).map(function (x) { return [esc(x.campaign), esc(x.channel), n(x.visits), n(x.signups)]; })) + "</section>" +
+    return h;
+  }
+
+  function tTraffic(j) {
+    var s = j.site, f = s.funnel, a = j.accounts, ac = j.activation, c = j.content, rc = j.reach, act = j.activity || {}, pl = s.visits_people != null, k = pl ? "people" : "visits";
+    var h = '<h2 class="sec">Website traffic</h2>';
+    if (pl) {
+      h += '<div class="grid kpis">' + kpi("Real visitors", n(s.visits_people), "scrolled, clicked, or viewed 2+ pages") + kpi("Unconfirmed", n(s.visits_unconfirmed), "1 page, no sign of a person") + kpi("Bots", n(s.visits_bots), "caught by their browser name") +
+        kpi("Page views (people)", n(s.pageviews_people), n(s.pageviews_all) + " counting everything") + kpi("Bounce (people)", pct(s.bounce_people, s.visits_people), "left after 1 page") + kpi("Sign-ups", n(f.signup), pct(f.signup, s.visits_people) + " of real visitors") + "</div>";
+      h += '<p class="note" style="margin:-4px 0 14px">How we tell people from bots: a visit counts as a <b>real visitor</b> when the browser scrolls, clicks, touches or types, or the visit looks at 2+ pages, or reaches pricing or sign-up. Known bots and link-preview fetchers are filtered by browser name. A visit that loads one page and then does nothing is <b>unconfirmed</b>: usually a bot, a preview or a bounce, and not counted as a person. ' + (s.engaged_since ? "The interaction check started " + esc(new Date(s.engaged_since).toLocaleDateString()) + "; earlier visits can only be confirmed by 2+ pages or a pricing, demo or sign-up action." : "The interaction check has not recorded anything yet; it starts as soon as the new counter script loads on the site.") + "</p>";
+      h += '<div class="grid two"><section class="card"><h2>Visits per day</h2>' + stacked((s.daily || []).map(function (d) { return { l: short(d.d), a: d.people, b: d.unconfirmed, c: d.bots }; })) + "</section>" +
+        '<section class="card"><h2>Visitor journey (real visitors)</h2>' + funnel([{ l: "Visited", v: f.visits }, { l: "Saw pricing", v: f.pricing }, { l: "Tried the demo", v: f.tried }, { l: "Clicked sign up", v: f.signup_click }, { l: "Signed up", v: f.signup }]) +
+        '<p class="note">Counted per visit. A visit can skip steps, so a later step can be larger than an earlier one.</p></section></div>';
+      h += '<div class="grid two"><section class="card"><h2>Homepage, blog and other pages</h2>' + table(["Where they started", "People", "Unconfirmed", "Views", "Sign-up clicks", "Sign-ups"], (s.groups || []).map(function (x) { return [esc(x.group), n(x.people), n(x.unconfirmed), n(x.views), n(x.signup_clicks), n(x.signups)]; })) +
+        '<p class="note">Grouped by the first page of each visit. Views count every page seen in those visits.</p></section>' +
+        '<section class="card"><h2>Blog traffic</h2>' + (s.blog ? '<div class="grid" style="grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">' + [["Visitors who read a post", n(s.blog.visits)], ["Real people", n(s.blog.people)], ["Post views", n(s.blog.views)], ["Started on a post", n(s.blog.landed)], ["Then clicked sign up", n(s.blog.landed_signup_clicks)], ["Then signed up", n(s.blog.landed_signups)]].map(function (p) { return '<div><div class="muted" style="font-size:12px">' + p[0] + '</div><b style="font:600 20px var(--display)">' + p[1] + "</b></div>"; }).join("") + "</div>" +
+        table(["Post", "Views", "Visitors", "Started here", "Sign-up clicks"], (s.blog.posts || []).slice(0, 12).map(function (x) { return [esc(x.path.replace(/^\/blog\//, "").replace(/\/$/, "")), n(x.views), n(x.visits), n(x.landed), n(x.signup_clicks)]; })) : waiting()) + "</section></div>";
+    } else {
+      h += '<div class="grid kpis">' + kpi("Visits", n(s.visits), n(s.pageviews) + " page views") + kpi("Bounce", pct(s.bounce, s.visits), "left after 1 page") + "</div>" + waiting();
+      h += '<div class="grid two"><section class="card"><h2>Visits per day</h2>' + bars((s.daily || []).map(function (d) { return { l: short(d.d), v: d.visits }; }), "var(--gold)") + "</section>" +
+        '<section class="card"><h2>Visitor journey</h2>' + funnel([{ l: "Visited", v: f.visits }, { l: "Saw pricing", v: f.pricing }, { l: "Tried the demo", v: f.tried }, { l: "Clicked sign up", v: f.signup_click }, { l: "Signed up", v: f.signup }]) + "</section></div>";
+    }
+    h += '<section class="card" style="margin-bottom:14px"><h2>Traffic sources</h2>' + table(pl ? ["Source", "People", "Unconfirmed", "Saw pricing", "Sign-ups", "Rate"] : ["Source", "Visits", "Saw pricing", "Tried demo", "Sign-ups", "Rate"],
+      (s.channels || []).map(function (x) { return pl ? [esc(x.channel), n(x.people), n(x.unconfirmed), n(x.pricing), n(x.signups), pct(x.signups, x.people)] : [esc(x.channel), n(x.visits), n(x.pricing), n(x.tried), n(x.signups), pct(x.signups, x.visits)]; })) +
+      (s.signup_sources && s.signup_sources.length ? '<h3 style="margin:16px 0 6px;font-size:14px">Where this period’s accounts came from</h3>' + table(["Source", "New accounts"], s.signup_sources.map(function (x) { return [esc(x.channel), n(x.n)]; })) + '<p class="note">Counts real new accounts. “unknown” = we could not link the account to a tracked visit (common with Google sign-in or a link opened in another tab).</p>' : "") +
+      '<p class="note">Add <b>?utm_source=…&amp;utm_campaign=…</b> to any link you post and it shows up here by name.</p></section>';
+    h += '<div class="grid two"><section class="card"><h2>Your tagged links</h2>' + table(["Campaign", "Source", "Visits", "Sign-ups"], (s.campaigns || []).map(function (x) { return [esc(x.campaign), esc(x.channel), n(x.visits), n(x.signups)]; })) + "</section>" +
       '<section class="card"><h2>Websites sending visitors</h2>' + table(["Site", "Visits"], (s.referrers || []).map(function (x) { return [esc(x.host), n(x.visits)]; })) + "</section></div>";
-    h += '<div class="grid two"><section class="card"><h2>Pages people land on</h2>' + table(["Page", "Visits", "Saw pricing", "Sign-ups"],
-      (s.landing || []).map(function (x) { return [esc(x.path), n(x.visits), n(x.pricing), n(x.signups)]; })) + "</section>" +
-      '<section class="card"><h2>Most viewed pages</h2>' + table(["Page", "Views", "People"], (s.pages || []).map(function (x) { return [esc(x.path), n(x.views), n(x.visits)]; })) +
-      '<p class="note" style="margin-top:14px">Devices: ' + ((s.devices || []).map(function (d) { return esc(d.device) + " " + pct(d.visits, s.visits); }).join(" · ") || "—") + "</p></section></div>";
-    h += '<div class="grid two"><section class="card"><h2>Revenue</h2>' + table(["", "Monthly", "Paying"], [
-      ["Content", usd(v.content_mrr_cents), n(v.content_paying)], ["Reach", usd(v.reach_mrr_cents), n(v.reach_paying)], ["<b>Total</b>", "<b>" + usd(mrr) + "</b>", "<b>" + n(v.content_paying + v.reach_paying) + "</b>"]]) +
-      '<p class="note">Plan mix, Content: ' + (v.content_by_plan.map(function (p) { return esc(p.plan) + " " + n(p.n); }).join(" · ") || "—") + "<br>Plan mix, Reach: " + (v.reach_by_plan.map(function (p) { return esc(p.plan) + " " + n(p.n); }).join(" · ") || "—") +
-      "<br>Annual plans are counted as one twelfth per month. Comped accounts are not counted as revenue.</p></section>" +
-      '<section class="card"><h2>Content use (credits per day)</h2>' + bars((c.daily || []).map(function (d) { return { l: short(d.d), v: Number(d.credits) }; }), "var(--blue)") +
-      '<p class="note">' + n(c.credits) + " credits used by " + n(c.active_brands) + " customer brand(s) (your own brands and admin test runs excluded)." + (c.credits_yours ? " Your own brands used " + n(c.credits_yours) + " more, not counted." : "") + "</p></section></div>";
-    h += '<section class="card"><h2>Reach</h2><div class="grid two" style="margin:0"><div>' + bars((rc.daily || []).map(function (d) { return { l: short(d.d), v: d.n }; }), "var(--gold)") + "</div><div>" +
-      table(["", ""], [["AI calls (everyone)", n(rc.calls) + (rc.failed ? " (" + n(rc.failed) + " failed)" : "")], ["\u2026of which customers", rc.calls_customers != null ? n(rc.calls_customers) : "\u2014"], ["Customer workspaces using it", n(rc.active_workspaces)], ["Web searches", n(rc.web_searches)],
-        ["Estimated AI cost", usd(rc.est_cost_cents)], ["Workspaces / deals tracked", n(rc.workspaces_total) + " / " + n(rc.deals_total)]]) +
-      '<p class="note">Cost is an estimate from token counts (Haiku 4.5 rates) plus about 1¢ per web search — compare with the bill.</p></div></div></section>';
-    h += '<p class="note" style="margin-top:18px">Visit data is first-party and cookie-free: no IP address, no third-party tool, and browsers sending Do Not Track are skipped. Source: Supabase.</p>';
-    app.innerHTML = h;
+    h += '<div class="grid two"><section class="card"><h2>Pages people land on</h2>' + table(pl ? ["Page", "People", "Unconfirmed", "Saw pricing", "Sign-ups"] : ["Page", "Visits", "Saw pricing", "Sign-ups"], (s.landing || []).map(function (x) { return pl ? [esc(x.path), n(x.people), n(x.unconfirmed), n(x.pricing), n(x.signups)] : [esc(x.path), n(x.visits), n(x.pricing), n(x.signups)]; })) + "</section>" +
+      '<section class="card"><h2>Most viewed pages</h2>' + table(pl ? ["Page", "Views", "Visitors", "People"] : ["Page", "Views", "Visitors"], (s.pages || []).map(function (x) { return pl ? [esc(x.path), n(x.views), n(x.visits), n(x.people)] : [esc(x.path), n(x.views), n(x.visits)]; })) +
+      '<p class="note" style="margin-top:14px">Devices: ' + ((s.devices || []).map(function (d) { return esc(d.device) + " " + n(d[k]); }).join(" · ") || "—") + (pl && (s.bot_reasons || []).length ? "<br>Bots caught: " + s.bot_reasons.map(function (b) { return esc(b.reason) + " " + n(b.n); }).join(" · ") : "") + "</p></section></div>";
+    h += '<h2 class="sec">App stats</h2><div class="grid kpis">' +
+      kpi("Customers active today", n(act.ext_active_today), "opened the app in 24 hours") + kpi("Active this week", n(act.ext_active_7d != null ? act.ext_active_7d : a.active_7d), n(act.ext_active_30d != null ? act.ext_active_30d : a.active_30d) + " in 30 days") +
+      kpi("Customer accounts", n(act.ext_total != null ? act.ext_total : a.total), n(act.dormant) + " not seen in 30 days") + kpi("Your team", n(act.team_total), n(act.team_active_7d) + " active this week") +
+      kpi("Generations", n(j.customers_usage ? j.customers_usage.generations : 0), "by customers this period") + kpi("Reach AI calls", n(rc.calls_customers != null ? rc.calls_customers : rc.calls), "by customers this period") + "</div>";
+    h += '<div class="grid two"><section class="card"><h2>After sign-up (accounts made in this period)</h2>' + funnel([{ l: "Signed up", v: ac.signed_up }, { l: "Added a brand", v: ac.brand }, { l: "Made content", v: ac.generated }, { l: "Paying", v: ac.paying }]) +
+      '<p class="note">Tells you where new accounts stall.' + (ac.signed_up ? " " + n(ac.returned) + " of " + n(ac.signed_up) + " came back on another day." : "") + '</p></section>' +
+      '<section class="card"><h2>Content use (credits per day)</h2>' + bars((c.daily || []).map(function (d) { return { l: short(d.d), v: Number(d.credits) }; }), "var(--blue)") + '<p class="note">' + n(c.credits) + " credits by " + n(c.active_brands) + " customer brand(s). Your own brands and admin test runs are counted separately in Content &amp; Reach.</p></section></div>";
+    return h;
+  }
+
+  function tUsers(j) {
+    var act = j.activity || {};
+    return '<div class="grid kpis">' + kpi("Customer accounts", n(act.ext_total), n(act.ext_active_7d) + " active this week") + kpi("Active today", n(act.ext_active_today), "") + kpi("Not seen in 30 days", n(act.dormant), "") + kpi("Your team logins", n(act.team_total), n(act.team_active_7d) + " active this week") + "</div>" +
+      '<section class="card" id="pp" style="margin-bottom:14px"><h2>People</h2><div id="ppBody" class="muted">Loading…</div></section>' +
+      '<p class="note">Comp a plan, give bonus credits, or end a comp: open a person, pick the plan and length, and confirm. Last active comes from real app sessions, not just the last time someone typed a password.</p>';
+  }
+
+  function tRevenue(j) {
+    var v = j.revenue, cv = j.conversion || {}, mrr = (v.content_mrr_cents || 0) + (v.reach_mrr_cents || 0), paying = v.content_paying + v.reach_paying;
+    var h = '<div class="grid kpis">' + kpi("Monthly revenue", usd(mrr), n(paying) + " paying plan(s)") + kpi("Free → paid", pct(cv.paying, cv.ext_accounts), n(cv.paying) + " of " + n(cv.ext_accounts) + " customer accounts") +
+      kpi("Made content → paid", pct(cv.paying, cv.activated), n(cv.paying) + " of " + n(cv.activated) + " who made content") + kpi("New paid this period", n(cv.new_paid_in_range), n(cv.cancelled_in_range) + " cancelled · " + n(cv.cancelling) + " set to cancel") +
+      kpi("Comped accounts", n(cv.comped), "free plans you granted") + kpi("Average per paying plan", paying ? usd(mrr / paying) : "—", "per month") + "</div>";
+    h += '<div class="grid two"><section class="card"><h2>Conversion</h2>' + funnel([{ l: "Customer accounts", v: cv.ext_accounts || 0 }, { l: "Made content", v: cv.activated || 0 }, { l: "Paying", v: cv.paying || 0 }]) +
+      '<p class="note">Of accounts that signed up in this period: ' + n(cv.signed_up_in_range) + " joined and " + n(cv.paid_from_range) + " are paying. Comped accounts are never counted as paying.</p></section>" +
+      '<section class="card"><h2>Revenue</h2>' + table(["", "Monthly", "Paying"], [["Content", usd(v.content_mrr_cents), n(v.content_paying)], ["Reach", usd(v.reach_mrr_cents), n(v.reach_paying)], ["<b>Total</b>", "<b>" + usd(mrr) + "</b>", "<b>" + n(paying) + "</b>"]]) +
+      '<p class="note">Plan mix, Content: ' + (v.content_by_plan.map(function (p) { return esc(p.plan) + " " + n(p.n); }).join(" · ") || "—") + "<br>Plan mix, Reach: " + (v.reach_by_plan.map(function (p) { return esc(p.plan) + " " + n(p.n); }).join(" · ") || "—") + "<br>Annual plans count as one twelfth per month. Comped accounts are not revenue.</p></section></div>";
+    return h;
+  }
+
+  function tProduct(j) {
+    var c = j.content, rc = j.reach, tm = j.team || {}, cu = j.customers_usage || {};
+    var h = '<div class="grid kpis">' + kpi("Customer credits used", n(c.credits), n(c.active_brands) + " brand(s)") + kpi("Customer generations", n(cu.generations), cu.last_generation ? "last " + ago(cu.last_generation) : "none yet") +
+      kpi("Your team's credits", n(tm.credits != null ? tm.credits : c.credits_yours), n(tm.generations) + " generations, not counted above") + kpi("Reach AI calls", n(rc.calls), n(rc.failed) + " failed") + kpi("Reach est. AI cost", usd(rc.est_cost_cents), "from token counts") + kpi("Reach workspaces", n(rc.active_workspaces), "of " + n(rc.workspaces_total) + " total") + "</div>";
+    h += '<div class="grid two"><section class="card"><h2>Content use (credits per day)</h2>' + bars((c.daily || []).map(function (d) { return { l: short(d.d), v: Number(d.credits) }; }), "var(--blue)") + '<p class="note">Customers only. Your own brands and admin test runs are left out of the chart so real use is visible.</p></section>' +
+      '<section class="card"><h2>Reach AI calls per day</h2>' + bars((rc.daily || []).map(function (d) { return { l: short(d.d), v: d.n }; }), "var(--gold)") + "</section></div>";
+    h += '<section class="card"><h2>Reach</h2>' + table(["", ""], [["AI calls (everyone)", n(rc.calls) + (rc.failed ? " (" + n(rc.failed) + " failed)" : "")], ["…of which customers", rc.calls_customers != null ? n(rc.calls_customers) : "—"], ["Customer workspaces using it", n(rc.active_workspaces)], ["Web searches", n(rc.web_searches)], ["Estimated AI cost", usd(rc.est_cost_cents)], ["Workspaces / deals tracked", n(rc.workspaces_total) + " / " + n(rc.deals_total)]]) +
+      '<h3 style="margin:16px 0 6px;font-size:14px">By feature</h3>' + table(["Feature", "Calls"], (rc.by_feature || []).map(function (x) { return [esc(x.feature), n(x.n)]; })) + '<p class="note">Cost is an estimate from token counts plus about 1¢ per web search. Compare with the bill.</p></section>';
+    return h;
+  }
+
+  function tSupport(j) {
+    return '<div class="grid kpis">' + kpi("Open reports", n(j.support ? j.support.open_tickets : 0), n(j.support ? j.support.total_tickets : 0) + " all time") + kpi("Open feedback", n(j.support ? j.support.open_feedback : 0), "from the app") + "</div>" +
+      '<section class="card" id="tk" style="margin-bottom:14px"><h2>Problem reports</h2><div id="tkBody" class="muted">Loading…</div></section>';
+  }
+
+  function render(j) {
+    J = j;
+    var body = { overview: tOverview, traffic: tTraffic, users: tUsers, revenue: tRevenue, product: tProduct, support: tSupport }[tab](j);
+    app.innerHTML = header(j) + '<main id="tabBody">' + body + '</main><p class="note" style="margin-top:18px">Visit data is first-party and cookie-free: no IP address, no third-party tool, and browsers sending Do Not Track are skipped. Source: Supabase.</p>';
     var sel = document.getElementById("rng"); sel.value = String(days);
     sel.onchange = function () { days = Number(sel.value) || 30; try { localStorage.setItem("fma-admin-days", String(days)); } catch (e) {} load(); };
-    document.getElementById("rf").onclick = load;
-    loadTickets();
-    loadPeople();
+    document.getElementById("rf").onclick = function () { peopleData = null; load(); };
     document.getElementById("nt").onclick = function () { try { if (notrack()) localStorage.removeItem("fma-no-track"); else localStorage.setItem("fma-no-track", "1"); } catch (e) {} render(j); };
+    Array.prototype.forEach.call(document.querySelectorAll("[data-tab]"), function (b) { b.onclick = function () { tab = b.getAttribute("data-tab"); try { history.replaceState(null, "", "#" + tab); } catch (e) {} render(J); window.scrollTo(0, 0); }; });
+    if (tab === "support") loadTickets();
+    if (tab === "users") loadPeople();
   }
   /* Problem reports: status, a reply the reporter sees (and gets by email), and a hand-off to Claude. */
   var tkFilter = "open";
@@ -357,7 +433,7 @@ a{color:var(--gold)}
     });
     box.innerHTML = '<div class="pf"><span class="seg2"><button type="button" data-ps="alch" aria-pressed="' + (peopleScope === "alch") + '">Alchemist (' + n(nAlch) + ')</button><button type="button" data-ps="all" aria-pressed="' + (peopleScope === "all") + '">Everyone (' + n(d.people.length) + ')</button></span><input id="ppQ" placeholder="Search email, name, brand or place" value="' + esc(peopleQ) + '"><span class="seg2">' +
       [["all", "All"], ["paying", "Paying"], ["comped", "Comped"], ["free", "Free"], ["nobrand", "No brand yet"]].map(function (x) { return '<button type="button" data-pf="' + x[0] + '" aria-pressed="' + (peopleF === x[0]) + '">' + x[1] + "</button>"; }).join("") + '</span></div>' +
-      '<div class="pp"><div class="prh phd"><span>Person</span><span>Signed up</span><span>How they came</span><span>Where</span><span>Plans</span><span>Used 30d</span></div><div id="ppList"></div></div>' +
+      '<div class="pp"><div class="prh phd"><span>Person</span><span>Signed up</span><span>How they came</span><span>Where</span><span>Plans</span><span>Active · used 30d</span></div><div id="ppList"></div></div>' +
       '<p class="note">' + n(list.length) + " of " + n(d.people.length) + ". " + (peopleScope === "alch" ? "SpinQuest players share this login system. They are hidden here and appear under Everyone. \u201capp unclear\u201d means no sign of either app yet. " : "") + "Region is a guess from the browser timezone (no IP kept), so older accounts fill in as people next open the app. \u201cHow they came\u201d only exists for sign-ups after the visit counter linked them; the rest show how they log in.</p>";
     var ul = document.getElementById("ppList");
     list.slice(0, 200).forEach(function (p) {
@@ -367,7 +443,7 @@ a{color:var(--gold)}
       var c = row.querySelectorAll(".prh>*");
       c[0].querySelector("b").textContent = p.name || p.email; c[0].querySelector("span").textContent = (p.name ? p.email + " \u00b7 " : "") + (p.brands.join(", ") || "no brand yet") + (p.internal ? " \u00b7 yours" : p.app === "spinquest" ? " \u00b7 SpinQuest player" : p.app === "unknown" ? " \u00b7 app unclear" : "");
       c[1].textContent = new Date(p.created_at).toLocaleDateString(); c[2].textContent = src; c[3].textContent = region(p.tz);
-      c[4].innerHTML = planPill(p.content) + " " + (p.reach ? "Reach: " + planPill(p.reach) : ""); c[5].textContent = p.content ? String(p.content.used_30d) : "\u2014";
+      c[4].innerHTML = planPill(p.content) + " " + (p.reach ? "Reach: " + planPill(p.reach) : ""); c[5].textContent = ago(p.last_active || p.last_sign_in_at) + (p.content ? " \u00b7 " + p.content.used_30d : "");
       row.querySelector(".prh").onclick = function () { var dt = row.querySelector(".pdet"); if (dt.hidden) { dt.hidden = false; fillDetail(dt, p); } else dt.hidden = true; };
       ul.appendChild(row);
     });
@@ -379,9 +455,9 @@ a{color:var(--gold)}
     var d = peopleData, paid = d.content_plans.filter(function (x) { return x.price_cents > 0; }), rpaid = d.reach_plans.filter(function (x) { return x.price_cents > 0; });
     var opt = function (arr, cur) { return arr.map(function (x) { return '<option value="' + esc(x.key) + '"' + (cur === x.key ? " selected" : "") + ">" + esc(x.name) + "</option>"; }).join(""); };
     var dur = '<select data-dur><option value="1">1 month</option><option value="3">3 months</option><option value="12">1 year</option></select>';
-    if (!p.client_id) { dt.innerHTML = '<span class="muted">No brand or account yet, so there is nothing to change. Last seen ' + esc(ago(p.last_sign_in_at)) + ".</span>"; return; }
+    if (!p.client_id) { dt.innerHTML = '<span class="muted">No brand or account yet, so there is nothing to change. Last active ' + esc(ago(p.last_active || p.last_sign_in_at)) + ".</span>"; return; }
     var c = p.content || {};
-    dt.innerHTML = '<div class="meta">Last signed in ' + esc(ago(p.last_sign_in_at)) + " \u00b7 " + esc(p.provider) + (p.confirmed ? "" : " \u00b7 email not confirmed") + (p.lang ? " \u00b7 " + esc(p.lang) : "") + (p.tz ? " \u00b7 " + esc(p.tz) : "") + "</div>" +
+    dt.innerHTML = '<div class="meta">Last active ' + esc(ago(p.last_active || p.last_sign_in_at)) + " \u00b7 " + esc(p.provider) + (p.confirmed ? "" : " \u00b7 email not confirmed") + (p.lang ? " \u00b7 " + esc(p.lang) : "") + (p.tz ? " \u00b7 " + esc(p.tz) : "") + "</div>" +
       "<h4>Content \u00b7 " + esc(p.client_name || "") + "</h4>" +
       '<div class="row"><select data-cp>' + opt(paid, c.plan_key) + "</select>" + dur + '<button type="button" data-comp' + (c.pays_by_card ? ' disabled title="Pays by card. Cancel their card plan first."' : "") + ">Comp / change plan</button>" + (c.is_comp ? '<button type="button" data-end>End comp</button>' : "") + "</div>" +
       '<div class="row"><span class="meta">Bonus credits: ' + n(c.bonus_credits) + '</span><input type="number" data-amt min="1" max="1000" value="20"><input type="text" data-note maxlength="200" placeholder="Why (private)"><button type="button" data-gift>Give credits</button></div>' +
