@@ -2928,7 +2928,7 @@ function openSetupModal(){
     const prev=wsMeta(); const sig=(prev.signature||"").trim()||[name,agency].filter(Boolean).join("\n");
     const ok=await saveWorkspaceMeta({senderName:name,agencyName:agency,soloSender:document.getElementById("suSolo").checked,senderEmail:email,signature:sig});
     if(!ok) return;
-    if(nb){ try{ await D("brands/"+nb.id).update({name:bn,callAs:bc,officialSite:gv("suSite"),whatItIs:gv("suWhat")}); }catch(e){ toast("Couldn't save the brand"); return; } }
+    if(nb){ try{ await patchDoc("brands",nb.id,{name:bn,callAs:bc,officialSite:gv("suSite"),whatItIs:gv("suWhat")}); }catch(e){ toast("Couldn't save the brand"); return; } }
     closeModal(); toast("Saved — drafts will now be written as "+name+(agency?" from "+agency:"")); scheduleRender();
   });
 }
@@ -3236,7 +3236,7 @@ function openEditBrandModal(b){
     +'<div class="row2"><div class="field"><label>Free coverage quota</label><input type="number" id="mQuota" value="'+esc(b.planQuota||"")+'"></div><div class="field"><label>Per</label><select id="mPeriod">'+opt(PLAN_PERIODS,b.planPeriod||"per month")+'</select></div></div>'
     +'<div class="field"><label>Notes</label><textarea id="mNotes">'+esc(b.notes||"")+'</textarea></div>'+brandGatesFields(b)+'</div>'+foot("Save"),true);
   wireClose(); wireBrandGates();
-  document.getElementById("mSave").addEventListener("click",async()=>{ const pipe=document.getElementById("mPipe").value; await D("brands/"+b.id).update({name:gv("mName"),callAs:gv("mCallAs"),usesCoverage:pipe!=="lead",usesLeads:pipe!=="coverage",officialSite:gv("mSite"),legalName:gv("mLegal"),whatItIs:gv("mWhat"),targetAudience:gv("mAud"),mission:gv("mMission"),brandTone:gv("mTone"),coverageScope:gv("mCovScope"),leadScope:gv("mLeadScope"),proofPoints:gv("mProof"),doNotContact:gv("mDNC"),audienceHangouts:gv("mHang"),newsUrl:gv("mNews"),keyMessages:gv("mMsgs"),competitors:gv("mComp"),blockWords:gv("mBlock"),campaignStatus:gv("mCStatus"),primaryKPI:gv("mKPI"),monthlyBudget:gv("mBudget"),subscriptionPlan:gv("mPlan"),clientContact:gv("mCContact"),dealHistory:gv("mDeal"),planQuota:gv("mQuota"),planPeriod:document.getElementById("mPeriod").value,notes:gv("mNotes")}); saveBrandGates(b.id); closeModal(); toast("Saved"); });
+  document.getElementById("mSave").addEventListener("click",async()=>{ const pipe=document.getElementById("mPipe").value; await patchDoc("brands",b.id,{name:gv("mName"),callAs:gv("mCallAs"),usesCoverage:pipe!=="lead",usesLeads:pipe!=="coverage",officialSite:gv("mSite"),legalName:gv("mLegal"),whatItIs:gv("mWhat"),targetAudience:gv("mAud"),mission:gv("mMission"),brandTone:gv("mTone"),coverageScope:gv("mCovScope"),leadScope:gv("mLeadScope"),proofPoints:gv("mProof"),doNotContact:gv("mDNC"),audienceHangouts:gv("mHang"),newsUrl:gv("mNews"),keyMessages:gv("mMsgs"),competitors:gv("mComp"),blockWords:gv("mBlock"),campaignStatus:gv("mCStatus"),primaryKPI:gv("mKPI"),monthlyBudget:gv("mBudget"),subscriptionPlan:gv("mPlan"),clientContact:gv("mCContact"),dealHistory:gv("mDeal"),planQuota:gv("mQuota"),planPeriod:document.getElementById("mPeriod").value,notes:gv("mNotes")}); saveBrandGates(b.id); closeModal(); toast("Saved"); });
 }
 function openNewWaveModal(brand,type){
   const isLead=type==="lead";
@@ -3699,7 +3699,7 @@ function ensurePublicName(brandId){
     const done=v=>{ closeModal(); res(v); };
     document.getElementById("pnX").addEventListener("click",()=>done(false)); document.getElementById("pnNo").addEventListener("click",()=>done(false));
     document.getElementById("pnGo").addEventListener("click",async()=>{ const v=(document.getElementById("pnIn").value||"").trim().replace(/\s+/g," "); if(v.length<2){ document.getElementById("pnMsg").textContent="Type the name first."; return; }
-      try{ await D("brands/"+b.id).update({callAs:v}); b.callAs=v; }catch(e){ document.getElementById("pnMsg").textContent="Couldn't save. Try again."; return; }
+      try{ await patchDoc("brands",b.id,{callAs:v}); b.callAs=v; }catch(e){ document.getElementById("pnMsg").textContent="Couldn't save. Try again."; return; }
       toast("Saved. Drafts for "+b.name+" will say \u201c"+v+"\u201d"); done(true); });
     setTimeout(()=>{ const i=document.getElementById("pnIn"); if(i) i.focus(); },50);
   });
@@ -5017,7 +5017,7 @@ function paneHtml(d){
   const statuses=lead?LEAD_STAGES:OUTREACH_STATUSES, cur=stOf(d), list=statuses.includes(cur)?statuses:statuses.concat([cur]);
   const em=emailOf(d), dm=dmInfo(d), al=alertsFor(d), prop=d.reviewState==="proposed";
   const sub=[br.name,wv.name,lead?(t.category||""):[t.platform,t.type,t.niche].filter(Boolean).join(" · ")].filter(Boolean).join(" · ");
-  const alertRows=al.map(a=>'<div class="al '+a.lvl+'"><span class="t">'+esc(a.text)+(a.code==="sugg"?' <button class="btn tiny" data-p="applysuggest">Apply</button> <button class="btn tiny" data-p="dismisssuggest">Dismiss</button>':'')+(a.code==="prop"?' <button class="btn tiny" data-p="accept">Accept</button> <button class="btn tiny" data-p="reject">Reject</button> '+viewBtn(d,"btn tiny","View source ↗"):'')+(a.code==="agentdraft"?' <button class="btn tiny" data-p="approve">Approve → ready</button>':'')+(a.code==="stop"?' <button class="btn tiny" data-p="closeout">Close out</button>':'')+(a.code==="agentflag"?' <button class="btn tiny" data-p="clearflag">I\u2019ve handled it</button>':'')+(a.code==="stall"?' <button class="btn tiny" data-p="nudge">Prepare nudge</button>':'')+(a.code==="hold"&&inConversation(d)?' <button class="btn tiny" data-p="holdnote">Insert polite note</button>':'')+'</span>'+(a.code==="sugg"||a.code==="prop"?'':'<button class="x" data-p="ack" data-code="'+esc(a.code)+'" title="Dismiss this warning for this row">×</button>')+'</div>').join("");
+  const alertRows=al.map(a=>'<div class="al '+a.lvl+'"><span class="t">'+esc(a.text)+(a.code==="sugg"?' <button class="btn tiny" data-p="applysuggest">Apply</button> <button class="btn tiny" data-p="dismisssuggest">Dismiss</button>':'')+(a.code==="prop"?' <button class="btn tiny" data-p="accept">Accept</button> <button class="btn tiny" data-p="reject">Reject</button> '+viewBtn(d,"btn tiny","View source ↗"):'')+(a.code==="agentdraft"?' <button class="btn tiny" data-p="approve">Approve → ready</button>':'')+(a.code==="noname"?' <button class="btn tiny" data-p="setname">Set the name</button>':'')+((a.code==="wbname"||a.code==="claims")?' <button class="btn tiny" data-p="redraft">Redraft</button>':'')+(a.code==="stop"?' <button class="btn tiny" data-p="closeout">Close out</button>':'')+(a.code==="agentflag"?' <button class="btn tiny" data-p="clearflag">I\u2019ve handled it</button>':'')+(a.code==="stall"?' <button class="btn tiny" data-p="nudge">Prepare nudge</button>':'')+(a.code==="hold"&&inConversation(d)?' <button class="btn tiny" data-p="holdnote">Insert polite note</button>':'')+'</span>'+(a.code==="sugg"||a.code==="prop"?'':'<button class="x" data-p="ack" data-code="'+esc(a.code)+'" title="Dismiss this warning for this row">×</button>')+'</div>').join("");
   const rk=routeKind(d), verb=rk==="form"?"submitted":"sent";
   const sentWord=(ph==="replied"||ph==="deal")?"Mark reply sent":(ph==="sent"?"Mark follow-up "+verb:"Mark "+verb);
   const tpls=tplKeysFor(d);
@@ -5379,6 +5379,8 @@ function paneClick(e){
     case "nextconv": return nextAfterSent(id);
     case "sentno": state.sentPrompt=null; { const b=document.getElementById("pSent"); if(b) b.innerHTML=""; } return;
     case "approve": return markReady(id);
+    case "setname": { const dd=ix().deal.get(id); if(!dd) return; return (async()=>{ if(!(await ensurePublicName(dd.brandId))) return; afterRowChange(id,true); render(); await agentDraft(id,{statusChecked:true}); render(); })(); }
+    case "redraft": return (async()=>{ await agentDraft(id); render(); })();
     case "accept": return acceptProposed(id);
     case "reject": return rejectProposed(id);
     case "manualonly": { const dd=ix().deal.get(id); if(!dd) return; const on=!dd.manualOnly; patchDeal(id,on?{manualOnly:true,autoOk:false,autoHold:true,readyAfterDraft:false}:{manualOnly:false,autoHold:false}); if(on){ (async()=>{ try{ const R=await reachApi(); if(R&&R.agent) await R.agent("approve",{ids:[id],on:false}); }catch(e){} })(); } toast(on?"Marked Manual only. It will never be included in automation.":"Manual only turned off."); afterRowChange(id); return; }
@@ -5551,7 +5553,8 @@ function renderSenderPage(brand){
   if(brand){
     form='<div class="briefcard" style="padding:16px"><div class="kbhead"><div class="kbtitle">Who messages for '+esc(brand.name)+' come from</div></div>'
       +'<div class="mini" style="margin:2px 0 10px">Leave a field blank to use the workspace default shown in grey. Fill it in when this brand has its own account manager.</div>'
-      +'<div class="row2"><div class="field"><label>Name <span class="mini">(who signs this brand\'s messages)</span></label><input type="text" id="snName" value="'+esc(brand.managerName||"")+'" placeholder="'+esc(dName||"e.g. Sam Lee")+'"></div>'
+      +'<div class="field"><label>Brand name in messages <span class="mini">(the name contacts see in the text and subject lines. Not the dropdown label.'+(onlyRealBrand(brand)&&wsPublicName()?" Blank = "+esc(wsPublicName())+", your account name.":" Required before drafting.")+')</span></label><input type="text" id="snCall" value="'+esc(brand.callAs||"")+'" placeholder="'+esc(onlyRealBrand(brand)&&wsPublicName()?wsPublicName():"e.g. Fullmedia Alchemist")+'"></div>'
+      +'<div class="row2"><div class="field"><label>Your name <span class="mini">(who signs this brand\'s messages)</span></label><input type="text" id="snName" value="'+esc(brand.managerName||"")+'" placeholder="'+esc(dName||"e.g. Sam Lee")+'"></div>'
       +'<div class="field"><label>Sending email <span class="mini">(the Google account its mail goes out from)</span></label><input type="text" id="snMail" value="'+esc(brand.outreachSender||"")+'" placeholder="'+esc(dMail||"you@yourcompany.com")+'"></div></div>'
       +'<div class="field"><label>Signature <span class="mini">(blank = this name + company, or the workspace signature)</span></label><textarea id="snSig" rows="3" placeholder="'+esc(dSig||"Name&#10;Company")+'">'+esc(brand.managerSig||"")+'</textarea></div>'
       +'<div class="field"><label>Send-as alias <span class="mini">(only if this brand sends from an alias of that account)</span></label><input type="text" id="snAlias" value="'+esc(brand.sendAs||"")+'" placeholder="outreach@brand.com"></div>'
@@ -5563,7 +5566,8 @@ function renderSenderPage(brand){
   if(q("snDef")) q("snDef").addEventListener("click",()=>openAccountModal());
   v.querySelectorAll("[data-sb]").forEach(r=>r.addEventListener("click",()=>{ state.currentBrandId=r.dataset.sb; setBrandNav(r.dataset.sb); state.top="brands"; state.currentSection="sender"; render(); }));
   if(q("snSave")) q("snSave").addEventListener("click",async()=>{ const g=id=>(q(id).value||"").trim(); const mail=g("snMail"); if(mail&&!/^[\w.+-]+@[\w.-]+\.\w+$/.test(mail)){ q("snMsg").textContent="That sending email doesn't look right."; return; } if(g("snLi")&&!/^https?:\/\/([a-z0-9-]+\.)?linkedin\.com\/in\/\S+/i.test(g("snLi"))){ q("snMsg").textContent="The LinkedIn profile should look like https://www.linkedin.com/in/your-name"; return; }
-    try{ await D("brands/"+brand.id).update({managerName:g("snName"),outreachSender:mail,managerSig:g("snSig"),sendAs:g("snAlias"),linkedinUrl:g("snLi")}); toast("Saved — drafts for "+brand.name+" will sign as "+(g("snName")||dName||"the workspace sender")); render(); }catch(e){ q("snMsg").textContent="Couldn't save."; } });
+    const cn=g("snCall"); if(cn&&cn.length<2){ q("snMsg").textContent="That brand name is too short."; return; }
+    try{ await patchDoc("brands",brand.id,{callAs:cn,managerName:g("snName"),outreachSender:mail,managerSig:g("snSig"),sendAs:g("snAlias"),linkedinUrl:g("snLi")}); toast("Saved. "+brand.name+" messages say \u201c"+(brandCall(brand)||"(no name yet)")+"\u201d and sign as "+(g("snName")||dName||"the workspace sender")); render(); }catch(e){ q("snMsg").textContent="Couldn't save."; } });
   addPaneBar("sender");
 }
 function kbMissing(b){ return KB_FIELDS.filter(f=>f.need&&!String(b[f.k]||"").trim()); }
