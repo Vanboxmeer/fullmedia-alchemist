@@ -339,6 +339,42 @@ async function keyScope(req: Request): Promise<Scope | null> {
   return { keyId: (data as any).id, client: (data as any).client_id, brand: (data as any).brand_id };
 }
 
+// LinkedIn contact import: the user asks in Reach, Claude reads (read only) and hands back a list, the user accepts or declines each person in Reach.
+async function getImport(client: string): Promise<any> {
+  const { data } = await admin.from("ar_settings").select("data").eq("client_id", client).eq("key", "li_import").maybeSingle();
+  return (data as any)?.data || null;
+}
+async function putImport(client: string, d: any) {
+  await admin.from("ar_settings").upsert({ client_id: client, key: "li_import", data: d, updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
+}
+async function liOff(client: string) {
+  const { data: cur } = await admin.from("ar_settings").select("data").eq("client_id", client).eq("key", "automation").maybeSingle();
+  const cd: any = Object.assign({}, (cur as any)?.data || {}); cd.li = Object.assign({}, cd.li || {}, { on: false });
+  await admin.from("ar_settings").upsert({ client_id: client, key: "automation", data: cd, updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
+}
+async function addLinkedinContacts(sc: Scope, a: any) {
+  const imp = await getImport(sc.client);
+  if (!imp || imp.status !== "requested") return { ok: false, error: "No LinkedIn import is waiting. Nothing was recorded." };
+  const problem = clean(a.problem, 300), kind = clean(a.kind, 30);
+  if (problem) {
+    await putImport(sc.client, { ...imp, status: "problem", problem, problemKind: kind, doneAt: Date.now(), contacts: [] });
+    if (kind === "li_identity" || kind === "li_restricted") await liOff(sc.client);
+    return { ok: true, message: "Recorded. The user will see why in Alchemist Reach. Stop LinkedIn work." };
+  }
+  const out: any[] = []; const seen = new Set<string>();
+  for (const c of (Array.isArray(a.contacts) ? a.contacts : []).slice(0, Math.max(1, Math.min(30, Number(imp.limit) || 20)))) {
+    const url = clean(c?.profileUrl, 300).split("?")[0].replace(/\/+$/, "");
+    const m = url.match(/^https?:\/\/([a-z0-9-]+\.)?linkedin\.com\/in\/([^\/\s]+)/i);
+    const name = clean(c?.name, 120);
+    if (!m || !name) continue;
+    const slug = m[2].toLowerCase(); if (seen.has(slug)) continue; seen.add(slug);
+    const last = c?.lastMessage && typeof c.lastMessage === "object" ? { from: clean(c.lastMessage.from, 6) === "them" ? "them" : "me", text: clean(c.lastMessage.text, 400), date: clean(c.lastMessage.date, 30) } : null;
+    out.push({ name, profileUrl: "https://www.linkedin.com/in/" + m[2], slug, headline: clean(c?.headline, 220), company: clean(c?.company, 120), location: clean(c?.location, 80), about: clean(c?.about, 500), connected: c?.connected !== false, lastMessage: last && last.text ? last : null });
+  }
+  await putImport(sc.client, { ...imp, status: "ready", problem: "", contacts: out, doneAt: Date.now() });
+  return { ok: true, message: "Recorded " + out.length + " contact(s). The user now accepts or declines each one in Alchemist Reach. Nothing was messaged. LinkedIn work for this task is finished." };
+}
+
 // ---------- LinkedIn assist: Claude only PREPARES text in LinkedIn's box; the user presses Send ----------
 function liProfileOf(bd: any, ws: any) { const u = clean(bd?.linkedinUrl, 300) || clean(ws?.linkedinUrl, 300); return /^https?:\/\/([a-z0-9-]+\.)?linkedin\.com\/in\/[^\s]+/i.test(u) ? u : ""; }
 function liSenderName(bd: any, ws: any) { return clean(bd?.managerName, 120) || clean(ws?.senderName, 120); }
@@ -365,6 +401,18 @@ async function liQueue(sc: Scope): Promise<any | null> {
   const { bmap, rows, tmap } = await loadRows(sc.client, sc.brand);
   const ws = await wsOf(sc.client);
   const start = today + "T00:00:00Z";
+  // a pending "import my contacts" request goes first (read only)
+  { const imp = await getImport(sc.client);
+    if (imp && imp.status === "requested" && st.brands[imp.brandId]) {
+      const bd0 = (bmap.get(imp.brandId) || {}).data || {}; const prof0 = liProfileOf(bd0, ws);
+      if (!prof0) { await putImport(sc.client, { ...imp, status: "problem", problem: "This brand has no LinkedIn profile saved yet.", doneAt: Date.now(), contacts: [] }); }
+      else if (!imp.handedAt || Date.now() - Number(imp.handedAt) > 30 * 60_000) {
+        await putImport(sc.client, { ...imp, handedAt: Date.now() });
+        const sc0 = imp.scope || {};
+        const where: string[] = []; if (sc0.threads !== false) where.push("the most recent conversations in LinkedIn Messaging"); if (sc0.connections) where.push("the most recently added connections (My Network, Connections, sorted by recently added)");
+        return { ok: true, status: "task", queued: 1, minGapSeconds: 0, tasks: [{ id: "import", brand: (bmap.get(imp.brandId) || {}).name, route: "linkedin", action: "linkedin_import", yourProfile: prof0, yourName: liSenderName(bd0, ws) || undefined, limit: Math.max(1, Math.min(30, Number(imp.limit) || 20)), instructions: "READ ONLY. Collect up to limit people the user already knows on LinkedIn from: " + (where.join(" and ") || "recent conversations") + ". For each, open their profile at a calm human pace (a pause of 20 to 40 seconds between profiles; never more than limit profiles; visit nothing else) and read: full name, headline, current company, location, the first 400 characters of About, and whether you are connected. For people from Messaging also read the newest message in that conversation: who wrote it (me or them), the text (up to 300 characters, word for word) and its date. Do not type, send, accept, follow, endorse, export or download anything, and do not open conversations beyond the ones you list." + LI_COMMON + " Then call reach_add_linkedin_contacts once with every person you read (contacts: [{name, profileUrl, headline, company, location, about, connected, lastMessage: {from, text, date}}]). If you cannot confirm the account, or LinkedIn warns you, call it with problem and kind (li_identity or li_restricted) instead and an empty list." }], message: "Import task: read only. Finish it, then call reach_add_linkedin_contacts." };
+      }
+    } }
   const eligible: { r: any; it: Item; profile: string }[] = []; const needProfile = new Set<string>(); let queued = 0;
   for (const r of rows) {
     if (!st.brands[r.brand_id]) continue;
@@ -481,6 +529,7 @@ async function logIt(client: string, brand: string | null, deal: string | null, 
 
 async function agentResult(sc: Scope, a: any) {
   const id = String(a.id || ""), outcome = String(a.outcome || "");
+  if (id === "import") return await addLinkedinContacts(sc, { problem: clean(a.reason, 300) || "Claude could not finish the import.", kind: clean(a.kind, 30) });
   if (!["sent", "submitted", "needs_user", "failed", "replied_seen", "not_free", "bounced", "prepared", "checked"].includes(outcome)) return { ok: false, error: "outcome must be sent, submitted, prepared, checked, needs_user, failed, replied_seen, not_free or bounced" };
   const today = iso(new Date());
   const { bmap, rows, tmap } = await loadRows(sc.client, sc.brand);
@@ -619,6 +668,7 @@ const MCP_INSTRUCTIONS =
 const TOOLS = [
   { name: "reach_get_next_task", description: "Get the next approved, due outreach task (send an email, submit a web form, send a follow-up, or send an approved reply, or prepare / check a LinkedIn message). Returns nothing if automation is off, the daily limit is reached, or you must wait.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
   { name: "reach_report_result", description: "Report what happened with a task. outcome: sent (email, follow-up or reply sent), prepared (LinkedIn text is in the box, NOT sent), checked (LinkedIn: no reply yet), submitted (web form submitted), replied_seen (they already replied — nothing sent), not_free (the place charges money — nothing submitted; put the price in 'cost' and the page's wording in 'evidence'), failed, needs_user, bounced (the email came back undeliverable — put the bounce reason in 'reason'; the address is then blocked for all users). Include proof in 'evidence' (subject line sent, or the form's confirmation text). For follow-ups also include the text you sent as 'message'.", inputSchema: { type: "object", properties: { id: { type: "string" }, outcome: { type: "string", enum: ["sent", "submitted", "replied_seen", "not_free", "failed", "needs_user", "bounced"] }, evidence: { type: "string" }, cost: { type: "string" }, message: { type: "string" }, reason: { type: "string" } }, required: ["id", "outcome"], additionalProperties: false } },
+  { name: "reach_add_linkedin_contacts", description: "Finish a linkedin_import task (read only). Pass contacts: the people you read, each with name, profileUrl (linkedin.com/in/...), headline, company, location, about, connected (true/false) and, if you read a conversation, lastMessage {from: me|them, text, date}. If you could not confirm the LinkedIn account or LinkedIn warned you, pass problem (plain words) and kind (li_identity or li_restricted) with an empty list. Nothing is messaged: the user accepts or declines each person in Alchemist Reach.", inputSchema: { type: "object", properties: { contacts: { type: "array", items: { type: "object" } }, problem: { type: "string" }, kind: { type: "string" } }, additionalProperties: false } },
   { name: "reach_flag_for_user", description: "Hand a task back to the user because a person has to do it (CAPTCHA, login, payment, a field you can't fill, or anything unexpected). Say why in plain words.", inputSchema: { type: "object", properties: { id: { type: "string" }, kind: { type: "string", enum: ["captcha", "login", "payment", "missing_info", "mismatch", "wrong_account", "other"] }, reason: { type: "string" } }, required: ["id", "reason"], additionalProperties: false } },
 ];
 async function mcp(req: Request, body: any) {
@@ -639,6 +689,7 @@ async function mcp(req: Request, body: any) {
       else { out = await agentQueue(sc); if (li && li.status === "wait" && (!out.tasks || !out.tasks.length) && out.status === "empty") out = li; }
     }
     else if (name === "reach_report_result") out = await agentResult(sc, a);
+    else if (name === "reach_add_linkedin_contacts") out = await addLinkedinContacts(sc, a);
     else if (name === "reach_flag_for_user") out = await agentResult(sc, { id: a.id, outcome: "needs_user", kind: a.kind, reason: a.reason });
     else return J({ jsonrpc: "2.0", id, error: { code: -32602, message: "Unknown tool" } });
     return ok({ content: [{ type: "text", text: JSON.stringify(out) }], isError: out?.ok === false });
@@ -683,7 +734,7 @@ async function appStatus(client: string) {
   const { data: log } = await admin.from("ar_agent_log").select("deal_id,action,outcome,detail,created_at").eq("client_id", client).order("created_at", { ascending: false }).limit(15);
   const names = new Map<string, string>(); rows.forEach((r: any) => names.set(r.id, clean((tmap.get(r.target_id) || {}).name || r.target_name, 80)));
   return {
-    ok: true, settings: st, pipe, today, doneToday: await todayCount(client),
+    ok: true, settings: st, pipe, today, doneToday: await todayCount(client), liImport: await getImport(client),
     brands: [...bmap.values()].map((b: any) => ({ id: b.id, name: b.name, on: !!st.brands[b.id], li: liProfileOf(b.data || {}, wsA) || undefined })),
     ready: items.filter((i) => i.kind === "first" || i.kind === "followup" || i.kind === "reply" || i.kind === "liprep" || i.kind === "lireply").map(pub),
     manual: items.filter((i) => i.kind === "manual").map(pub),
@@ -729,6 +780,20 @@ async function appAction(u: any, client: string, body: any) {
     }
     return { ok: true, changed, skipped };
   }
+  if (action === "li_import_request") {
+    const st = await getSettings(client);
+    const brandId = String(body.brandId || "");
+    const { bmap } = await loadRows(client, null); const bd = (bmap.get(brandId) || {}).data;
+    if (!bd) return { ok: false, error: "Brand not found." };
+    if (!st.li.on) return { ok: false, error: "Turn LinkedIn assist on first." };
+    if (!st.brands[brandId]) return { ok: false, error: "Tick this brand under Brands and limits first." };
+    if (!liProfileOf(bd, await wsOf(client))) return { ok: false, error: "Add this brand's LinkedIn profile first (Brand, Sender & signature)." };
+    const scope = { threads: body.threads !== false, connections: body.connections === true };
+    if (!scope.threads && !scope.connections) return { ok: false, error: "Pick conversations, connections, or both." };
+    await putImport(client, { status: "requested", brandId, scope, limit: Math.max(5, Math.min(30, Number(body.limit) || 20)), requestedAt: Date.now(), contacts: [], problem: "" });
+    return { ok: true };
+  }
+  if (action === "li_import_clear") { await admin.from("ar_settings").delete().eq("client_id", client).eq("key", "li_import"); return { ok: true }; }
   if (action === "clear_flag") {
     const id = String(body.id || "");
     const { bmap, rows } = await loadRows(client, null); const raw = rows.find((r: any) => r.id === id);
