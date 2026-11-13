@@ -269,9 +269,20 @@ function toHtml(text: string, trk: Record<string, { href: string; text?: string 
 }
 const LINKS = " Send it with the htmlBody field ONLY (do not fill body), exactly as given, so links stay clean. Never paste a bare web address into a plain body: the mail connector rewrites it into an ugly google.com redirect.";
 
+// append the signature, but drop a sign-off the draft already ends with (e.g. the draft ends "Brad" and the signature is "Brad\nUPM")
+function withSig(draft: string, sig: string) {
+  if (!sig) return draft;
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, "").trim();
+  const sigLines = new Set(sig.split("\n").map(norm).filter(Boolean));
+  const lines = draft.split("\n");
+  while (lines.length && (!lines[lines.length - 1].trim() || sigLines.has(norm(lines[lines.length - 1])))) lines.pop();
+  const last = lines.length ? lines[lines.length - 1].trim() : "";
+  const closing = /^(best|thanks|thank you|cheers|regards|kind regards|warm regards|best regards|sincerely|many thanks)[,!. ]*$/i.test(last);
+  return lines.join("\n").trimEnd() + (closing ? "\n" : "\n\n") + sig;
+}
 function taskOf(it: Item, r: any, t: any, sig: string, today: string, sendFrom: string, trk: Record<string, { href: string; text?: string }> = {}) {
   const d = r.data || {};
-  const body = clean(d.draft, 8000) + (sig ? "\n\n" + sig : "");
+  const body = withSig(clean(d.draft, 8000), sig);
   const common = { id: it.id, brand: it.brand, target: it.name, route: it.route.route, today, sendFrom: it.route.route === "email" ? sendFrom : undefined };
   const ACCT = " Send ONLY if the mail account you are signed into is exactly " + sendFrom + ". If it is a different account or you cannot tell, do NOT send: call reach_flag_for_user with kind wrong_account and stop the whole run.";
   if (it.kind === "first") {
