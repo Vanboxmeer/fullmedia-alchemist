@@ -1882,6 +1882,7 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
     function drawFooter() {
       var o = S.o, cu = o.current; ft.innerHTML = "";
       if (o.hasCard) { var m = document.createElement("button"); m.type = "button"; m.textContent = "Card & invoices"; m.onclick = function () { billing("portal").then(function (j) { location.href = j.url; }).catch(function (e) { msg.textContent = e.message; }); }; ft.appendChild(m); }
+      if (cu.r.tier !== "free" && !cu.r.comp) { var tb = document.createElement("button"); tb.type = "button"; tb.textContent = "Buy 1,000 AI credits ($20)"; tb.title = "One-time. Lasts until the end of this month."; tb.onclick = function () { tb.disabled = true; window.xpBuyCredits(1); }; ft.appendChild(tb); }
       if (cu.c.cancelPending || cu.r.cancelPending) { var r = document.createElement("button"); r.type = "button"; r.textContent = "Keep my plans (undo cancel)"; r.onclick = function () { r.disabled = true; billing("resume").then(function () { S.changed = true; msg.textContent = "Done. Nothing will end."; return load(true); }).catch(function (e) { msg.textContent = e.message; r.disabled = false; }); }; ft.appendChild(r); }
     }
     function load(keepMsg) {
@@ -1904,6 +1905,15 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
     load().then(applyPreset);
   }
   window.xpOpenPlans = function () { openPlans(); };
+  /* Extra AI credits: 1,000 for $20, one-time, last until the end of the month. Paid plans only. */
+  window.xpBuyCredits = function (qty) {
+    return billing("topup", { quantity: qty || 1 }).then(function (j) { if (j && j.url) location.href = j.url; }).catch(function (e) { try { toast(String((e && e.message) || "Could not start checkout"), "See plans", function () { openPlans(); }); } catch (x) {} });
+  };
+  (function () { var m = /[?&]topup=(success|cancelled)(?:&session_id=([A-Za-z0-9_]+))?/.exec(location.search); if (!m || HERE !== "reach") return;
+    try { history.replaceState(null, "", location.pathname + location.hash); } catch (e) {}
+    if (m[1] !== "success" || !m[2]) return;
+    var tries = 0; (function go() { billing("topup_confirm", { sessionId: m[2] }).then(function (j) { if (j && j.paid) { try { _cr = { t: 0, v: null }; toast("Added " + Number(j.credits).toLocaleString() + " AI credits. They last until the end of this month."); } catch (e) {} } else if (++tries < 4) setTimeout(go, 2500); }).catch(function (e) { try { toast(String((e && e.message) || "Could not confirm the payment yet")); } catch (x) {} }); })();
+  })();
   /* AI credits: used this month / included, and used in the last 24 hours / daily window. Same weights and window formula as the reach-ai function:
      plain 1, web search 3, agent step 5; daily window = max(60, monthly / 5). Cached for a minute. */
   var _cr = { t: 0, v: null };
@@ -1915,8 +1925,8 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
     return sb.from("ar_subscriptions").select("plan_key,status,is_comp,created_at").eq("client_id", ctx.client).maybeSingle().then(function (sr) {
       var sub = sr && sr.data, comp = !!(sub && sub.is_comp), pk = sub && ["active", "trialing"].indexOf(sub.status) >= 0 ? sub.plan_key : "free", trial = !comp && pk === "free";
       var from = trial ? new Date(Math.max(Date.parse((sub && sub.created_at) || "2026-11-13T00:00:00Z") || 0, Date.parse("2026-11-13T00:00:00Z"))).toISOString() : ms.toISOString();
-      return Promise.all([cr(from), cr(new Date(Date.now() - 86400000).toISOString()), comp ? Promise.resolve({ data: { ai_calls_monthly: 2500, name: "Complimentary" } }) : sb.from("ar_plans").select("ai_calls_monthly,name").eq("key", pk).maybeSingle()]).then(function (a) {
-        var p = a[2].data || {}, cap = p.ai_calls_monthly || 150; var v = { used: a[0], cap: cap, name: trial ? "Free trial" : (p.name || "Free"), trial: trial, day: a[1], dayCap: Math.max(60, Math.ceil(cap / 5)) }; _cr = { t: Date.now(), v: v }; return v;
+      return Promise.all([cr(from), cr(new Date(Date.now() - 86400000).toISOString()), comp ? Promise.resolve({ data: { ai_calls_monthly: 2500, name: "Complimentary" } }) : sb.from("ar_plans").select("ai_calls_monthly,name").eq("key", pk).maybeSingle(), sb.from("ar_credit_topups").select("credits").eq("client_id", ctx.client).gte("created_at", ms.toISOString())]).then(function (a) {
+        var p = a[2].data || {}, extra = ((a[3] && a[3].data) || []).reduce(function (n, t) { return n + (t.credits || 0); }, 0), cap = (p.ai_calls_monthly || 150) + (trial ? 0 : extra); var v = { extra: extra, used: a[0], cap: cap, name: trial ? "Free trial" : (p.name || "Free"), trial: trial, day: a[1], dayCap: Math.max(60, Math.ceil(cap / 5)) }; _cr = { t: Date.now(), v: v }; return v;
       });
     }).catch(function () { return null; });
   };
@@ -6692,7 +6702,7 @@ function openFindOptions(preset){
     const lb=$("fpLib"); if(lb) lb.addEventListener("click",()=>{ grab(); closeModal(); openPicker({brand:F.brandId,flow:F.flow}); });
     try{ if(window.xpCredits) window.xpCredits().then(v=>{ const el=$("fpCredits"); if(!el||!v) return; const left=Math.max(0,v.cap-v.used), dleft=Math.max(0,v.dayCap-v.day);
       const paint=()=>{ const n=Math.max(1,parseInt(($("fpCount")||{}).value)||F.count||15); const lo=n*12, hi=n*20;
-        el.innerHTML="AI credits: <b>"+left+"</b> left "+(v.trial?"in your free trial":"this month")+" ("+esc(v.name)+"), <b>"+dleft+"</b> left in today's window. This search: about <b>"+lo+"–"+hi+"</b>"+(hi>dleft?' <span style="color:var(--bad)">— more than today\'s window, so it may stop early (your library is used to fill the rest).</span>':".")+(left<hi?' <a href="#" id="fpUp">See plans</a>':""); const u=$("fpUp"); if(u) u.addEventListener("click",e=>{ e.preventDefault(); closeModal(); if(window.xpOpenPlans) window.xpOpenPlans(); }); };
+        el.innerHTML="AI credits: <b>"+left+"</b> left "+(v.trial?"in your free trial":"this month")+" ("+esc(v.name)+"), <b>"+dleft+"</b> left in today's window. This search: about <b>"+lo+"–"+hi+"</b>"+(hi>dleft?' <span style="color:var(--bad)">— more than today\'s window, so it may stop early (your library is used to fill the rest).</span>':".")+(left<hi?(v.trial?' <a href="#" id="fpUp">See plans</a>':' <a href="#" id="fpBuy">Buy 1,000 credits ($20)</a>'):""); const u=$("fpUp"); if(u) u.addEventListener("click",e=>{ e.preventDefault(); closeModal(); if(window.xpOpenPlans) window.xpOpenPlans(); }); const bb=$("fpBuy"); if(bb) bb.addEventListener("click",e=>{ e.preventDefault(); if(window.xpBuyCredits) window.xpBuyCredits(1); }); };
       paint(); const fc=$("fpCount"); if(fc) fc.addEventListener("input",paint); }); }catch(e){}
     const ff=$("fpFree"); if(ff) ff.addEventListener("click",(e)=>{ e.preventDefault(); grab(); closeModal(); openPicker({brand:F.brandId,flow:F.flow,q:F.niche}); });
     $("fpBrand").addEventListener("change",()=>{ grab(); F.brandId=$("fpBrand").value; F.waveId=""; F.extra=scopeOf(); draw(); });
@@ -7397,7 +7407,7 @@ function saveBrandGates(bid){
 }
 
 /* plan allowance used up: say so, with a way to upgrade */
-window.addEventListener("reach:plan_limit",e=>{ const m=(e.detail&&e.detail.message)||"Your plan's AI allowance is used up."; toast(m,"Upgrade",()=>{ if(window.xpOpenPlans) window.xpOpenPlans(); }); });
+window.addEventListener("reach:plan_limit",e=>{ const m=(e.detail&&e.detail.message)||"Your plan's AI allowance is used up."; const up=()=>{ if(window.xpOpenPlans) window.xpOpenPlans(); }; (window.xpCredits?window.xpCredits():Promise.resolve(null)).then(v=>{ if(v&&!v.trial&&v.name!=="Complimentary"&&window.xpBuyCredits) toast(m,"Buy 1,000 credits ($20)",()=>window.xpBuyCredits(1)); else toast(m,"Upgrade",up); }).catch(()=>toast(m,"Upgrade",up)); });
 
 /* =====================================================================
    CHECK FOR REPLIES — one place to bring the tracker up to date with the real inboxes.

@@ -26,6 +26,8 @@ const ADMIN_EMAILS = ['brad@unitedpress.media'];
 const ADMIN_HOME = '36e687f6-6c12-49dc-a3af-a637529a1251';
 const SITE = 'https://www.fullmediaalchemist.com';
 const BUNDLE_OFF = 0.10;
+// Reach credit top-ups: packs of 1,000 AI credits, $20 each (a little above Starter's per-credit price so they never beat upgrading).
+const TOPUP_CREDITS = 1000, TOPUP_CENTS = 2000;
 const MANAGED_PAYMENTS_OFF = { managed_payments: { enabled: false } };
 
 const cors = {
@@ -188,6 +190,41 @@ Deno.serve(async (req: Request) => {
         ok: true, bundleOff: BUNDLE_OFF, tiers, current: st, suite: !!(st.c.subId && st.c.subId === st.r.subId), hasCard: !!customer, admin: isAdmin,
         interval: st.c.subId ? st.c.interval : (st.r.subId ? st.r.interval : 'monthly'),
       });
+    }
+
+    // ---- Reach credit top-up: a one-time payment for extra AI credits that last until the end of the current month ----
+    if (action === 'topup') {
+      if (!stripe) return json({ error: 'Billing is not configured yet.' }, 503);
+      if (st.r.tier === 'free' || st.r.comp) return json({ error: 'Top-ups are for paid Reach plans. Upgrade to get monthly credits.' }, 400);
+      const qty = Math.max(1, Math.min(5, Math.floor(Number(body.quantity) || 1)));
+      const customer = await usableCustomer(rsub?.stripe_customer_id) ?? await usableCustomer(csub?.stripe_customer_id);
+      const meta: Record<string, string> = { type: 'reach_topup', reach_client_id: clientId, credits: String(TOPUP_CREDITS * qty), user_id: ud.user.id };
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        payment_method_types: ['card'],
+        ...(customer ? { customer } : { customer_email: email }),
+        client_reference_id: clientId,
+        line_items: [{ quantity: qty, price_data: { currency: 'usd', product_data: { name: 'Alchemist Reach: 1,000 AI credits', description: 'Extra AI credits. They last until the end of this month.' }, unit_amount: TOPUP_CENTS } }],
+        metadata: meta,
+        payment_intent_data: { metadata: meta },
+        success_url: `${backUrl}?topup=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${backUrl}?topup=cancelled`,
+        ...MANAGED_PAYMENTS_OFF,
+      } as any);
+      return json({ ok: true, url: session.url });
+    }
+    if (action === 'topup_confirm') {
+      if (!stripe) return json({ error: 'Billing is not configured yet.' }, 503);
+      const sid = String(body.sessionId || '');
+      if (!/^cs_[A-Za-z0-9_]+$/.test(sid)) return json({ error: 'Missing payment reference.' }, 400);
+      const s: any = await stripe.checkout.sessions.retrieve(sid);
+      if (s?.metadata?.type !== 'reach_topup' || s.metadata.reach_client_id !== clientId) return json({ error: 'That payment does not belong to this account.' }, 400);
+      if (s.payment_status !== 'paid') return json({ ok: true, paid: false });
+      const credits = Math.round(Number(s.amount_total || 0) / TOPUP_CENTS) * TOPUP_CREDITS;
+      if (credits <= 0 || credits !== Number(s.metadata.credits)) return json({ error: 'The payment amount did not match the credits.' }, 400);
+      const { error: te } = await sb.from('ar_credit_topups').upsert({ client_id: clientId, credits, amount_cents: Number(s.amount_total), stripe_session_id: sid }, { onConflict: 'stripe_session_id', ignoreDuplicates: true });
+      if (te) return json({ error: 'Payment received but credits could not be added yet. Contact support with this reference: ' + sid }, 500);
+      return json({ ok: true, paid: true, credits });
     }
 
     if (action === 'portal') {

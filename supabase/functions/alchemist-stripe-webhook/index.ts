@@ -121,6 +121,14 @@ Deno.serve(async (req: Request) => {
     const session = event.data.object as Stripe.Checkout.Session;
     if (session.metadata?.type === 'ccb_subscription') {
       await upsertCcbSubscriptionFromCheckout(supabase, session);
+    } else if (session.metadata?.type === 'reach_topup' && session.payment_status === 'paid') {
+      // Backup for the confirm call the app makes on return: same row, unique per Checkout session, so it can never double-credit.
+      const credits = Number(session.metadata.credits) || 0;
+      const cid = session.metadata.reach_client_id;
+      if (cid && credits > 0 && credits <= 5000 && credits % 1000 === 0 && Number(session.amount_total) === (credits / 1000) * 2000) {
+        const { error } = await supabase.from('ar_credit_topups').upsert({ client_id: cid, credits, amount_cents: Number(session.amount_total), stripe_session_id: session.id }, { onConflict: 'stripe_session_id', ignoreDuplicates: true });
+        if (error) console.error('alchemist-stripe-webhook: ar_credit_topups error', error);
+      } else console.error('alchemist-stripe-webhook: reach_topup rejected', session.id);
     } else {
       console.log('alchemist-stripe-webhook: ignoring non-CCB checkout session', session.id);
     }
