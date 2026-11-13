@@ -219,7 +219,7 @@
     if (hereFree) {
       kind = "up-" + HERE;
       copy = HERE === "reach"
-        ? { h: "You are on Reach Free.", s: "1 brand and 10 AI drafts a month. Upgrade for more brands, seats and AI.", go: "See Reach plans", act: "plans" }
+        ? { h: "You are on Reach Free.", s: "1 brand and 150 AI credits a month. Upgrade for more brands, seats and AI.", go: "See Reach plans", act: "plans" }
         : { h: "You are on the Content Free plan.", s: "Upgrade for more brands and monthly credits.", go: "See Content plans", act: "plans" };
     } else if (otherFree) {
       kind = OTHER;

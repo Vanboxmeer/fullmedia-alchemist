@@ -22,7 +22,7 @@ const FACTS = `VERIFIED PRODUCT FACTS (the only things you may say about the pro
 - Content: you give it a brand (website link, brand facts, tone, things to never say, logo, colours). The Alchemist writes social posts from those facts and from the brand's own pages: a caption fitted to each network (X, LinkedIn, Instagram, TikTok, Facebook, Pinterest, Reddit, Threads) and a picture card in the brand's look (a headline, three short facts, an optional QR code). It can also write text posts, X threads and polls. You review, edit, approve, copy or post, and save results. A table called "What worked where" shows which networks and formats did best from the results you saved.
 - Posts come from your brand facts and your own pages; the Alchemist is built not to invent facts. You can ask for posts from your latest blog posts (1 post = the newest article, 3 posts = the newest three), or paste a link for each post.
 - Campaigns hold a goal and dates. Voice input and hands-free mode exist. Brand settings hold logos, characters, colours and the news or blog page.
-- Free plan: 30 credits a month in Content. Reach free plan: 10 AI drafts a month.
+- Free plan: 30 credits a month in Content. Reach free plan: 150 AI credits a month.
 - Reach: finds creators and media, partnership and client contacts, and free communities (it reads each community's rules and drops places that ban promotion). A workbench table holds every prospect with status, a priority score and follow-up dates. Reach drafts messages from your brand facts, you edit them and send them yourself (copy, or open in your own Gmail). Nothing is ever sent for you. A Stalled tab lists quiet deals, with snooze, skip-this-step and stop-follow-ups, plus a verify checklist before money or access changes hands.
 DO NOT claim: automatic posting to networks, analytics integrations, specific paid prices, customer numbers, awards, rankings, comparisons with named competitors, guaranteed results.`;
 
@@ -109,7 +109,7 @@ function problems(title: string, dek: string, body: string): string[] {
 }
 
 const CTA = (cat: string) => cat === 'reach'
-  ? '<div class="endcta"><div class="circle " aria-hidden="true"><span class="glow"></span><img class="ring" src="/assets/logo-mark.svg" alt=""></div><div><h3>Keep your outreach organised.</h3><p>Reach has a free plan with 10 AI drafts a month. Nothing is sent without you.</p></div><a class="btn btn-gold" href="/reach/">Try Reach free</a></div>'
+  ? '<div class="endcta"><div class="circle " aria-hidden="true"><span class="glow"></span><img class="ring" src="/assets/logo-mark.svg" alt=""></div><div><h3>Keep your outreach organised.</h3><p>Reach has a free plan with 150 AI credits a month. Nothing is sent without you.</p></div><a class="btn btn-gold" href="/reach/">Try Reach free</a></div>'
   : '<div class="endcta"><div class="circle " aria-hidden="true"><span class="glow"></span><img class="ring" src="/assets/logo-mark.svg" alt=""></div><div><h3>Turn your brand into a week of posts.</h3><p>The Free plan includes 30 credits a month. No card.</p></div><a class="btn btn-gold" href="/dashboard/">Start free</a></div>';
 
 async function callClaude(user: string): Promise<{ title: string; dek: string; tag: string; cat: string; read_minutes: number; body_html: string; slug: string } | { error: string }> {
