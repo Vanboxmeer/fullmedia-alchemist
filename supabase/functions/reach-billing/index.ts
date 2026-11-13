@@ -111,7 +111,7 @@ Deno.serve(async (req: Request) => {
         payment_method_collection: 'if_required',
         ...(customer ? { customer } : { customer_email: email }),
         client_reference_id: clientId,
-        line_items: [{ quantity: 1, price_data: { currency: 'usd', product_data: { name, description: body.bundle ? 'Content Engine + Alchemist Reach, 20% off while you keep both.' : 'Alchemist Reach, by Fullmedia Alchemist.' }, unit_amount: amount, recurring: { interval: interval === 'annual' ? 'year' : 'month' } } }],
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', product_data: { name, description: body.bundle ? 'Content Engine + Alchemist Reach, 10% off while you keep both.' : 'Alchemist Reach, by Fullmedia Alchemist.' }, unit_amount: amount, recurring: { interval: interval === 'annual' ? 'year' : 'month' } } }],
         subscription_data: { metadata: meta },
         metadata: meta,
         allow_promotion_codes: true,

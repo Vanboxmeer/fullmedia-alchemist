@@ -5,7 +5,7 @@
     {n:'Free',b:'Try Reach on one brand.',m:0,y:0,f:['1 brand','150 AI credits to try (one time)','Public options library','Connect your own Gmail'],cta:'Start free'},
     {n:'Starter',b:'One brand or founder.',m:29,y:290,f:['1 brand','1,500 AI credits / month','Public options library','Gmail and web research'],cta:'Choose Starter'},
     {n:'Growth',b:'A small team across a few brands.',m:79,y:790,f:['Up to 3 brands','3 seats','5,000 AI credits / month','Client review links'],cta:'Choose Growth'},
-    {n:'Agency',b:'Agencies and in-house teams.',m:249,y:2490,f:['Up to 10 brands','10 seats','15,000 AI credits / month','Client portals'],cta:'Choose Agency'}
+    {n:'Agency',b:'Agencies and in-house teams.',m:249,y:2490,f:['Up to 10 brands','10 seats','12,000 AI credits / month','Client portals'],cta:'Choose Agency'}
   ];
   var FEATS=[
     {t:'One pipeline for every brand',d:'Every deal, reply and next step in one inbox. Filter to what needs you today.'},
