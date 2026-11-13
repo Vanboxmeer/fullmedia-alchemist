@@ -1904,6 +1904,21 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
     load().then(applyPreset);
   }
   window.xpOpenPlans = function () { openPlans(); };
+  /* AI credits this month: used / included. Same weights the server uses: plain 1, web search 3, agent step 5. Cached for a minute. */
+  var _cr = { t: 0, v: null };
+  window.xpCredits = function (force) {
+    if (!force && _cr.v && Date.now() - _cr.t < 60000) return Promise.resolve(_cr.v);
+    var ms = new Date(); ms.setUTCDate(1); ms.setUTCHours(0, 0, 0, 0); var since = ms.toISOString();
+    function cnt(f) { var q = sb.from("ar_usage_events").select("id", { count: "exact", head: true }).eq("client_id", ctx.client).eq("ok", true).gte("created_at", since); return (f ? q.eq("feature", f) : q).then(function (r) { return r.count || 0; }); }
+    return Promise.all([cnt(), cnt("web_search"), cnt("agent-tools"), sb.from("ar_subscriptions").select("plan_key,status,is_comp").eq("client_id", ctx.client).maybeSingle()]).then(function (a) {
+      var used = Math.max(0, a[0] - a[1] - a[2]) + a[1] * 3 + a[2] * 5, sub = a[3] && a[3].data, cap = 2500, name = "Complimentary";
+      if (sub && sub.is_comp) return { used: used, cap: cap, name: name };
+      var pk = sub && ["active", "trialing"].indexOf(sub.status) >= 0 ? sub.plan_key : "free";
+      return sb.from("ar_plans").select("ai_calls_monthly,name").eq("key", pk).maybeSingle().then(function (r) {
+        var p = r.data || {}; var v = { used: used, cap: p.ai_calls_monthly || 150, name: p.name || "Free" }; _cr = { t: Date.now(), v: v }; return v;
+      });
+    }).catch(function () { return null; });
+  };
 
   /* A plan chosen on the pricing page survives sign-in: /login/ stores it, and the first screen after sign-in opens Plans & billing with it picked. */
   function takeIntent() {
@@ -6642,6 +6657,7 @@ function openFindOptions(preset){
      +'<div class="g2"><div class="field"><label>Add to campaign</label><select id="fpWave">'+waves.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===F.waveId?" selected":"")+'>'+esc(x.name)+'</option>').join("")+'<option value="__new"'+(F.waveId==="__new"?" selected":"")+'>＋ New '+(lead?"outreach wave":"campaign")+'…</option></select>'+(F.waveId==="__new"?'<input type="text" id="fpNew" placeholder="Name it" value="'+esc(F.newName)+'" style="margin-top:6px">':'')+(function(){ const kind=lead?"outreach waves":F.flow==="community"?"community campaigns":"coverage campaigns"; const oth=state.waves.filter(x=>x.brandId===F.brandId&&waveFlow(x)!==F.flow).length; return '<div class="hint" style="font-size:12px;color:var(--fg-faint);margin-top:6px;line-height:1.4">'+(waves.length?"Pick an existing one to add these finds to it, or start a new one.":"No "+kind+" for this brand yet, so this find starts the first one. Later finds can be added to it.")+(oth?" Each pipeline keeps its own list: "+oth+" "+(oth===1?"campaign":"campaigns")+" under the other pipelines "+(oth===1?"is":"are")+" not shown here.":"")+'</div>'; })()+'</div><div class="field"><label>How many</label><input type="number" id="fpCount" min="1" max="'+findMax()+'" value="'+esc(F.count)+'">'+(findMax()<60?'<div class="mini" style="margin-top:4px">Free plan: up to '+findMax()+' per run. Paid plans find up to 60.</div>':'')+'</div></div>'
      +'<div class="field"><label>Topic / keywords <span class="mini">(optional)</span></label><input type="text" id="fpNiche" value="'+esc(F.niche)+'" placeholder="'+(lead?"e.g. web3 games funded in the last 12 months":comm?"e.g. party games, trivia, game night":"e.g. survival co-op, Cyberpunk 2077 mods")+'"></div>'
      +(function(){ const n=freeMatches(F); return n?'<div class="banner good" style="margin-bottom:10px"><span><b>'+n+'</b> option'+(n===1?"":"s")+' in your library already match'+(n===1?"es":"")+' and '+(n===1?"has":"have")+' a contact. Using them is free and instant. <a href="#" id="fpFree">Review them first</a>. A new search uses AI credits.</span></div>':''; })()
+     +'<div id="fpCredits" class="muted" style="margin:-2px 0 10px;font-size:12.5px"></div>'
      +(F.canRun?'':'<div class="banner warn" style="margin-bottom:10px"><span>Web research isn’t available right now, so this can only be <b>queued</b>. <a href="#" id="fpConn2">Check Connections</a> — your plan’s AI allowance may be used up.</span></div>')
      +'<details class="more" id="fpMore"'+(F.moreOpen?" open":"")+'><summary>More options</summary>'
      +'<div class="field"><label>'+(lead?"Types of target":"Channel types")+' <span class="mini">(leave empty for any)</span></label><div class="chips">'+(lead?PLAT_LEAD:(comm?PLAT_COMM:PLAT_COV)).map(p=>'<span class="chip'+(F.plats[p]?" on":"")+'" data-pl="'+esc(p)+'">'+esc(p)+'</span>').join("")+'</div></div>'
@@ -6657,6 +6673,7 @@ function openFindOptions(preset){
     wireClose(); const fc2=document.getElementById("fpConn2"); if(fc2) fc2.addEventListener("click",(e)=>{ e.preventDefault(); openConnections(); });
     const $=(id)=>document.getElementById(id);
     const lb=$("fpLib"); if(lb) lb.addEventListener("click",()=>{ grab(); closeModal(); openPicker({brand:F.brandId,flow:F.flow}); });
+    try{ if(window.xpCredits) window.xpCredits().then(v=>{ const el=$("fpCredits"); if(!el||!v) return; const left=Math.max(0,v.cap-v.used); el.innerHTML="AI credits left this month: <b>"+left+"</b> of "+v.cap+" ("+esc(v.name)+"). A typical Find uses about 30–60."+(left<60?' <a href="#" id="fpUp">See plans</a>':""); const u=$("fpUp"); if(u) u.addEventListener("click",e=>{ e.preventDefault(); closeModal(); if(window.xpOpenPlans) window.xpOpenPlans(); }); }); }catch(e){}
     const ff=$("fpFree"); if(ff) ff.addEventListener("click",(e)=>{ e.preventDefault(); grab(); closeModal(); openPicker({brand:F.brandId,flow:F.flow,q:F.niche}); });
     $("fpBrand").addEventListener("change",()=>{ grab(); F.brandId=$("fpBrand").value; F.waveId=""; F.extra=scopeOf(); draw(); });
     document.querySelectorAll("[data-md]").forEach(x=>x.addEventListener("click",()=>{ grab(); F.mode=x.dataset.md; F.plats={}; F.needEmail=F.mode!=="communities"; if(F.mode==="communities") F.pay="free"; draw(); }));
