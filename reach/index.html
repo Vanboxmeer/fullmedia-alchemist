@@ -6129,6 +6129,19 @@ async function runResearch(r,ctl){
     ctl.log("Round "+pass+": "+good+" verified of "+cands.length+" suggested ("+run.calls+" lookups so far).");
     if(out&&out.note&&!good) ctl.log("Alchemist note: "+String(out.note).slice(0,220),"dim"); if(!good&&pass>=maxPass-1&&pass>=5) break;
   }
+  /* Never end empty-handed: top up from the user's own library (free, already has a contact) when the web search came up short. */
+  let fromLib=0;
+  if(found.length<count&&!ctl.signal.aborted){ try{
+    const cr=r.criteria||{}, comm=r.mode==="communities"&&!lead;
+    const words=String(cr.niche||(lead?brand.leadScope:brand.coverageScope)||"").toLowerCase().split(/[^a-z0-9]+/).filter(w=>w.length>=4);
+    if(words.length){
+      const pool=lead?state.leads:(comm?state.options.filter(o=>o.howToPost||o.rulesNote):state.options);
+      const have=new Set((ix().byBrand.get(brand.id)||[]).filter(d=>lead?isLead(d):!isLead(d)).map(d=>lead?d.leadId:d.optionId)); found.forEach(v=>{ if(v.existing) have.add(v.existing.id); });
+      for(const o of pool){ if(found.length>=count) break; if(have.has(o.id)) continue; if(!(o.contactEmail||o.contactLink||o.contactOther)) continue;
+        const h=((o.channelName||o.name||"")+" "+(o.niche||"")+" "+(o.platform||"")+" "+(o.category||"")+" "+(o.whatTheyDo||"")).toLowerCase(); if(!words.some(w=>h.includes(w))) continue;
+        found.push({ok:true,name:o.channelName||o.name||"—",existing:{id:o.id},raw:{fit:"From your library: matches “"+(cr.niche||"your scope")+"”"},src:"",quote:""}); have.add(o.id); fromLib++; } }
+    if(fromLib) ctl.log("The web search came up short, so "+fromLib+" matching "+(fromLib===1?"option was":"options were")+" added from your library (free).","ok");
+  }catch(e){} }
   /* write results */
   const wave=ix().wave.get(r.waveId); const now=Date.now(); const newIds=[];
   { /* last check right before saving: another run or a manual add may have landed in the meantime */ const keep=found.filter(v=>{ if(v.existing){ return !(ix().byBrand.get(brand.id)||[]).some(d=>(lead?d.leadId:d.optionId)===v.existing.id); } return !brandDupHit(brand,{name:v.name,email:v.email,urls:[v.url,v.raw&&v.raw.website]}); }); if(keep.length!==found.length){ ctl.log((found.length-keep.length)+" dropped at the last check: already added meanwhile.","dim"); found.length=0; keep.forEach(v=>found.push(v)); } }
@@ -6150,9 +6163,9 @@ async function runResearch(r,ctl){
     ctl.unspin(); ctl.log("Drafted "+done+" of "+newIds.length+" messages.");
   }
   const dr=dropped.length?(" · "+dropped.length+" dropped ("+Object.keys(reasons).map(k=>reasons[k]+" "+k).join("; ")+")"):"";
-  const summary="Found "+found.length+" of "+count+(wave?" for "+wave.name:"")+dr;
+  const summary="Found "+found.length+" of "+count+(wave?" for "+wave.name:"")+(fromLib?" ("+fromLib+" from your library)":"")+dr;
   patchDoc("requests",r.id,{status:ctl.signal.aborted&&!found.length?"cancelled":"fulfilled",summary:summary.slice(0,400),resultCount:found.length,seen:false,finishedAt:Date.now()});
-  ctl.finish('<div class="al '+(found.length?"good":"warn")+'" style="margin-top:10px"><span class="t"><b>'+esc(summary)+'.</b> '+(found.length?"They are in the campaign as <b>Proposed</b> rows with a first-draft message — accept or reject each one.":"Nothing with a verifiable way to reach them turned up. Try a broader niche or more channel types.")+(found.length<count&&found.length?" Run it again to look for more.":"")+'</span></div><div style="margin-top:10px;display:flex;gap:8px">'+(found.length?'<button class="btn primary small" id="rnReview">Review proposed rows</button>':'')+'</div>',(o)=>{ const b=o.querySelector("#rnReview"); if(b) b.addEventListener("click",()=>openReview(r,"proposed")); });
+  ctl.finish('<div class="al '+(found.length?"good":"warn")+'" style="margin-top:10px"><span class="t"><b>'+esc(summary)+'.</b> '+(found.length?"They are in the campaign as <b>Proposed</b> rows with a first-draft message — accept or reject each one.":"Nothing new with a verifiable way to reach them turned up, and your library has no match either. Your AI credits for this run were used up searching, so try a broader niche or more channel types before running again.")+(found.length<count&&found.length?" Run it again to look for more.":"")+'</span></div><div style="margin-top:10px;display:flex;gap:8px">'+(found.length?'<button class="btn primary small" id="rnReview">Review proposed rows</button>':'')+'</div>',(o)=>{ const b=o.querySelector("#rnReview"); if(b) b.addEventListener("click",()=>openReview(r,"proposed")); });
 }
 /* =====================================================================
    PROGRESS REPORT — read the mailbox (read-only) and leave suggestions on the rows
