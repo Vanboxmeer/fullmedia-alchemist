@@ -1626,13 +1626,13 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
     plans: function () { return rpcOut(sb.rpc("ar_my_plans")); },
     usage: function () { return rpcOut(sb.rpc("ar_my_usage")); },
     credits: function () {
-    var ms = new Date(); ms.setUTCDate(1); ms.setUTCHours(0, 0, 0, 0);
+    var ms = new Date(); ms.setUTCDate(1); ms.setUTCHours(0, 0, 0, 0); var msTop = ms.toISOString(), METER = Date.parse("2026-11-13T00:00:00Z"); ms = new Date(Math.max(ms.getTime(), METER));
     function cnt(since, f) { var q = sb.from("ar_usage_events").select("id", { count: "exact", head: true }).eq("client_id", ctx.client).eq("ok", true).gte("created_at", since); return (f ? q.eq("feature", f) : q).then(function (r) { return r.count || 0; }); }
     function cr(since) { return Promise.all([cnt(since), cnt(since, "web_search"), cnt(since, "agent-tools")]).then(function (a) { return Math.max(0, a[0] - a[1] - a[2]) + a[1] * 3 + a[2] * 5; }); }
     return sb.from("ar_subscriptions").select("plan_key,status,is_comp,created_at").eq("client_id", ctx.client).maybeSingle().then(function (sr) {
       var sub = sr && sr.data, comp = !!(sub && sub.is_comp), pk = sub && ["active", "trialing"].indexOf(sub.status) >= 0 ? sub.plan_key : "free", trial = !comp && pk === "free";
       var from = trial ? new Date(Math.max(Date.parse((sub && sub.created_at) || "2026-11-13T00:00:00Z") || 0, Date.parse("2026-11-13T00:00:00Z"))).toISOString() : ms.toISOString();
-      return Promise.all([cr(from), cr(new Date(Date.now() - 86400000).toISOString()), comp ? Promise.resolve({ data: { ai_calls_monthly: 2500, name: "Complimentary" } }) : sb.from("ar_plans").select("ai_calls_monthly,name").eq("key", pk).maybeSingle(), sb.from("ar_credit_topups").select("credits").eq("client_id", ctx.client).gte("created_at", ms.toISOString())]).then(function (a) {
+      return Promise.all([cr(from), cr(new Date(Math.max(Date.now() - 86400000, METER)).toISOString()), comp ? Promise.resolve({ data: { ai_calls_monthly: 2500, name: "Complimentary" } }) : sb.from("ar_plans").select("ai_calls_monthly,name").eq("key", pk).maybeSingle(), sb.from("ar_credit_topups").select("credits").eq("client_id", ctx.client).gte("created_at", msTop)]).then(function (a) {
         var p = a[2].data || {}, extra = ((a[3] && a[3].data) || []).reduce(function (n, t) { return n + (t.credits || 0); }, 0), cap = (p.ai_calls_monthly || 150) + (trial ? 0 : extra); var v = { extra: extra, used: a[0], cap: cap, name: trial ? "Free trial" : (p.name || "Free"), trial: trial, day: a[1], dayCap: Math.max(60, Math.ceil(cap / 5)) }; return v;
       });
     }).catch(function () { return null; });
