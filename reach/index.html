@@ -1551,7 +1551,6 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
       function step() {
         guard++;
         if (guard > 18) throw { code: "error", message: "The Alchemist used too many steps." };
-        trimOld();
         var wrap = guard >= 15 || size() > 300000;
         var hint = wrap ? "You have used up your lookups. Do NOT call any tool. Reply now with the final JSON, using only what you already read." : (guard === 11 ? "Only a few lookups are left. Finish in one or two more steps, then reply with the final JSON." : "");
         var lm = messages[messages.length - 1];
@@ -1566,7 +1565,7 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
               var tool = tools.find(function (t) { return t.name === u.name; });
               if (!tool) return { type: "tool_result", tool_use_id: u.id, content: "Unknown tool", is_error: true };
               return Promise.resolve().then(function () { return tool.execute(u.input || {}); })
-                .then(function (out) { return { type: "tool_result", tool_use_id: u.id, content: typeof out === "string" ? out : JSON.stringify(out == null ? null : out) }; })
+                .then(function (out) { var txt = typeof out === "string" ? out : JSON.stringify(out == null ? null : out); if (txt.length > 7000) txt = txt.slice(0, 7000) + " …[shortened]"; return { type: "tool_result", tool_use_id: u.id, content: txt }; })
                 .catch(function (e) { return { type: "tool_result", tool_use_id: u.id, content: String((e && e.message) || e), is_error: true }; });
             })).then(function (results) { messages.push({ role: "user", content: results }); return step(); });
           }
@@ -4918,7 +4917,7 @@ function openHelp(){
 /* ---- add targets picker ---- */
 function openPicker(preset){
   preset=preset||{}; const brandId0=state.currentBrandId||(state.brands[0]&&state.brands[0].id); if(!brandId0){ toast("Create a brand first"); return; }
-  const P={brandId:preset.brand||brandId0, flow:preset.flow||state.wb.flow||"coverage", waveId:state.wb.wave||"", newName:"", q:"", plat:"", hideIn:true, needContact:true, sel:{}};
+  const P={brandId:preset.brand||brandId0, flow:preset.flow||state.wb.flow||"coverage", waveId:state.wb.wave||"", newName:"", q:preset.q||"", plat:"", hideIn:true, needContact:true, sel:{}};
   function brandOf(){ return brandById(P.brandId); }
   function ok(){ /* all three pipelines are always available; picking one switches it on for the brand */ }
   function pool(){ return P.flow==="lead"?state.leads:(P.flow==="community"?state.options.filter(o=>o.howToPost||o.rulesNote):state.options); }
@@ -5892,7 +5891,7 @@ async function connTools(key,run){
         if(run.calls>=run.maxCalls) throw new Error("Tool budget for this run is used up. Answer with what you already have.");
         run.calls++; if(run.onCall) run.onCall(c,t,input);
         let r; try{ r=await mcpCap.callTool(c.server,t,input||{},{cache:false,signal:ctx&&ctx.signal}); }catch(e){ run.lastErr=e; throw new Error((e&&e.message)||"tool failed"); }
-        run.ok++; const tx=resultTexts(r); run.sq+=squash(tx.flat)+"|"; tx.chunks.forEach(c=>run.chunks.push(c)); return tx.shown.slice(0,12000);
+        run.ok++; const tx=resultTexts(r); run.sq+=squash(tx.flat)+"|"; tx.chunks.forEach(c=>run.chunks.push(c)); return tx.shown.slice(0,7000);
       }});
   }
   return out;
@@ -5902,7 +5901,7 @@ function parseLoose(text){ const s=String(text||""); const a=s.indexOf("{"), b=s
 async function agentWithTools(prompt,tools,ctl,key,run,tier){
   if(!aiAvailable()) throw {code:"unavailable",message:"The Alchemist isn't available in this view"};
   let out;
-  try{ out=await aiJson(prompt,{tools,tier:tier||"default",signal:ctl.signal,feature:key==="gmail"?"inbox":"research"}); }
+  try{ out=await aiJson(prompt,{tools,tier:tier||"quick",signal:ctl.signal,feature:key==="gmail"?"inbox":"research"}); }
   catch(e){ if(e&&e.code==="invalid_json"&&e.text){ out=parseLoose(e.text); if(!out) throw e; } else throw e; }
   if(run.calls>0&&run.ok===0&&run.lastErr) throw run.lastErr;
   return out||{};
@@ -6092,7 +6091,7 @@ async function runResearch(r,ctl){
   const brand=brandById(r.brandId); if(!brand) throw {message:"Brand not found"};
   const lead=r.flow==="lead"; const count=Math.max(1,Math.min(60,r.count||15));
   patchDoc("requests",r.id,{status:"working",startedAt:Date.now(),runVia:"app",summary:""});
-  const HARD=Math.min(120,25+count*5); const run=newRun(HARD,(c,t,inp)=>{ if(ctl.setStat) ctl.setStat({calls:run.calls,cap:HARD}); const q=inp&&(inp.query||inp.q||inp.objective||inp.url||(inp.search_queries&&inp.search_queries[0])||""); ctl.log((t==="web_fetch"?"Reading ":"Searching ")+(q?String(Array.isArray(q)?q[0]:q).slice(0,90):"…")); });
+  const HARD=Math.min(80,20+count*4); const run=newRun(HARD,(c,t,inp)=>{ if(ctl.setStat) ctl.setStat({calls:run.calls,cap:HARD}); const q=inp&&(inp.query||inp.q||inp.objective||inp.url||(inp.search_queries&&inp.search_queries[0])||""); ctl.log((t==="web_fetch"?"Reading ":"Searching ")+(q?String(Array.isArray(q)?q[0]:q).slice(0,90):"…")); });
   if(ctl.setStat) ctl.setStat({want:count,found:0,cap:HARD,calls:0});
   ctl.log("Connecting to web research…","spin"); const tools=await connTools("web",run); ctl.unspin();
   const found=[], dropped=[], reasons={}; const runSeen=new Set(); const seen=(ix().byBrand.get(brand.id)||[]).map(d=>nameOf(d)).filter(Boolean); (ix().byBrand.get(brand.id)||[]).forEach(d=>{ const t=targetForDeal(d)||{}; [t.website,t.contactLink].forEach(u=>{ const h=urlKey(u); if(h) seen.push(h); }); }); let pass=0;
@@ -6101,7 +6100,7 @@ async function runResearch(r,ctl){
     if(run.calls>=HARD){ ctl.log("Lookup limit reached ("+run.calls+") \u2014 stopping with what was found.","warn"); break; }
     run.maxCalls=Math.min(HARD,run.calls+(liOnly(r)?25:Math.max(30,Math.ceil(HARD/3))));
     pass++; const ask=Math.min(count-found.length,8); ctl.log("Round "+pass+": looking for "+ask+" "+(found.length?"more ":"")+"…","spin");
-    let out; try{ out=await agentWithTools(researchPrompt(r,brand,ask,found.map(f=>f.name),seen,pass),tools,ctl,"web",run,"complex"); }
+    let out; try{ out=await agentWithTools(researchPrompt(r,brand,ask,found.map(f=>f.name),seen,pass),tools,ctl,"web",run,"quick"); }
     catch(e){ if(e&&e.code==="cancelled") break;
       if(e&&(e.code==="bad_json"||e.code==="invalid_json")&&badJson<3){ badJson++; ctl.unspin(); ctl.log("The reply was cut off or malformed — trying again with a different angle.","warn"); continue; }
       if(found.length) { ctl.unspin(); ctl.log("Stopped early: "+connErr(e,"web"),"warn"); break; }
@@ -6608,6 +6607,17 @@ function agentPrompt(r){
 let REACH_PLAN; /* Reach plan key once known: "free" gets small Find batches (2026-10-27) */
 async function loadReachPlan(){ if(REACH_PLAN!==undefined) return; try{ const R=await reachApi(); const p=R&&await R.plans(); REACH_PLAN=(p&&p.reach)||"free"; }catch(e){ /* unknown: leave unset, the server still enforces the allowance */ } }
 function findMax(){ return REACH_PLAN==="free"?3:60; }
+/* Free first: how many options already in the library match and have a contact (not yet in this brand). */
+function freeMatches(F){
+  const lead=F.flow==="lead", comm=F.flow==="community";
+  const pool=lead?state.leads:(comm?state.options.filter(o=>o.howToPost||o.rulesNote):state.options);
+  const I=ix(); const inBrand=new Set((I.byBrand.get(F.brandId)||[]).filter(d=>(lead?isLead(d):!isLead(d))).map(d=>lead?d.leadId:d.optionId));
+  const words=String(F.niche||"").toLowerCase().split(/[^a-z0-9]+/).filter(w=>w.length>=4);
+  let n=0; pool.forEach(o=>{ if(inBrand.has(o.id)) return; if(!(o.contactEmail||o.contactLink||o.contactOther)) return;
+    if(words.length){ const h=((o.channelName||o.name||"")+" "+(o.niche||"")+" "+(o.platform||"")+" "+(o.category||"")+" "+(o.whatTheyDo||"")).toLowerCase(); if(!words.some(w=>h.includes(w))) return; }
+    n++; });
+  return n;
+}
 function openFindOptions(preset){
   preset=preset||{}; const brandId0=state.currentBrandId||(state.brands[0]&&state.brands[0].id); if(!brandId0){ toast("Create a brand first"); return; }
   const b0=brandById(brandId0);
@@ -6631,6 +6641,7 @@ function openFindOptions(preset){
      +'<div class="field"><label>What should I find?</label><div class="pipecards">'+[["coverage","Coverage","Creators and media who can cover you, paid or earned."],["lead","Partnerships & Intros","Contacts for new clients, partners and introductions."],["community","🌱 Communities","Free places to post: subreddits, Discords, guest posts."]].map(c=>'<button type="button" class="pcard'+(F.flow===c[0]?" on":"")+'" data-fl="'+c[0]+'"><b>'+esc(c[1])+'</b><span>'+esc(c[2])+'</span></button>').join("")+'</div></div>'
      +'<div class="g2"><div class="field"><label>Add to campaign</label><select id="fpWave">'+waves.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===F.waveId?" selected":"")+'>'+esc(x.name)+'</option>').join("")+'<option value="__new"'+(F.waveId==="__new"?" selected":"")+'>＋ New '+(lead?"outreach wave":"campaign")+'…</option></select>'+(F.waveId==="__new"?'<input type="text" id="fpNew" placeholder="Name it" value="'+esc(F.newName)+'" style="margin-top:6px">':'')+(function(){ const kind=lead?"outreach waves":F.flow==="community"?"community campaigns":"coverage campaigns"; const oth=state.waves.filter(x=>x.brandId===F.brandId&&waveFlow(x)!==F.flow).length; return '<div class="hint" style="font-size:12px;color:var(--fg-faint);margin-top:6px;line-height:1.4">'+(waves.length?"Pick an existing one to add these finds to it, or start a new one.":"No "+kind+" for this brand yet, so this find starts the first one. Later finds can be added to it.")+(oth?" Each pipeline keeps its own list: "+oth+" "+(oth===1?"campaign":"campaigns")+" under the other pipelines "+(oth===1?"is":"are")+" not shown here.":"")+'</div>'; })()+'</div><div class="field"><label>How many</label><input type="number" id="fpCount" min="1" max="'+findMax()+'" value="'+esc(F.count)+'">'+(findMax()<60?'<div class="mini" style="margin-top:4px">Free plan: up to '+findMax()+' per run. Paid plans find up to 60.</div>':'')+'</div></div>'
      +'<div class="field"><label>Topic / keywords <span class="mini">(optional)</span></label><input type="text" id="fpNiche" value="'+esc(F.niche)+'" placeholder="'+(lead?"e.g. web3 games funded in the last 12 months":comm?"e.g. party games, trivia, game night":"e.g. survival co-op, Cyberpunk 2077 mods")+'"></div>'
+     +(function(){ const n=freeMatches(F); return n?'<div class="banner good" style="margin-bottom:10px"><span><b>'+n+'</b> option'+(n===1?"":"s")+' in your library already match'+(n===1?"es":"")+' and '+(n===1?"has":"have")+' a contact. Using them is free and instant. <a href="#" id="fpFree">Review them first</a>. A new search uses AI credits.</span></div>':''; })()
      +(F.canRun?'':'<div class="banner warn" style="margin-bottom:10px"><span>Web research isn’t available right now, so this can only be <b>queued</b>. <a href="#" id="fpConn2">Check Connections</a> — your plan’s AI allowance may be used up.</span></div>')
      +'<details class="more" id="fpMore"'+(F.moreOpen?" open":"")+'><summary>More options</summary>'
      +'<div class="field"><label>'+(lead?"Types of target":"Channel types")+' <span class="mini">(leave empty for any)</span></label><div class="chips">'+(lead?PLAT_LEAD:(comm?PLAT_COMM:PLAT_COV)).map(p=>'<span class="chip'+(F.plats[p]?" on":"")+'" data-pl="'+esc(p)+'">'+esc(p)+'</span>').join("")+'</div></div>'
@@ -6646,6 +6657,7 @@ function openFindOptions(preset){
     wireClose(); const fc2=document.getElementById("fpConn2"); if(fc2) fc2.addEventListener("click",(e)=>{ e.preventDefault(); openConnections(); });
     const $=(id)=>document.getElementById(id);
     const lb=$("fpLib"); if(lb) lb.addEventListener("click",()=>{ grab(); closeModal(); openPicker({brand:F.brandId,flow:F.flow}); });
+    const ff=$("fpFree"); if(ff) ff.addEventListener("click",(e)=>{ e.preventDefault(); grab(); closeModal(); openPicker({brand:F.brandId,flow:F.flow,q:F.niche}); });
     $("fpBrand").addEventListener("change",()=>{ grab(); F.brandId=$("fpBrand").value; F.waveId=""; F.extra=scopeOf(); draw(); });
     document.querySelectorAll("[data-md]").forEach(x=>x.addEventListener("click",()=>{ grab(); F.mode=x.dataset.md; F.plats={}; F.needEmail=F.mode!=="communities"; if(F.mode==="communities") F.pay="free"; draw(); }));
     document.querySelectorAll("[data-fl]").forEach(x=>x.addEventListener("click",()=>{ grab(); F.flow=x.dataset.fl; F.waveId=""; F.plats={}; F.extra=scopeOf(); F.needEmail=F.flow!=="community"; F.route="any"; F.where={}; F.pay=F.flow==="community"?"free":"either"; draw(); }));
