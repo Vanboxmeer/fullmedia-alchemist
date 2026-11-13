@@ -1904,19 +1904,20 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
     load().then(applyPreset);
   }
   window.xpOpenPlans = function () { openPlans(); };
-  /* AI credits this month: used / included. Same weights the server uses: plain 1, web search 3, agent step 5. Cached for a minute. */
+  /* AI credits: used this month / included, and used in the last 24 hours / daily window. Same weights and window formula as the reach-ai function:
+     plain 1, web search 3, agent step 5; daily window = max(60, monthly / 5). Cached for a minute. */
   var _cr = { t: 0, v: null };
   window.xpCredits = function (force) {
     if (!force && _cr.v && Date.now() - _cr.t < 60000) return Promise.resolve(_cr.v);
-    var ms = new Date(); ms.setUTCDate(1); ms.setUTCHours(0, 0, 0, 0); var since = ms.toISOString();
-    function cnt(f) { var q = sb.from("ar_usage_events").select("id", { count: "exact", head: true }).eq("client_id", ctx.client).eq("ok", true).gte("created_at", since); return (f ? q.eq("feature", f) : q).then(function (r) { return r.count || 0; }); }
-    return Promise.all([cnt(), cnt("web_search"), cnt("agent-tools"), sb.from("ar_subscriptions").select("plan_key,status,is_comp").eq("client_id", ctx.client).maybeSingle()]).then(function (a) {
-      var used = Math.max(0, a[0] - a[1] - a[2]) + a[1] * 3 + a[2] * 5, sub = a[3] && a[3].data, cap = 2500, name = "Complimentary";
-      if (sub && sub.is_comp) return { used: used, cap: cap, name: name };
+    var ms = new Date(); ms.setUTCDate(1); ms.setUTCHours(0, 0, 0, 0);
+    function cnt(since, f) { var q = sb.from("ar_usage_events").select("id", { count: "exact", head: true }).eq("client_id", ctx.client).eq("ok", true).gte("created_at", since); return (f ? q.eq("feature", f) : q).then(function (r) { return r.count || 0; }); }
+    function cr(since) { return Promise.all([cnt(since), cnt(since, "web_search"), cnt(since, "agent-tools")]).then(function (a) { return Math.max(0, a[0] - a[1] - a[2]) + a[1] * 3 + a[2] * 5; }); }
+    return Promise.all([cr(ms.toISOString()), cr(new Date(Date.now() - 86400000).toISOString()), sb.from("ar_subscriptions").select("plan_key,status,is_comp").eq("client_id", ctx.client).maybeSingle()]).then(function (a) {
+      var used = a[0], day = a[1], sub = a[2] && a[2].data;
+      function done(cap, name) { var v = { used: used, cap: cap, name: name, day: day, dayCap: Math.max(60, Math.ceil(cap / 5)) }; _cr = { t: Date.now(), v: v }; return v; }
+      if (sub && sub.is_comp) return done(2500, "Complimentary");
       var pk = sub && ["active", "trialing"].indexOf(sub.status) >= 0 ? sub.plan_key : "free";
-      return sb.from("ar_plans").select("ai_calls_monthly,name").eq("key", pk).maybeSingle().then(function (r) {
-        var p = r.data || {}; var v = { used: used, cap: p.ai_calls_monthly || 150, name: p.name || "Free" }; _cr = { t: Date.now(), v: v }; return v;
-      });
+      return sb.from("ar_plans").select("ai_calls_monthly,name").eq("key", pk).maybeSingle().then(function (r) { var p = r.data || {}; return done(p.ai_calls_monthly || 150, p.name || "Free"); });
     }).catch(function () { return null; });
   };
 
@@ -5731,7 +5732,8 @@ async function bulkDraft(ids,force){
   const todo=ids.filter(id=>{ const d=ix().deal.get(id); return d&&!d.manualOnly&&!d.sentDate&&(force?(!hasDraft(d)||d.draftState==="agent"):!hasDraft(d)); }); const skipped=ids.length-todo.length;
   if(!aiAvailable()){ toast("The Alchemist isn't available in this view"); return; }
   if(!todo.length){ toast(force?"Nothing to redraft — these are sent or hand-edited":"All selected rows already have a message"); return; }
-  let done=0; toast("Drafting 0/"+todo.length+"…");
+  if(todo.length>=10&&!window.confirm((force?"Redraft ":"Draft ")+todo.length+" messages?\n\nThis uses about "+todo.length+" AI credits (1 per message). Rows you already like can be left as they are.")) return;
+  let done=0; toast("Drafting 0/"+todo.length+" (about "+todo.length+" credits)…");
   await pmap(todo,2,async(id)=>{ await agentDraft(id,{quiet:true}); done++; toast("Drafting "+done+"/"+todo.length+"…"); });
   toast("Drafted "+done+" message"+(done===1?"":"s")+(skipped?" · "+skipped+" already had one":"")+" — read them, then Accept");
   state.wb.sel={}; renderBulk();
@@ -6110,7 +6112,7 @@ async function runResearch(r,ctl){
   if(ctl.setStat) ctl.setStat({want:count,found:0,cap:HARD,calls:0});
   ctl.log("Connecting to web research…","spin"); const tools=await connTools("web",run); ctl.unspin();
   const found=[], dropped=[], reasons={}; const runSeen=new Set(); const seen=(ix().byBrand.get(brand.id)||[]).map(d=>nameOf(d)).filter(Boolean); (ix().byBrand.get(brand.id)||[]).forEach(d=>{ const t=targetForDeal(d)||{}; [t.website,t.contactLink].forEach(u=>{ const h=urlKey(u); if(h) seen.push(h); }); }); let pass=0;
-  const maxPass=Math.min(10,Math.ceil(count/8)+3); let badJson=0;
+  const maxPass=Math.min(10,Math.ceil(count/8)+3); let badJson=0, limitErr=null;
   while(found.length<count&&pass<maxPass&&!ctl.signal.aborted){
     if(run.calls>=HARD){ ctl.log("Lookup limit reached ("+run.calls+") \u2014 stopping with what was found.","warn"); break; }
     run.maxCalls=Math.min(HARD,run.calls+(liOnly(r)?25:Math.max(30,Math.ceil(HARD/3))));
@@ -6120,7 +6122,7 @@ async function runResearch(r,ctl){
       if(e&&(e.code==="bad_json"||e.code==="invalid_json")&&badJson<3){ badJson++; ctl.unspin(); ctl.log("The reply was cut off or malformed — trying again with a different angle.","warn"); continue; }
       if(found.length) { ctl.unspin(); ctl.log("Stopped early: "+connErr(e,"web"),"warn"); break; }
       /* nothing found yet: only stop for errors a retry cannot fix; anything else gets another round (what was read so far is kept) */
-      if(e&&["plan_limit","rate_limited","not_granted","unavailable","needs_reauth","server_not_connected","server_not_found","not_in_manifest","approval_required","consent_required","blocked_by_policy"].includes(e.code)) throw e;
+      if(e&&["plan_limit","rate_limited","not_granted","unavailable","needs_reauth","server_not_connected","server_not_found","not_in_manifest","approval_required","consent_required","blocked_by_policy"].includes(e.code)){ if(e.code==="plan_limit"||e.code==="rate_limited"){ limitErr=e; ctl.unspin(); ctl.log(String(e.message||"AI limit reached"),"warn"); break; } throw e; }
       badJson++; if(badJson>=3) throw e; ctl.unspin(); ctl.log("That round failed ("+connErr(e,"web")+") — trying again.","warn"); continue; }
     ctl.unspin();
     const cands=Array.isArray(out.candidates)?out.candidates:[]; let good=0;
@@ -6142,6 +6144,7 @@ async function runResearch(r,ctl){
         found.push({ok:true,name:o.channelName||o.name||"—",existing:{id:o.id},raw:{fit:"From your library: matches “"+(cr.niche||"your scope")+"”"},src:"",quote:""}); have.add(o.id); fromLib++; } }
     if(fromLib) ctl.log("The web search came up short, so "+fromLib+" matching "+(fromLib===1?"option was":"options were")+" added from your library (free).","ok");
   }catch(e){} }
+  if(!found.length&&limitErr) throw limitErr;
   /* write results */
   const wave=ix().wave.get(r.waveId); const now=Date.now(); const newIds=[];
   { /* last check right before saving: another run or a manual add may have landed in the meantime */ const keep=found.filter(v=>{ if(v.existing){ return !(ix().byBrand.get(brand.id)||[]).some(d=>(lead?d.leadId:d.optionId)===v.existing.id); } return !brandDupHit(brand,{name:v.name,email:v.email,urls:[v.url,v.raw&&v.raw.website]}); }); if(keep.length!==found.length){ ctl.log((found.length-keep.length)+" dropped at the last check: already added meanwhile.","dim"); found.length=0; keep.forEach(v=>found.push(v)); } }
@@ -6670,7 +6673,8 @@ function openFindOptions(preset){
      +'<div class="g2"><div class="field"><label>Add to campaign</label><select id="fpWave">'+waves.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===F.waveId?" selected":"")+'>'+esc(x.name)+'</option>').join("")+'<option value="__new"'+(F.waveId==="__new"?" selected":"")+'>＋ New '+(lead?"outreach wave":"campaign")+'…</option></select>'+(F.waveId==="__new"?'<input type="text" id="fpNew" placeholder="Name it" value="'+esc(F.newName)+'" style="margin-top:6px">':'')+(function(){ const kind=lead?"outreach waves":F.flow==="community"?"community campaigns":"coverage campaigns"; const oth=state.waves.filter(x=>x.brandId===F.brandId&&waveFlow(x)!==F.flow).length; return '<div class="hint" style="font-size:12px;color:var(--fg-faint);margin-top:6px;line-height:1.4">'+(waves.length?"Pick an existing one to add these finds to it, or start a new one.":"No "+kind+" for this brand yet, so this find starts the first one. Later finds can be added to it.")+(oth?" Each pipeline keeps its own list: "+oth+" "+(oth===1?"campaign":"campaigns")+" under the other pipelines "+(oth===1?"is":"are")+" not shown here.":"")+'</div>'; })()+'</div><div class="field"><label>How many</label><input type="number" id="fpCount" min="1" max="'+findMax()+'" value="'+esc(F.count)+'">'+(findMax()<60?'<div class="mini" style="margin-top:4px">Free plan: up to '+findMax()+' per run. Paid plans find up to 60.</div>':'')+'</div></div>'
      +'<div class="field"><label>Topic / keywords <span class="mini">(optional)</span></label><input type="text" id="fpNiche" value="'+esc(F.niche)+'" placeholder="'+(lead?"e.g. web3 games funded in the last 12 months":comm?"e.g. party games, trivia, game night":"e.g. survival co-op, Cyberpunk 2077 mods")+'"></div>'
      +(function(){ const n=freeMatches(F); return n?'<div class="banner good" style="margin-bottom:10px"><span><b>'+n+'</b> option'+(n===1?"":"s")+' in your library already match'+(n===1?"es":"")+' and '+(n===1?"has":"have")+' a contact. Using them is free and instant. <a href="#" id="fpFree">Review them first</a>. A new search uses AI credits.</span></div>':''; })()
-     +'<div id="fpCredits" class="muted" style="margin:-2px 0 10px;font-size:12.5px"></div>'
+     +'<div id="fpCredits" class="muted" style="margin:-2px 0 6px;font-size:12.5px"></div>'
+     +'<details class="more" style="margin-bottom:10px"><summary>What uses AI credits?</summary><div style="font-size:12.5px;line-height:1.6;padding:6px 2px"><b>Free:</b> picking from your library, editing a message by hand, moving rows, and sending (you send from your own mailbox).<br><b>1 credit:</b> one drafted or redrafted message. Redrafting 20 rows = 20 credits.<br><b>About 12–20 credits per new contact:</b> “Find with the Alchemist” searches the web, which is the most expensive thing here.<br><b>About 5–10 credits per contact checked:</b> a progress report that reads your mailbox.<br><b>Saves credits:</b> use your library first, make the niche specific, and redraft only the rows that really need it. Your daily window is a fifth of your monthly credits, so one busy day cannot use up the month.</div></details>'
      +(F.canRun?'':'<div class="banner warn" style="margin-bottom:10px"><span>Web research isn’t available right now, so this can only be <b>queued</b>. <a href="#" id="fpConn2">Check Connections</a> — your plan’s AI allowance may be used up.</span></div>')
      +'<details class="more" id="fpMore"'+(F.moreOpen?" open":"")+'><summary>More options</summary>'
      +'<div class="field"><label>'+(lead?"Types of target":"Channel types")+' <span class="mini">(leave empty for any)</span></label><div class="chips">'+(lead?PLAT_LEAD:(comm?PLAT_COMM:PLAT_COV)).map(p=>'<span class="chip'+(F.plats[p]?" on":"")+'" data-pl="'+esc(p)+'">'+esc(p)+'</span>').join("")+'</div></div>'
@@ -6686,7 +6690,10 @@ function openFindOptions(preset){
     wireClose(); const fc2=document.getElementById("fpConn2"); if(fc2) fc2.addEventListener("click",(e)=>{ e.preventDefault(); openConnections(); });
     const $=(id)=>document.getElementById(id);
     const lb=$("fpLib"); if(lb) lb.addEventListener("click",()=>{ grab(); closeModal(); openPicker({brand:F.brandId,flow:F.flow}); });
-    try{ if(window.xpCredits) window.xpCredits().then(v=>{ const el=$("fpCredits"); if(!el||!v) return; const left=Math.max(0,v.cap-v.used); el.innerHTML="AI credits left this month: <b>"+left+"</b> of "+v.cap+" ("+esc(v.name)+"). A typical Find uses about 30–60."+(left<60?' <a href="#" id="fpUp">See plans</a>':""); const u=$("fpUp"); if(u) u.addEventListener("click",e=>{ e.preventDefault(); closeModal(); if(window.xpOpenPlans) window.xpOpenPlans(); }); }); }catch(e){}
+    try{ if(window.xpCredits) window.xpCredits().then(v=>{ const el=$("fpCredits"); if(!el||!v) return; const left=Math.max(0,v.cap-v.used), dleft=Math.max(0,v.dayCap-v.day);
+      const paint=()=>{ const n=Math.max(1,parseInt(($("fpCount")||{}).value)||F.count||15); const lo=n*12, hi=n*20;
+        el.innerHTML="AI credits: <b>"+left+"</b> left this month ("+esc(v.name)+"), <b>"+dleft+"</b> left in today's window. This search: about <b>"+lo+"–"+hi+"</b>"+(hi>dleft?' <span style="color:var(--bad)">— more than today\'s window, so it may stop early (your library is used to fill the rest).</span>':".")+(left<hi?' <a href="#" id="fpUp">See plans</a>':""); const u=$("fpUp"); if(u) u.addEventListener("click",e=>{ e.preventDefault(); closeModal(); if(window.xpOpenPlans) window.xpOpenPlans(); }); };
+      paint(); const fc=$("fpCount"); if(fc) fc.addEventListener("input",paint); }); }catch(e){}
     const ff=$("fpFree"); if(ff) ff.addEventListener("click",(e)=>{ e.preventDefault(); grab(); closeModal(); openPicker({brand:F.brandId,flow:F.flow,q:F.niche}); });
     $("fpBrand").addEventListener("change",()=>{ grab(); F.brandId=$("fpBrand").value; F.waveId=""; F.extra=scopeOf(); draw(); });
     document.querySelectorAll("[data-md]").forEach(x=>x.addEventListener("click",()=>{ grab(); F.mode=x.dataset.md; F.plats={}; F.needEmail=F.mode!=="communities"; if(F.mode==="communities") F.pay="free"; draw(); }));
@@ -6719,6 +6726,7 @@ function openProgressModal(){
    +'<p style="font-size:13px;line-height:1.6;margin:0 0 12px">The Alchemist checks your <b>inbox</b> for new replies and your <b>sent mail</b> for outreach you forgot to mark as sent, then leaves <b>suggestions</b> on the rows — you accept or dismiss each one. It never sends anything.</p>'
    +'<div class="statrow" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><div class="n">'+nSent+'</div><div class="l">awaiting reply</div></div><div class="stat"><div class="n">'+nReady+'</div><div class="l">ready to send</div></div><div class="stat"><div class="n">'+nRep+'</div><div class="l">in conversation</div></div></div>'
    +'<div class="field"><label>Look back to</label><input type="date" id="pgSince" value="'+esc(since)+'"></div>'
+   +'<div class="mini" style="margin:2px 0 8px">Uses AI credits: about '+Math.max(1,tracked.length)*5+'–'+Math.max(1,tracked.length)*10+' for '+tracked.length+' tracked contact'+(tracked.length===1?'':'s')+'. Running it once a day is plenty.</div>'
    +(canRun?'<div class="banner info" style="margin-top:8px"><span>🔒 Read-only. Claude reads the Gmail threads of your tracked contacts (uses your own Claude usage). Only the subject, a short quote and reply text are saved.</span></div>':'<div class="banner warn" style="margin-top:8px"><span>Inbox scanning isn’t switched on yet. <a href="#" id="pgConn">See Connections</a>. Until then, paste a reply into “Their reply” on any row and the Alchemist updates it.</span></div>')+'</div>'
    +'<div class="mfoot"><button class="btn" id="mCancel">Cancel</button>'+(canRun?'<button class="btn" id="pgQueue">Queue for later</button><button class="btn primary" id="pgGo">📬 Scan Gmail now</button>':'')+'</div>'); wireClose();
   const pc=document.getElementById("pgConn"); if(pc) pc.addEventListener("click",(e)=>{ e.preventDefault(); openConnections(); });
