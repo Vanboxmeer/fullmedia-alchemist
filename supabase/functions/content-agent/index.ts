@@ -39,7 +39,7 @@ const KP = "cq:";
 const CLAIM_MS = 15 * 60 * 1000;
 // networks Metricool takes for image posts (YouTube needs video; Pinterest needs a board so it is only sent when one is saved)
 const NETS: Record<string, string> = { instagram: "Instagram", facebook: "Facebook", x: "X (Twitter)", linkedin: "LinkedIn", tiktok: "TikTok", pinterest: "Pinterest" };
-// networks Claude can post to from a normal signed-in browser (TikTok photo posts and Pinterest boards are left to the user)
+// networks Claude can post to from a normal signed-in browser (TikTok photo posts are left to the user)
 const BROWSER_NETS: Record<string, { label: string; url: string }> = {
   instagram: { label: "Instagram", url: "https://www.instagram.com/ (use Create → Post)" },
   facebook: { label: "Facebook", url: "https://www.facebook.com/ (the page or profile named in expectAccount)" },
@@ -172,10 +172,10 @@ async function agentNext(sc: Scope) {
       if (done[n] || !BROWSER_NETS[n]) continue;
       const who = clean(acc[n], 160);
       if (!who) { missing.push(BROWSER_NETS[n].label); continue; }
-      posts.push({ network: n, label: BROWSER_NETS[n].label, openAt: BROWSER_NETS[n].url, expectAccount: who, text: g.text, ...(n === "pinterest" ? { note: "Pin to the board named: " + (boardOf(st, d.brand)) } : {}) });
+      posts.push({ network: n, label: BROWSER_NETS[n].label, openAt: BROWSER_NETS[n].url, expectAccount: who, text: g.text, ...(n === "pinterest" ? { note: "Pin to the board named: " + (boardOf(st, d.brand)), pin: pinOf(d, g.text, boardOf(st, d.brand)) } : {}) });
     }
     if (!posts.length) {
-      d.state = "needs_user"; d.reason = missing.length ? "Add the account for " + [...new Set(missing)].join(", ") + " in Claude automation, then Retry." : "Nothing left Claude can post here (TikTok and Pinterest are done by hand).";
+      d.state = "needs_user"; d.reason = missing.length ? "Add the account for " + [...new Set(missing)].join(", ") + " in Claude automation, then Retry." : "Nothing left Claude can post here.";
       await putDoc(sc.client, next.id, d); continue;
     }
     d.state = "claimed"; d.claimedAt = Date.now(); d.attempts = (d.attempts || 0) + 1; delete d.reason;
@@ -190,6 +190,7 @@ async function agentNext(sc: Scope) {
         "(4) before posting, look at the account's most recent posts; if one already starts with the same first line, do not post again, report posted with that post's link; " +
         "(5) the images are the user's own public image links listed in images. Do NOT download them with a shell, curl or any command line (those are blocked from these links and fail with 403). Get them into the composer through Chrome instead: open each image link in its own tab to check it loads; then in the composer tab use the javascript_tool to fetch each link, turn the response into a File, add the Files in the order given to a DataTransfer, set that on the composer's file input and fire a change event (or use the file upload tool if the site gives you one). Carousel / multiple images where the network allows it. If you cannot attach the images after one more try, report needs_user with the reason 'could not attach the images' and do not post without them; " +
         "(6) paste the text exactly as given (do not edit, shorten or add anything), post it, then open the new post and copy its live address; " +
+        "PINTEREST entries carry a pin object: in the pin creation page add the image, then fill Title = pin.title, Description = pin.description (exactly as given), Destination link = pin.link (if given), Alt text = pin.alt, choose the board named in pin.board (if that board does not exist, do NOT create one: report needs_user with the reason), and publish now (do not use the scheduling option). Copy the live pin address from the confirmation or the board. " +
         "(7) report with content_report_result results [{network, outcome: posted, link: the live post URL}]. A posted result without a real link is rejected. " +
         "Report each network as soon as it is done, not all at the end. If a step fails twice, report failed or needs_user with the plain reason and go on to the next network. " +
         "ALWAYS report: if you stop for any reason, call content_report_result for every network you did not finish (needs_user or failed, with the reason) BEFORE you reply to the user. Never leave a post without a report.",
@@ -298,6 +299,16 @@ async function userCtx(req: Request) {
   return { uid: u.user.id, client, brands: mine };
 }
 
+// Pinterest wants a search-friendly title (<=100), the caption as description (<=500), the destination link in the link box, alt text and a board
+function pinOf(d: any, text: string, board: string) {
+  const t = String(text || "").trim();
+  const first = (t.split(/\n+/).find((l) => l.trim()) || "").replace(/#\w+/g, "").replace(/\s+/g, " ").trim();
+  const title = clean(first || d.title, 100);
+  const desc = clean(t.replace(/\bhttps?:\/\/\S+/g, "").replace(/[ \t]+\n/g, "\n"), 500);
+  let link = clean(d.link, 300);
+  if (link && !/[?&]utm_/.test(link)) link += (link.includes("?") ? "&" : "?") + "utm_source=pinterest&utm_medium=pin&utm_content=" + encodeURIComponent(String(d.sku || ""));
+  return { title, description: desc, link: link || undefined, alt: clean((d.title ? d.title + ". " : "") + first, 480), board };
+}
 function boardOf(st: any, brand: string) { return clean((st.pinterestBoards || {})[brand], 80) || st.pinterestBoard || ""; }
 
 async function appStatus(client: string, brands: Set<string>) {
