@@ -121,6 +121,34 @@ export const STATIC_POSTS: { slug: string; title: string }[] = [
   "title": "Keep the conversation going: replies you approve, Claude sends"
  },
  {
+  "slug": "reach-pick-your-email-setup",
+  "title": "Pick your email setup: solo, agency or one per client"
+ },
+ {
+  "slug": "reach-connect-claude-gmail-step-by-step",
+  "title": "Connect Claude to Reach and Gmail: the setup, step by step"
+ },
+ {
+  "slug": "reach-one-mailbox-per-brand-run-order",
+  "title": "Run several brand mailboxes with Claude, one at a time"
+ },
+ {
+  "slug": "reach-inbox-sync-read-only-script",
+  "title": "See replies and bounces without giving Reach your mailbox"
+ },
+ {
+  "slug": "spf-dkim-dmarc-for-a-brand-domain",
+  "title": "SPF, DKIM and DMARC for a brand domain: GoDaddy, Vercel, Cloudflare"
+ },
+ {
+  "slug": "reach-web-forms-with-claude-in-chrome",
+  "title": "Let Claude fill contact forms for you: what it will and will not do"
+ },
+ {
+  "slug": "reach-linkedin-assist-prepare-never-send",
+  "title": "LinkedIn assist: Claude prepares, you press Send"
+ },
+ {
   "slug": "reach-send-as-each-brand-honest-guide",
   "title": "How to send as each brand: what works, what does not"
  },
