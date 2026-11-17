@@ -121,6 +121,10 @@ export const STATIC_POSTS: { slug: string; title: string }[] = [
   "title": "Keep the conversation going: replies you approve, Claude sends"
  },
  {
+  "slug": "we-used-reach-to-market-reach-case-study",
+  "title": "We used Reach to market Reach: 180 touches, no signups, and the new plan"
+ },
+ {
   "slug": "reach-pick-your-email-setup",
   "title": "Pick your email setup: solo, agency or one per client"
  },
