@@ -5564,6 +5564,26 @@ function brandPaneBar(active){ return '<div class="paneseg" role="tablist"><butt
 function addPaneBar(active){ const v=document.getElementById("view"); if(!v) return; v.insertAdjacentHTML("afterbegin",brandPaneBar(active)); v.querySelectorAll(".paneseg [data-pane]").forEach(b=>b.addEventListener("click",()=>goSection(b.dataset.pane))); }
 function renderOverview(brand){ renderOverview0(brand); addPaneBar("overview"); }
 function renderKnowledgePage(brand){ renderKnowledgePage0(brand); if(brand) addPaneBar("knowledge"); }
+/* 2026-11-17: shortcut for adding a brand email address (Google alias). Short steps, a prompt to hand to Claude, and the full guides. */
+function openAliasGuide(brand){
+  const nm=(brand&&brand.name)||"your brand", acct=(wsMeta().senderEmail||(ACCT&&ACCT.email)||"you@yourcompany.com");
+  const prompt="I am signed in to Google Admin in this browser. For my user "+acct+": add the user alias domain [brand domain] and show me the DNS records Google asks for, then add the alternate email name [hello] and check it appears in Gmail under Settings, Accounts and Import, Send mail as. If a screen asks for a password or a code, stop and tell me. Do not change anything else. When you are done, list exactly what you added.";
+  openModal('<div class="mhead"><div><h3>Give '+esc(nm)+' its own email address</h3><div class="ikstep">About ten minutes the first time, two for the rest</div></div><button class="iconbtn" id="mClose">&times;</button></div><div class="mbody">'
+    +'<div class="mini" style="margin-bottom:8px">One Google Workspace mailbox can send as every brand. Mail leaves from your own Gmail and replies come back to your inbox.</div>'
+    +'<ol style="margin:0 0 10px 18px;line-height:1.6;font-size:13px"><li><b>Own domain?</b> In Google Admin add it as a <i>user alias domain</i> (Account, Domains, Manage domains) and add the TXT and MX records Google shows at the domain&rsquo;s DNS host.</li>'
+    +'<li><b>Add the alias:</b> Directory, Users, your user, Alternate email addresses. Type the name, for example <code>hello</code>.</li>'
+    +'<li><b>Gmail:</b> it appears in the From list within about a day. If not: Settings, Accounts and Import, Send mail as, Add another email address, with &ldquo;Treat as an alias&rdquo; ticked.</li>'
+    +'<li><b>Authenticate the domain</b> (SPF, DKIM, DMARC) before real outreach.</li>'
+    +'<li><b>Here:</b> put your Google account in <i>Sending email</i> and the brand address in <i>Send-as alias</i>, then Save.</li></ol>'
+    +'<div class="section-title">Or let Claude do the clicking</div>'
+    +'<div class="mini" style="margin-bottom:6px">Sign in to Google Admin yourself first. Never give an assistant your password or a code.</div>'
+    +'<textarea id="agPrompt" rows="5" readonly style="width:100%;font-size:12.5px">'+esc(prompt)+'</textarea>'
+    +'<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><button class="btn small primary" id="agCopy" type="button">Copy the prompt</button>'
+    +'<a class="btn small" href="/blog/reach-connect-email-aliases-to-your-workspace/" target="_blank" rel="noopener">Full step-by-step guide</a>'
+    +'<a class="btn small" href="/blog/reach-sending-limits-and-extra-workspaces/" target="_blank" rel="noopener">Sending limits</a></div></div>', true);
+  wireClose();
+  const c=document.getElementById("agCopy"); if(c) c.addEventListener("click",()=>copyText(prompt));
+}
 /* 2026-11-10: one place for who messages come from. Workspace default on top, then each brand's own name / signature / sending email (blank = inherits the default). */
 function renderSenderPage(brand){
   const t=document.getElementById("pageTitle"), c=document.getElementById("pageCrumb"), a=document.getElementById("topActions"), v=document.getElementById("view");
@@ -5576,7 +5596,10 @@ function renderSenderPage(brand){
     +'<div style="margin-top:10px"><button class="btn small" id="snDef" type="button">Edit workspace default</button></div></div>';
   const rows=state.brands.map(b=>{ const own=!!((b.managerName||"").trim()||(b.managerSig||"").trim()||(b.outreachSender||"").trim()); const mail=(b.outreachSender||"").trim()||dMail;
     return '<tr data-sb="'+esc(b.id)+'" style="cursor:pointer"><td><b>'+esc(b.name)+'</b></td><td>'+esc(senderName(b)||"—")+'</td><td>'+esc(mail||"—")+'</td><td class="mini">'+(own?"Own settings":"Workspace default")+'</td></tr>'; }).join("");
-  const glance='<div class="briefcard" style="padding:16px;margin-top:14px"><div class="kbhead"><div class="kbtitle">All brands at a glance</div></div><div style="overflow-x:auto"><table class="oltable" style="width:100%"><thead><tr><th>Brand</th><th>Signs as</th><th>Sends from</th><th>Using</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="mini" style="margin-top:6px">Click a brand to edit it.</div></div>';
+  const mbx={}; state.brands.forEach(b=>{ const k=(((b.outreachSender||"").match(/[\w.+-]+@[\w.-]+\.\w+/)||[dMail])[0]||"").toLowerCase(); if(k) mbx[k]=(mbx[k]||0)+1; });
+  const crowded=Object.keys(mbx).filter(k=>mbx[k]>=4).sort((a,b)=>mbx[b]-mbx[a]);
+  const shareNote='<div class="mini" style="margin-top:6px">Brands that send from the same mailbox share its daily limit and its reputation.'+(crowded.length?' <b>'+esc(crowded[0])+' carries '+mbx[crowded[0]]+' brands.</b> About 3 brands per mailbox is a good ceiling, so consider a second mailbox for the heavier ones.':'')+' <a href="/blog/reach-sending-limits-and-extra-workspaces/" target="_blank" rel="noopener">Sending limits</a></div>';
+  const glance='<div class="briefcard" style="padding:16px;margin-top:14px"><div class="kbhead"><div class="kbtitle">All brands at a glance</div></div><div style="overflow-x:auto"><table class="oltable" style="width:100%"><thead><tr><th>Brand</th><th>Signs as</th><th>Sends from</th><th>Using</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="mini" style="margin-top:6px">Click a brand to edit it.</div>'+shareNote+'</div>';
   let form='';
   if(brand){
     form='<div class="briefcard" style="padding:16px"><div class="kbhead"><div class="kbtitle">Who messages for '+esc(brand.name)+' come from</div></div>'
@@ -5585,13 +5608,14 @@ function renderSenderPage(brand){
       +'<div class="row2"><div class="field"><label>Your name <span class="mini">(who signs this brand\'s messages)</span></label><input type="text" id="snName" value="'+esc(brand.managerName||"")+'" placeholder="'+esc(dName||"e.g. Sam Lee")+'"></div>'
       +'<div class="field"><label>Sending email <span class="mini">(the Google account its mail goes out from)</span></label><input type="text" id="snMail" value="'+esc(brand.outreachSender||"")+'" placeholder="'+esc(dMail||"you@yourcompany.com")+'"></div></div>'
       +'<div class="field"><label>Signature <span class="mini">(blank = this name + company, or the workspace signature)</span></label><textarea id="snSig" rows="3" placeholder="'+esc(dSig||"Name&#10;Company")+'">'+esc(brand.managerSig||"")+'</textarea></div>'
-      +'<div class="field"><label>Send-as alias <span class="mini">(only if this brand sends from an alias of that account)</span></label><input type="text" id="snAlias" value="'+esc(brand.sendAs||"")+'" placeholder="outreach@brand.com"></div>'
+      +'<div class="field"><label>Send-as alias <span class="mini">(only if this brand sends from an alias of that account)</span></label><input type="text" id="snAlias" value="'+esc(brand.sendAs||"")+'" placeholder="outreach@brand.com"><div class="mini" style="margin-top:4px">No alias yet? <a href="#" id="snAliasGuide">Add one, step by step</a></div></div>'
       +'<div class="field"><label>LinkedIn profile <span class="mini">(the account that does this brand\'s LinkedIn outreach'+(m0Li?"; blank uses the default":"")+')</span></label><input type="text" id="snLi" value="'+esc(brand.linkedinUrl||"")+'" placeholder="'+esc(m0Li||"https://www.linkedin.com/in/name")+'"></div>'
       +'<div style="display:flex;gap:8px;align-items:center"><button class="btn primary" id="snSave" type="button">Save</button><span class="mini" id="snMsg"></span></div></div>';
   } else form='<div class="briefcard" style="padding:16px"><div class="kbtitle" style="margin-bottom:6px">Pick a brand</div><div class="mini">Choose a brand in the list below, or from the brand switcher at the top, to set who its messages come from.</div></div>';
   v.innerHTML='<div class="pagewrap" style="max-width:860px">'+form+defCard+glance+'</div>';
   const q=id=>document.getElementById(id);
   if(q("snDef")) q("snDef").addEventListener("click",()=>openAccountModal());
+  if(q("snAliasGuide")) q("snAliasGuide").addEventListener("click",e=>{ e.preventDefault(); openAliasGuide(brand); });
   v.querySelectorAll("[data-sb]").forEach(r=>r.addEventListener("click",()=>{ state.currentBrandId=r.dataset.sb; setBrandNav(r.dataset.sb); state.top="brands"; state.currentSection="sender"; render(); }));
   if(q("snSave")) q("snSave").addEventListener("click",async()=>{ const g=id=>(q(id).value||"").trim(); const mail=g("snMail"); if(mail&&!/^[\w.+-]+@[\w.-]+\.\w+$/.test(mail)){ q("snMsg").textContent="That sending email doesn't look right."; return; } if(g("snLi")&&!/^https?:\/\/([a-z0-9-]+\.)?linkedin\.com\/in\/\S+/i.test(g("snLi"))){ q("snMsg").textContent="The LinkedIn profile should look like https://www.linkedin.com/in/your-name"; return; }
     const cn=g("snCall"); if(cn&&cn.length<2){ q("snMsg").textContent="That brand name is too short."; return; }
@@ -6378,7 +6402,7 @@ async function openAutomation(){
       return h+'</div>'; })()
     +'</details>';
   const brandStep='<div class="step"><h4><span class="n'+(nBrands?" ok":"")+'" id="auN1">'+(nBrands?"✓":"•")+'</span>Brands and limits <span class="sp"></span><span class="meta" id="aSaved"></span></h4><p>Claude only works on ticked brands. Changes save by themselves.</p>'+brandRows
-    +'<div class="lim"><label>Max sends per day<br><input type="number" id="aCap" min="1" max="40" value="'+S.dailyCap+'"></label><label>Pause between sends<br><select id="aGap"><option value="60">1 min</option><option value="120">2 min</option><option value="300">5 min</option><option value="600">10 min</option></select></label></div></div>';
+    +'<div class="lim"><label>Max sends per day<br><input type="number" id="aCap" min="1" max="40" value="'+S.dailyCap+'"></label><label>Pause between sends<br><select id="aGap"><option value="60">1 min</option><option value="120">2 min</option><option value="300">5 min</option><option value="600">10 min</option></select></label></div><div class="fine" style="margin-top:6px">Every brand that sends from the same Google account shares this limit, aliases included. Start at 10 a day and raise it slowly. <a href="/blog/reach-sending-limits-and-extra-workspaces/" target="_blank" rel="noopener">Sending limits</a></div></div>';
   const acctStep='<div class="step"><h4><span class="n'+(S.preflight&&S.sendFrom?" ok":"")+'" id="auNC">'+(S.preflight&&S.sendFrom?"✓":"!")+'</span>Right accounts <span class="sp"></span><span class="meta" id="auCM"></span></h4>'
     +'<div class="lim"><label>Send email from<br><input type="email" id="aFrom" placeholder="you@yourcompany.com" value="'+esc(S.sendFrom||"")+'" style="min-width:230px"></label></div>'
     +'<label class="chk" style="margin:6px 0"><input type="checkbox" id="aChk1"'+(S.preflight?" checked":"")+'><span>Claude’s Gmail is signed in as that exact address <small class="auh">If not, Claude stops and sends nothing.</small></span></label>'
