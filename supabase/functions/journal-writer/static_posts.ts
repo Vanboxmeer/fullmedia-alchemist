@@ -121,8 +121,12 @@ export const STATIC_POSTS: { slug: string; title: string }[] = [
   "title": "Keep the conversation going: replies you approve, Claude sends"
  },
  {
+  "slug": "reach-send-as-each-brand-honest-guide",
+  "title": "How to send as each brand: what works, what does not"
+ },
+ {
   "slug": "reach-connect-email-aliases-to-your-workspace",
-  "title": "How to give every brand its own email address in Reach"
+  "title": "Brand email addresses in Reach: what aliases can and cannot do"
  },
  {
   "slug": "reach-let-claude-set-up-your-aliases",
@@ -130,7 +134,7 @@ export const STATIC_POSTS: { slug: string; title: string }[] = [
  },
  {
   "slug": "reach-ten-brands-one-workspace",
-  "title": "Ten brands, ten addresses, one workspace"
+  "title": "Ten brands, one workspace"
  },
  {
   "slug": "reach-sending-limits-and-extra-workspaces",
