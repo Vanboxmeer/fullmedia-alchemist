@@ -123,8 +123,6 @@
     {name:'UPM',style:'Cyan on dark',look:'A tech-forward press platform with a dark scientific backdrop, cyan accents, and precise technical typography.',sw:['#0f172a','#22d3ee','#a855f7','#ffffff'],fonts:['Fraunces','IBM Plex Mono'],cards:[cc('CCB00741',1),cc('CCB00741',2)],alt:'UPM posts made by the Alchemist'}
   ];
   var CH=[
-    {orig:['brand-kits/02c310c0-4211-4744-a22d-ee1f84707e28/character-271b99e7781a.png','Watch Crypto’s dachshund','The mascot as uploaded'],
-     scenes:[[sc('CCB00743',1),'Skateboard'],[sc('CCB00743',3),'Ship’s wheel'],[sc('CCB00742',1),'Gold bars']]},
     {orig:['brand-kits/eadac1ef-3145-45fc-9b10-3660657cca29/character-ff41fa9fc036.png','The Alchemist himself','The mascot as uploaded'],
      scenes:[[sc('CCB00737',1),'Market square'],[sc('CCB00737',2),'The library'],[sc('CCB00737',3),'Skate ramp']]}
   ];
