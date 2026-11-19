@@ -261,8 +261,10 @@ function toHtml(text: string, trk: Record<string, { href: string; text?: string 
     try { const U = new URL(href); if (/(^|\.)fullmediaalchemist\.com$/i.test(U.hostname) && !U.searchParams.has("utm_source")) { U.searchParams.set("utm_source", "reach"); U.searchParams.set("utm_medium", "email"); U.searchParams.set("utm_campaign", "outreach"); href = U.toString(); } } catch (_e) { /* keep as is */ }
     // the brand's own tracked link (tagged and/or short, set by the user in Brand settings), prepared before this runs
     const t = trk[u] || trk[href];
-    if (t) return '<a href="' + t.href + '">' + (t.text || u.replace(/^https?:\/\//i, "")) + "</a>" + tail;
-    return '<a href="' + href + '">' + u.replace(/^https?:\/\//i, "") + "</a>" + tail;
+    if (t) return '<a href="' + t.href + '">' + (t.text || u.replace(/^https?:\/\//i, "").replace(/^www\./i, "").split(/[?#]/)[0].replace(/\/+$/, "")) + "</a>" + tail;
+    // show a clean address (no query string, no www) while the link behind it keeps its tags
+    let shown = u.replace(/^https?:\/\//i, "").replace(/^www\./i, "").split(/[?#]/)[0].replace(/\/+$/, ""); if (shown.length > 40) shown = shown.split("/")[0];
+    return '<a href="' + href + '">' + shown + "</a>" + tail;
   };
   const re = /(?<![@\w.\/-])((?:https?:\/\/)?(?:www\.)?[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|co|ai|app|media|uk|ca|dev|me|us)(?:\/[^\s<]*)?)/gi;
   return '<div dir="auto">' + esc(text).replace(re, link).replace(/\r?\n/g, "<br>") + "</div>";

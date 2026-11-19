@@ -5655,9 +5655,17 @@ function brandKnowledgeFields(b){
    IN-APP AGENT — drafting, revising and reply analysis via the `sample` capability.
    It only works from facts on the row. It cannot browse; research is a queued request.
    ===================================================================== */
+/* Deterministic link cleaner: a draft never carries a full or tagged web address. https://www.x.com/?utm_... -> x.com ; long paths -> host only. Tracking is added at send time. */
+function tidyLinks(t){
+  t=String(t==null?"":t);
+  const short=u=>{ let tail=(u.match(/[.,;:!?)\]]+$/)||[""])[0]; let core=tail?u.slice(0,-tail.length):u; try{ const U=new URL(/^https?:\/\//i.test(core)?core:"https://"+core); let h=U.hostname.replace(/^www\./i,""); let path=U.pathname.replace(/\/+$/,""); if(path.length>28||path.split("/").length>3) path=""; return h+path+tail; }catch(e){ return u; } };
+  return t.replace(/\bhttps?:\/\/[^\s<>"]+/gi,short).replace(/\b(?:www\.)?[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|co|ai|app|media|uk|ca|dev|me|us)\/?\?[^\s<>"]+/gi,short);
+}
 const AGENT_RULES=[
  "Outreach rules (hard):",
  "- Plain text only: no images, tracking or attachments. No links, except where the campaign instructions below allow the brand's own link once.",
+ "- LINKS: never write a full web address. No https://, no www., no ? or utm_ parts, no long paths. If a link is allowed, write only the bare domain (for example fullmediaalchemist.com), once, in a sentence a person would write. Tracking is added automatically when the message is sent, so never add it yourself.",
+ "- WRITING: say why you are writing in the first sentence. Short plain sentences, one idea each, like one person writing to another. Be specific about what you are asking and what they get. End with one clear, easy question or next step. Banned: 'I hope this finds you well', 'reaching out', 'touch base', 'just wanted to', 'revolutionary', 'game-changing', 'cutting-edge', 'seamless', 'leverage', 'unlock', 'supercharge', exclamation marks, emoji. Read it back and cut every sentence that does not help them decide.",
  "- Use the agency and brand names exactly as given in the writing instruction. Never expand, shorten or change them.",
  "- Never mention any former or previous name of a brand or product (for example \"Content Conveyor Belt\"). Use only the current name.",
  "- Never invent facts, numbers, names, prices or reasons. If something isn't supplied below, leave it out.",
@@ -5686,7 +5694,7 @@ function notesBlock(d){ const b=brandById(d.brandId)||{}; const L=dnList(b).filt
 function campaignBlock(d){ return campaignBlock0(d)+notesBlock(d); }
 function lastSentOf(d){ const l=(d.sentLog||[]).slice(-1)[0], ph=phaseOf(d); if(l&&(ph==="sent"||ph==="replied"||ph==="deal")) return {subject:l.subject||d.sentSubject||d.subject||"",body:l.body||""}; return {subject:d.subject||"",body:d.draft||""}; }
 function campaignBlock0(d){ const w=waveOf(d), b=brandById(d.brandId)||{}; if(!organicOf(d)&&!(w.message||"").trim()) return "";
-  return "\n\nCAMPAIGN INSTRUCTIONS ("+(w.name||"this campaign")+")\n"+(organicOf(d)?"This is an ORGANIC campaign: the client has no paid budget this round. Never ask for rates or offer payment or sponsorship. You may name the project.\n":"")+((w.message||"").trim()?"Campaign message"+(w.messageAt?" (status as of "+new Date(w.messageAt).toISOString().slice(0,10)+")":"")+" — the ONLY source for project status/news you may state, say it in your own plain words, never present it as older or newer than its date:\n"+w.message.trim()+"\n":"")+(organicOf(d)&&b.officialSite?"You may include the project's link once, as plain text: "+b.officialSite+"\n":""); }
+  return "\n\nCAMPAIGN INSTRUCTIONS ("+(w.name||"this campaign")+")\n"+(organicOf(d)?"This is an ORGANIC campaign: the client has no paid budget this round. Never ask for rates or offer payment or sponsorship. You may name the project.\n":"")+((w.message||"").trim()?"Campaign message"+(w.messageAt?" (status as of "+new Date(w.messageAt).toISOString().slice(0,10)+")":"")+" — the ONLY source for project status/news you may state, say it in your own plain words, never present it as older or newer than its date:\n"+w.message.trim()+"\n":"")+(organicOf(d)&&b.officialSite?"You may include the project's link once, as the bare domain only: "+tidyLinks(b.officialSite)+"\n":""); }
 function voiceOf(d){ const b=brandById(d.brandId)||{}; const client=(d.ownerType||"").startsWith("Client");
   if(isCommunity(d)){ const sn=senderName(b); return "Write as a real person connected to "+brandCall(b)+", posting in a community. Human and transparent, no marketing voice. "+(sn?"The sender's name is exactly \""+sn+"\": if you sign off, sign off with exactly that name. Never use any other personal name.":"No sender name is set: do NOT sign with any personal name and do NOT invent one."); }
   const SN=senderName(b), AG=agencyName(), BC=brandCall(b)||"our product", who=SN+(AG?" from "+AG:""), nm=" Always call the agency exactly \""+(AG||"the agency")+"\" and the brand exactly \""+BC+"\"; never expand or rename them. Never use any other name for the brand, including any name shown elsewhere in the instructions.";
@@ -5716,6 +5724,7 @@ async function runSample(prompt,tier,onStatus){
   const gap=o=>GAP_RE.test(String((o&&o.subject)||"")+"\n"+String((o&&o.body)||""));
   let out=await aiJson(prompt,{tier:tier||"quick",cache:false,feature:"draft"});
   if(gap(out)){ out=await aiJson(prompt+"\n\nIMPORTANT: your last answer contained a [bracket] or placeholder. The message must be ready to send exactly as written. Rewrite it with no square brackets or placeholders; if a fact is missing, leave that sentence out.",{tier:tier||"quick",cache:false,feature:"draft"}); if(gap(out)) throw {code:"gaps",message:"the Alchemist left a gap in the draft — try again"}; }
+  if(out&&typeof out.body==="string") out.body=tidyLinks(out.body);
   return out;
 }
 const agentBusy=new Set(); const pendingDraft=new Set(); /* rows whose first draft is still being written by a Find run */
