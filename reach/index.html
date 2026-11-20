@@ -1067,7 +1067,7 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
   var CFG = (window.REACH_CONFIG = window.REACH_CONFIG || {});
   if (CFG.url) SB_URL = CFG.url; if (CFG.key) SB_KEY = CFG.key;
   var AI_URL = SB_URL + "/functions/v1/reach-ai";
-  var PAGE = 1000, POLL_MS = 20000;
+  var PAGE = 1000, POLL_MS = 60000, POLL_MAX = 300000;   /* each refresh re-reads a whole collection, so check once a minute and back off to every 5 minutes while nothing changes */
 
   /* The Fullmedia Alchemist dashboard keeps its login in localStorage "ccb-session" ({access_token, refresh_token, expires_at(ms), email}).
      Reach reuses it, so one login covers both. If the token is about to expire, it is refreshed here and written back in the same shape. */
@@ -1287,6 +1287,7 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
       });
       s.cache.forEach(function (v, id) { if (!seen.has(id)) { changes.push({ type: "removed", doc: { id: id } }); s.cache.delete(id); } });
       s.loaded = true;
+      s.quiet = changes.length ? 0 : Math.min((s.quiet || 0) + 1, 6);
       if (first || changes.length) emit(name, changes);
     }).catch(function (e) { s.cbs.forEach(function (c) { if (c.err) try { c.err(e); } catch (x) {} }); })
       .then(function () { s.busy = false; });
@@ -1297,7 +1298,8 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
     var snap = { docs: docs, size: docs.length, docChanges: function () { return changes; } };
     s.cbs.slice().forEach(function (c) { try { c.cb(snap); } catch (e) { console.warn("snapshot cb", e); } });
   }
-  document.addEventListener("visibilitychange", function () { if (!document.hidden) Object.keys(S).forEach(function (n) { if (S[n].cbs.length) poll(n); }); });
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) Object.keys(S).forEach(function (n) { if (S[n].cbs.length) { S[n].quiet = 0; poll(n); } }); });
+  function schedule(name) { var s = st(name); clearTimeout(s.t); s.t = setTimeout(function () { (document.hidden ? Promise.resolve() : poll(name)).then(function () { schedule(name); }); }, Math.min(POLL_MAX, Math.round(POLL_MS * Math.pow(1.5, s.quiet || 0)))); }
 
   function onSnapshot(name, cb, err) {
     var m = MAP[name];
@@ -1306,7 +1308,7 @@ body.clientmode #alcBtn,body.clientmode #bellBtn{display:none}
     s.cbs.push(c);
     if (m.none) { setTimeout(function () { cb({ docs: [], size: 0, docChanges: function () { return []; } }); }, 0); return function () {}; }
     if (s.loaded) setTimeout(function () { emit(name, []); }, 0); else poll(name);
-    if (!s.timer) s.timer = setInterval(function () { if (!document.hidden) poll(name); }, POLL_MS);
+    if (!s.timer) { s.timer = 1; schedule(name); }
     return function () { s.cbs = s.cbs.filter(function (x) { return x !== c; }); };
   }
 

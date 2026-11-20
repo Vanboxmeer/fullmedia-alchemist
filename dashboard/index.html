@@ -8818,7 +8818,7 @@ function openAutoSchedule(campaignId, preset) {
     } catch (e) { s.msg(e.message, 'err'); $('#caSend', el).disabled = false; }
   };
   load();
-  const tick = setInterval(() => { if (!live || !el.isConnected) { clearInterval(tick); return; } load(); }, 20000);
+  const tick = setInterval(() => { if (!live || !el.isConnected) { clearInterval(tick); return; } if (document.hidden) return; load(); }, 60000);
 }
 
 </script>
