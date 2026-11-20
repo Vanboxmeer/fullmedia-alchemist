@@ -1,5 +1,17 @@
 // Topic bank for journal-writer. Each call takes the first topic whose key is not yet used. When this runs out the model chooses new topics itself.
 export const TOPICS: { key: string; cat: string; brief: string }[] = [
+  { key: 'choose-a-social-media-tool-checklist', cat: 'playbook', brief: 'How to choose a social media tool as a small brand or agency: a seven-question checklist (who approves, how many brands, where facts come from, what it costs when you stop). Criteria only, no named products.' },
+  { key: 'restaurant-cafe-social-week', cat: 'playbook', brief: 'A week of social posts for a restaurant or cafe: seven post ideas built from real things only the owner knows (the menu, the regulars, the kitchen), with caption starters.' },
+  { key: 'real-estate-agent-social-calendar', cat: 'playbook', brief: 'A simple social calendar for a real estate agent: listing posts, neighbourhood posts, and trust posts, with a weekly rhythm. General guidance, no legal advice about advertising rules.' },
+  { key: 'fitness-studio-content-ideas', cat: 'playbook', brief: 'Content ideas for a gym, yoga or fitness studio: member stories (with permission), class previews, coach tips, and what to avoid saying about results.' },
+  { key: 'brand-facts-sheet-template', cat: 'playbook', brief: 'A one-page brand facts sheet any AI or freelancer can write from: what you do, who for, tone words, never-say list, proof you can show. Include the template.' },
+  { key: 'let-claude-draft-your-outreach', cat: 'reach', brief: 'How to let your own Claude draft outreach emails from brand facts, review them yourself, and send only the ones you approved. A calm walkthrough of the review step.' },
+  { key: 'cold-email-form-or-dm', cat: 'reach', brief: 'Cold email, contact form or direct message: how to choose the right door for each prospect and how the message changes for each.' },
+  { key: 'three-touch-follow-up-sequence', cat: 'reach', brief: 'A three-touch follow-up sequence for outreach (first note, day-four nudge, last light check-in) with wording and when to stop.' },
+  { key: 'free-directories-for-a-new-tool', cat: 'reach', brief: 'How to get a new tool listed on free directories and roundup guides: where to look, what a listing kit contains, how to ask politely, and why to skip paid placements.' },
+  { key: 'utm-links-for-social-posts', cat: 'playbook', brief: 'How to tag links in social posts and outreach so you can see which post sent the click: a simple naming scheme for source, medium and campaign.' },
+  { key: 'build-in-public-weekly-posts', cat: 'playbook', brief: 'Build in public: a weekly posting format for founders sharing real progress, mistakes and small numbers they actually have, without hype.' },
+  { key: 'first-ten-customers-outreach-plan', cat: 'reach', brief: 'A plan for finding your first ten customers through outreach: list building, a short first message, follow-ups, and a simple tracker. Honest about how slow it can be.' },
   { key: 'captions-that-sound-like-you', cat: 'playbook', brief: 'How to write social media captions that sound like you and not like a robot: voice words, real details, editing passes.' },
   { key: 'local-business-social-ideas', cat: 'playbook', brief: 'What a local business (cafe, salon, shop, trades) should post on social media each week, with concrete examples.' },
   { key: 'posts-people-save', cat: 'playbook', brief: 'A simple three-part structure for posts people save and share: promise, proof, next step.' },

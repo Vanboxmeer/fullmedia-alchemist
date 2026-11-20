@@ -23,7 +23,7 @@ const FACTS = `VERIFIED PRODUCT FACTS (the only things you may say about the pro
 - Posts come from your brand facts and your own pages; the Alchemist is built not to invent facts. You can ask for posts from your latest blog posts (1 post = the newest article, 3 posts = the newest three), or paste a link for each post.
 - Campaigns hold a goal and dates. Voice input and hands-free mode exist. Brand settings hold logos, characters, colours and the news or blog page.
 - Free plan: 30 credits a month in Content. Reach free plan: 150 AI credits to try.
-- Reach: finds creators and media, partnership and client contacts, and free communities (it reads each community's rules and drops places that ban promotion). A workbench table holds every prospect with status, a priority score and follow-up dates. Reach drafts messages from your brand facts, you edit them and send them yourself (copy, or open in your own Gmail). Nothing is ever sent for you. A Stalled tab lists quiet deals, with snooze, skip-this-step and stop-follow-ups, plus a verify checklist before money or access changes hands.
+- Reach: finds creators and media, partnership and client contacts, and free communities (it reads each community's rules and drops places that ban promotion). A workbench table holds every prospect with status, a priority score and follow-up dates. Reach drafts messages from your brand facts and you review and approve them. You can send them yourself (copy, or open in your own Gmail), or let your own Claude send the ones you approved from your own mail account, one at a time. Nothing is sent that you did not approve. A Stalled tab lists quiet deals, with snooze, skip-this-step and stop-follow-ups, plus a verify checklist before money or access changes hands.
 DO NOT claim: automatic posting to networks, analytics integrations, specific paid prices, customer numbers, awards, rankings, comparisons with named competitors, guaranteed results.`;
 
 const SYSTEM = `You write one article for The Alchemist's Journal, the blog of Fullmedia Alchemist, to bring small brands, solo founders, agencies, creators and community managers to the site through search and sharing.
@@ -108,9 +108,19 @@ function problems(title: string, dek: string, body: string): string[] {
   return out;
 }
 
-const CTA = (cat: string) => cat === 'reach'
-  ? '<div class="endcta"><div class="circle " aria-hidden="true"><span class="glow"></span><img class="ring" src="/assets/logo-mark.svg" alt=""></div><div><h3>Keep your outreach organised.</h3><p>Reach has a free plan with 150 AI credits to try. Nothing is sent without you.</p></div><a class="btn btn-gold" href="/reach/">Try Reach free</a></div>'
-  : '<div class="endcta"><div class="circle " aria-hidden="true"><span class="glow"></span><img class="ring" src="/assets/logo-mark.svg" alt=""></div><div><h3>Turn your brand into a week of posts.</h3><p>The Free plan includes 30 credits a month. No card.</p></div><a class="btn btn-gold" href="/dashboard/">Start free</a></div>';
+const UTM = (slug: string, pos: string) => `?utm_source=blog&utm_medium=${pos}&utm_campaign=${slug.slice(0, 50)}`;
+const MARK = '<div class="circle " aria-hidden="true"><span class="glow"></span><img class="ring" src="/assets/logo-mark.svg" alt=""></div>';
+const CTA = (cat: string, slug = 'journal') => cat === 'reach'
+  ? `<div class="endcta">${MARK}<div><h3>Keep your outreach organised.</h3><p>Reach has a free plan with 150 AI credits to try. Nothing is sent without you.</p></div><a class="btn btn-gold" href="/reach/${UTM(slug, 'endcta')}">Try Reach free</a></div>`
+  : `<div class="endcta">${MARK}<div><h3>Turn your brand into a week of posts.</h3><p>The Free plan includes 30 credits a month. No card.</p></div><a class="btn btn-gold" href="/dashboard/${UTM(slug, 'endcta')}">Start free</a></div>`;
+// a short signup box before the third section, so readers who never reach the end still see it
+const MID = (cat: string, slug: string) => cat === 'reach'
+  ? `<div class="callout"><img src="/assets/logo-mark.svg" alt=""><b>Want this handled for your brands?</b><p>Reach finds the right prospects, drafts each message from your brand facts, and keeps every reply in one place. <a href="/reach/${UTM(slug, 'midcta')}">Try Reach free</a>, no card.</p></div>`
+  : `<div class="callout"><img src="/assets/logo-mark.svg" alt=""><b>Want this written for your brand?</b><p>Fullmedia Alchemist drafts posts from your own website and brand facts, so nothing is made up. <a href="/dashboard/${UTM(slug, 'midcta')}">Start free</a>, no card.</p></div>`;
+function withMid(body: string, cat: string, slug: string) {
+  let idx = -1; for (let n = 0; n < 3; n++) { idx = body.indexOf('<h2>', idx + 1); if (idx < 0) return body; }
+  return body.slice(0, idx) + MID(cat, slug) + body.slice(idx);
+}
 
 async function callClaude(user: string): Promise<{ title: string; dek: string; tag: string; cat: string; read_minutes: number; body_html: string; slug: string } | { error: string }> {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -197,7 +207,7 @@ Deno.serve(async (req) => {
   const cat = art.cat === 'reach' ? 'reach' : 'playbook';
   const row = {
     slug, title: art.title, dek: art.dek, tag: ['Playbook', 'Reach', 'Guide'].includes(art.tag) ? art.tag : 'Playbook', cat,
-    body: art.body_html + CTA(cat), read_label: `${Math.min(8, Math.max(3, Number(art.read_minutes) || 5))} min read`,
+    body: withMid(art.body_html, cat, slug) + CTA(cat, slug), read_label: `${Math.min(8, Math.max(3, Number(art.read_minutes) || 5))} min read`,
     topic_key: topic ? topic.key : 'free-' + slug, published_at: today, status: 'published', model: MODEL,
   };
   const { error: e1 } = await db.from('journal_posts').insert(row);
