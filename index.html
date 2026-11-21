@@ -607,6 +607,7 @@ html body .trysec .ts-next{border-top:1px solid #2a3126;padding:16px 16px 18px;d
 html body .trysec .ts-next p{margin:0;font-size:13.5px;line-height:1.5;color:#cfc8b6}
 html body .trysec .ts-next .ts-row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 html body .trysec .ts-next a.ts-go{display:inline-flex;border-radius:10px;padding:11px 18px;font-weight:600;font-size:14.5px;text-decoration:none;color:#241a06;background:linear-gradient(180deg,#f0b452,#e19a2c)}
+html body .trysec .ts-next .ts-row a:not(.ts-go){color:#cfc8b6;text-decoration:underline;font-size:13.5px}
 html body .trysec .ts-next button{background:none;border:0;color:#cfc8b6;text-decoration:underline;font:inherit;font-size:13.5px;cursor:pointer;padding:0}
 @media(max-width:860px){html body .trysec .ts-wrap{grid-template-columns:1fr;gap:30px}html body .trysec .ts-out{min-height:0}html body .trysec{padding:56px 16px}}
 @media (prefers-reduced-motion:reduce){html body .trysec .ts-busy img,html body .trysec .ts-post{animation:none}}
@@ -1437,7 +1438,11 @@ html body .trysec .ts-next button{background:none;border:0;color:#cfc8b6;text-de
     var next = el('div', 'ts-next');
     next.appendChild(el('p', '', 'A free sample from one page. Start free and the Alchemist learns your whole brand, adds your mascot, photos and QR code, and keeps the posts coming.'));
     var row = el('div', 'ts-row');
-    var go = el('a', 'ts-go', 'Start free'); go.href = '/dashboard/'; go.setAttribute('data-cta', 'try-start'); row.appendChild(go);
+    var go = el('a', 'ts-go', 'Save it and start free'); go.href = '/dashboard/'; go.setAttribute('data-cta', 'try-start'); row.appendChild(go);
+    var cp = el('button', '', 'Copy caption'); cp.type = 'button';
+    cp.onclick = function () { var t = (d.caption || '') + ((d.hashtags || []).length ? '\n\n' + d.hashtags.join(' ') : ''); try { navigator.clipboard.writeText(t).then(function () { cp.textContent = 'Copied'; setTimeout(function () { cp.textContent = 'Copy caption'; }, 2000); }, function () { cp.textContent = 'Select and copy it above'; }); } catch (e) { cp.textContent = 'Select and copy it above'; } };
+    row.appendChild(cp);
+    if (real) { var dl = el('a', '', 'Download the picture'); dl.href = real; dl.download = 'sample-post.png'; dl.setAttribute('role', 'button'); row.appendChild(dl); }
     var again = el('button', '', 'Try another page'); again.type = 'button'; again.onclick = function () { var i = form.querySelector('input[name=url]'); i.value = ''; i.focus(); }; row.appendChild(again);
     next.appendChild(row); post.appendChild(next);
     out.appendChild(post);
