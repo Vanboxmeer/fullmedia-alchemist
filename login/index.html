@@ -99,7 +99,7 @@ input:focus{outline:none;border-color:var(--gold)}input::placeholder{color:#6f78
 .more{display:block;text-align:center;font-size:13px;color:var(--gold);margin-top:14px;text-decoration:none}.more:hover{text-decoration:underline}.more[hidden]{display:none}
 .legal{margin-top:20px;font-size:12px;color:#6f786a;text-align:center}.legal a{color:var(--gold)}
 .gbtn{display:flex;gap:10px}.gbtn svg{width:18px;height:18px}
-</style></head><body>
+</style><script src="/assets/fma-analytics.js" defer></script></head><body>
 <main class="card">
 <div class="lg"><a href="/" aria-label="Fullmedia Alchemist home"><img src="/assets/logo-mark.svg" alt="" width="28" height="28"></a></div>
 <h1>Fullmedia <em style="color:var(--gold)">Alchemist</em></h1>
@@ -161,7 +161,7 @@ fetch(SB+"/auth/v1/token?grant_type=password",{method:"POST",headers:{apikey:KEY
 if(!x.ok||!x.j.access_token){msg(x.j.error_description||x.j.msg||"That did not work. Check your email and password.");return}
 localStorage.setItem("ccb-session",JSON.stringify({access_token:x.j.access_token,refresh_token:x.j.refresh_token,expires_at:(x.j.expires_at||Math.floor(Date.now()/1000)+(x.j.expires_in||3600))*1000,email:em}));pend();location.replace(nx)}).catch(function(){go.disabled=false;msg("Could not reach the server. Try again.")});return}
 msg("Sending…",1);pend();
-fetch(SB+"/auth/v1/otp?redirect_to="+encodeURIComponent(location.origin+nx),{method:"POST",headers:{apikey:KEY,"content-type":"application/json"},body:JSON.stringify(sec({email:em,create_user:true}))}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){return{ok:r.ok,j:j}})}).then(function(x){go.disabled=false;tsReset();
+fetch(SB+"/auth/v1/otp?redirect_to="+encodeURIComponent(location.origin+nx),{method:"POST",headers:{apikey:KEY,"content-type":"application/json"},body:JSON.stringify(sec({email:em,create_user:true,data:{signup_app:"alchemist",fma_sid:(function(){try{return sessionStorage.getItem("fma-sid")||""}catch(e){return ""}})()}}))}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){return{ok:r.ok,j:j}})}).then(function(x){go.disabled=false;tsReset();
 if(x.ok)msg("Check your inbox for the sign-in link.",1);else msg(/rate limit/i.test(JSON.stringify(x.j))?"Too many sign-in emails were sent just now. Wait a while, or use Google or a password.":(x.j.msg||x.j.error_description||"Could not send the link."))}).catch(function(){go.disabled=false;msg("Could not reach the server. Try again.")})});
 })();
 </script></body></html>
