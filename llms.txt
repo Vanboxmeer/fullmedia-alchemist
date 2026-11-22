@@ -95,3 +95,7 @@
 - Grounded by design: why the Alchemist won't make things up about you: https://www.fullmediaalchemist.com/blog/grounded-by-design/ (An invented detail in one post becomes the grounding for every post after it. So the rules are checked in code, not just asked for.)
 - The Knowledge Base: he learns from what actually worked: https://www.fullmediaalchemist.com/blog/knowledge-base-and-results/ (Approvals, redo notes and live results all feed one knowledge base per brand, which the Alchemist reads before every new batch.)
 - Equivalent exchange: credits, models and the six-hour window: https://www.fullmediaalchemist.com/blog/equivalent-exchange-credits/ (How credits work, what the Fast, Pro and Max models cost, and why every plan has an allowance per six hours.)
+
+## About
+- Who makes it, how the Journal is written, and contact details: https://www.fullmediaalchemist.com/about/
+- Journal (playbooks, Reach outreach, product notes): https://www.fullmediaalchemist.com/blog/

@@ -18,6 +18,18 @@ const fdate = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); r
 const jsonLd = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
 const hash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
 const today = () => new Date().toISOString().slice(0, 10);
+const SUFFIX = ' · Fullmedia Alchemist';
+// Keep the <title> near 60 characters so Google does not cut it: add the brand only when it fits.
+const seoTitle = (t) => { const x = plain(t); if (x.length + SUFFIX.length <= 62) return x + SUFFIX; if (x.length <= 62) return x; const cut = x.slice(0, 59); return cut.slice(0, cut.lastIndexOf(' ')) + '...'; };
+const AUTHOR = { '@type': 'Person', name: 'Brad', jobTitle: 'Founder', url: 'https://www.fullmediaalchemist.com/about/', worksFor: { '@type': 'Organization', name: 'Fullmedia Alchemist', url: 'https://www.fullmediaalchemist.com/' } };
+// Turns the "Questions we get" block (<p><b>Question?</b> Answer</p>) into FAQ markup.
+function faqFrom(body) {
+  const i = body.indexOf('Questions we get'); if (i < 0) return null;
+  const seg = body.slice(i).split('<div class="endcta">')[0];
+  const out = []; const re = /<p><b>([^<]+\?)<\/b>\s*([^<]+(?:<[^>]+>[^<]*)*?)<\/p>/g; let m;
+  while ((m = re.exec(seg))) out.push({ '@type': 'Question', name: plain(m[1]), acceptedAnswer: { '@type': 'Answer', text: plain(m[2]) } });
+  return out.length ? { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: out } : null;
+}
 
 async function rest(query) {
   const ctl = new AbortController();
@@ -114,22 +126,25 @@ async function pagePost(res, slug) {
   for (const x of pool) { if (pick.length >= 3) break; if (!pick.includes(x)) pick.push(x); }
   const more = '<section class="more"><div class="wrap"><h2>More from the Journal</h2><div class="cards three">' + pick.map(cardOf).join('') + '</div></div></section>';
   const url = SITE + '/blog/' + p.slug + '/';
-  const t = plain(p.title) + ' · Fullmedia Alchemist';
+  const t = seoTitle(p.title);
   const desc = plain(p.dek);
+  const modified = String(row.updated_at || p.date).slice(0, 10);
+  const crumbs = jsonLd({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: SITE + '/' }, { '@type': 'ListItem', position: 2, name: "The Alchemist's Journal", item: SITE + '/blog/' }, { '@type': 'ListItem', position: 3, name: plain(p.title), item: url }] });
+  const faq = faqFrom(row.body); const faqTag = faq ? '\n<script type="application/ld+json">' + jsonLd(faq) + '</script>' : '';
   const ld = jsonLd({ '@context': 'https://schema.org', '@type': 'BlogPosting', headline: plain(p.title), description: desc, image: SITE + (p.og === 'reach' ? '/assets/og-reach.jpg' : '/assets/og-main.jpg'),
-    datePublished: p.date, dateModified: p.date, url, mainEntityOfPage: url, articleSection: CAT_NAME[p.cat],
-    author: { '@type': 'Organization', name: 'Fullmedia Alchemist' }, publisher: { '@type': 'Organization', name: 'United Press Media', url: 'https://unitedpress.media' } });
+    datePublished: p.date, dateModified: modified, url, mainEntityOfPage: url, articleSection: CAT_NAME[p.cat],
+    author: AUTHOR, wordCount: plain(row.body).split(/\s+/).length, publisher: { '@type': 'Organization', name: 'United Press Media', url: 'https://unitedpress.media' } });
   const main = '<article>\n  <div class="narrow post-head"><a class="eyebrow" href="/blog/" style="text-decoration:none">The Alchemist\'s Journal · ' + esc(p.tag) + '</a><h1>' + titleHtml(p.title) + '</h1><p class="dek">' + esc(p.dek) + '</p>\n' +
-    '    <div class="byline"><span class="av" style="background-image:url(\'https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/content-calendar/platform-brand/assistant-wave.png?width=256&amp;height=384&amp;resize=contain&amp;quality=85\')"></span><span><b>The Alchemist</b><br>' + fdate(p.date) + ' · ' + esc(p.read) + '</span></div></div>\n' +
+    '    <div class="byline"><span class="av" style="background-image:url(\'https://tpqvvrdglnsdljdpzwfl.supabase.co/storage/v1/render/image/public/wheel-assets/content-calendar/platform-brand/assistant-wave.png?width=256&amp;height=384&amp;resize=contain&amp;quality=85\')"></span><span><b><a href="/about/" style="color:inherit;text-decoration:none">Brad, founder</a></b><br>Published ' + fdate(p.date) + (modified > p.date ? ' · Updated ' + fdate(modified) : '') + ' · ' + esc(p.read) + '</span></div></div>\n' +
     '  <div class="cover">' + thumbFor(p.slug) + '</div>\n  <div class="narrow prose">\n' + row.body + '\n  </div>\n</article>\n' + more;
-  send(res, 200, shell(t, desc, url, ogMeta(t, desc, url, 'article', p.og) + '\n<script type="application/ld+json">' + ld + '</script>', main));
+  send(res, 200, shell(t, desc, url, ogMeta(t, desc, url, 'article', p.og) + '\n<script type="application/ld+json">' + ld + '</script>\n<script type="application/ld+json">' + crumbs + '</script>' + faqTag, main));
 }
 
 async function pageSitemap(res) {
   let rows = [];
-  try { rows = await rest('select=slug,published_at&' + PUB() + '&order=published_at.desc&limit=5000'); } catch (e) { /* empty sitemap is fine */ }
+  try { rows = await rest('select=slug,published_at,updated_at&' + PUB() + '&order=published_at.desc&limit=5000'); } catch (e) { /* empty sitemap is fine */ }
   const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-    rows.map((r) => '  <url><loc>' + SITE + '/blog/' + r.slug + '/</loc><lastmod>' + String(r.published_at).slice(0, 10) + '</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>').join('\n') + '\n</urlset>\n';
+    rows.map((r) => '  <url><loc>' + SITE + '/blog/' + r.slug + '/</loc><lastmod>' + String(r.updated_at || r.published_at).slice(0, 10) + '</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>').join('\n') + '\n</urlset>\n';
   send(res, 200, xml, 'application/xml; charset=utf-8', 'public, s-maxage=1800, stale-while-revalidate=86400');
 }
 
