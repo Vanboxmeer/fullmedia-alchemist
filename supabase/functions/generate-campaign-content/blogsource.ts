@@ -214,3 +214,26 @@ export async function prepareBlogSources(o: { requestText: string; briefs: Brief
   }
   return { used: false, mode: '', titles, note };
 }
+
+/** 2026-11-23 quick start: the brand's newest blog posts, read for title + date only. No AI, no credits. */
+export const FRESH_DAYS = 60;
+export type PeekPost = { url: string; title: string; date: string; days: number };
+export async function peekBlog(seeds: string[]): Promise<{ found: boolean; posts: PeekPost[] }> {
+  const deadline = Date.now() + 20_000;
+  if (!seeds.length) return { found: false, posts: [] };
+  const cands = await discover(seeds, deadline);
+  if (!cands.length) return { found: false, posts: [] };
+  const first = cands.slice(0, cands.every((c) => c.date) ? 40 : 12).map((c) => ({ ...c }));
+  const dated = first.filter((c) => c.date);
+  const need = first.filter((c) => !c.date).slice(0, 8);
+  await pool(need, 6, async (c) => { const p = await fetchPage(c.url, deadline); if (p) { if (p.date) c.date = p.date; if (p.title) c.title = p.title; } });
+  const now = Date.now();
+  const posts: PeekPost[] = first.filter((c) => c.date && Number.isFinite(Date.parse(c.date)) && Date.parse(c.date) <= now + 864e5)
+    .sort((a, b) => (a.date! < b.date! ? 1 : a.date! > b.date! ? -1 : 0))
+    .map((c) => ({ url: c.url, title: clip(c.title, 140) || c.url, date: c.date as string, days: Math.max(0, Math.floor((now - Date.parse(c.date as string)) / 864e5)) }));
+  void dated;
+  // titles still empty (sitemap): read the page title for the few we show
+  const top = posts.slice(0, 6);
+  await pool(top.filter((p) => p.title === p.url), 6, async (p) => { const pg = await fetchPage(p.url, deadline); if (pg?.title) p.title = clip(pg.title, 140); });
+  return { found: true, posts: top };
+}

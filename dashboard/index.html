@@ -1021,7 +1021,9 @@ details.adv[open] summary::before{content:"−"}
 .cl-row{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px}
 .cl-url{display:flex;gap:8px;margin-top:8px}
 .cl-url input{flex:1;min-width:0}
-.fm-tip{display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:9px 12px;border-radius:12px;background:var(--gold-soft);color:var(--ink-2);font-size:13.5px;line-height:1.4}.fm-tip-s{color:var(--gold);flex:none}.fm-tip-t{flex:1;min-width:0}.fm-tip-x{flex:none;border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}.fm-tip-x:hover{color:var(--ink)}.fm-grow-a{color:var(--gold);font-weight:600;text-decoration:underline;margin-left:4px}</style>
+.fm-tip{display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:9px 12px;border-radius:12px;background:var(--gold-soft);color:var(--ink-2);font-size:13.5px;line-height:1.4}.fm-tip-s{color:var(--gold);flex:none}.fm-tip-t{flex:1;min-width:0}.fm-tip-x{flex:none;border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}.fm-tip-x:hover{color:var(--ink)}.fm-grow-a{color:var(--gold);font-weight:600;text-decoration:underline;margin-left:4px}.quick{margin-bottom:6px;padding:16px 18px;border:1px solid var(--line,rgba(127,127,127,.25));border-radius:14px}
+.quick-list{margin:0;padding-left:18px;display:grid;gap:4px}
+</style>
 <style id="tg-nodismiss">div:has(.terms-gate) [data-close]{display:none!important}</style><style id="fm-studio-v22">.camp-studio .cs-tabs{display:flex;align-items:center}.camp-studio .cs-toggle{margin-left:auto;background:none;border:0;color:inherit;cursor:pointer;padding:8px 10px;opacity:.7;border-radius:8px;line-height:0}.camp-studio .cs-toggle:hover{opacity:1}.camp-studio .cs-toggle i{display:block;width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(225deg) translate(-1px,-1px);transition:transform .15s}.camp-studio.cs-collapsed .cs-toggle i{transform:rotate(45deg) translate(-1px,-1px)}.camp-studio.cs-collapsed .cs-pane{display:none!important}</style></head>
 <body>
 
@@ -1636,6 +1638,7 @@ function openComposer(focus) {
   S.compOpen = true;
   const c = $('#composer'); if (!c) return;
   c.classList.remove('is-collapsed');
+  if (typeof wireQuickBlog === 'function') wireQuickBlog();
   if (focus) { c.scrollIntoView({ behavior: 'smooth', block: 'start' }); setTimeout(() => { const t = $('#compPrompt'); if (t) t.focus({ preventScroll: true }); }, 350); }
 }
 
@@ -2165,6 +2168,8 @@ function renderHome() {
       <section class="card composer${collapsed ? ' is-collapsed' : ''}" id="composer">
         <button type="button" class="comp-bar" id="compOpen"><span class="comp-bar-t"><b>Start a new campaign</b><span class="muted small">Tell the Alchemist what to post about. It makes the posts, images and schedule.</span></span><span class="btn btn-gold btn-sm">${icons.spark} New campaign</span></button>
         <div class="row" style="justify-content:space-between;align-items:center"><div class="eyebrow">New campaign · ${esc(S.brand)}</div>${camps.length ? '<button type="button" class="icon-btn" id="compClose" aria-label="Close the new campaign form">' + icons.close + '</button>' : ''}</div>
+        <div class="quick" id="quickBox" hidden></div>
+        <div id="compLong">
         <h2 style="margin-top:6px">What should we post about?</h2>
         <p class="sub">You bring the materials: a sentence is enough. Offer them with your credits and we transmute them together into captions, hashtags and designed images.</p>
         <textarea class="textarea" id="compPrompt" maxlength="2000" placeholder="e.g. Our autumn menu launches Oct 20 — pumpkin cold brew and two new pastries. Get people in for opening weekend."></textarea>
@@ -2219,6 +2224,7 @@ function renderHome() {
         </div>
         <div id="ideas"></div>
         <div id="compMsg"></div>
+        </div>
       </section>
 
       <h2 class="section-title" id="campsTitle">Campaigns <span class="muted small" style="font-family:var(--body);font-weight:500">${camps.length ? camps.length : ''}</span></h2>
@@ -2226,6 +2232,7 @@ function renderHome() {
         : `<div class="card empty-state"><p>The crucible is empty. Describe your first campaign above and I’ll turn it into posts.</p></div>`}
     </div>`;
   wireComposer();
+  wireQuickBlog();
   wireFirstRun();
   wireBrandNav(main);
   $('#compOpen').onclick = () => openComposer(true);
@@ -2385,6 +2392,110 @@ function wireFmtField(field, get, set) {
   let last = carN(get());   // the carousel size comes back after picking One image or Mixed
   $$('[data-f]', field).forEach((b) => b.onclick = () => set(b.dataset.f === 'carousel' ? 'carousel' + last : b.dataset.f));
   $$('[data-carn] [data-n]', field).forEach((b) => b.onclick = () => { last = +b.dataset.n; set('carousel' + last); });
+}
+
+
+/* ── Quick start from the brand's latest blog posts (2026-11-23) ─────────────
+   Brad: "leave everything blank, choose number of posts, it looks at the brand's blog:
+   one post for each of the recent posts, carousel of 3. Not old posts. Don't waste credits."
+   The peek is free (no AI, no credits). Only posts from the last 60 days count. */
+const QUICK_FMT = 'carousel3';
+function quickDaysText(n) { return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago'; }
+async function wireQuickBlog() {
+  const box = $('#quickBox'); if (!box) return;
+  const brand = S.brand; if (!brand) return;
+  S.blogPeek = S.blogPeek || {};
+  const cache = S.blogPeek[brand];
+  if (cache && cache.done && Date.now() - cache.at < 30 * 60 * 1000) return paintQuickBlog(cache.data);
+  if (cache && cache.busy) return;
+  S.blogPeek[brand] = { busy: true, at: Date.now() };
+  try {
+    const d = await genApi('generate-campaign-content', { body: { action: 'blog_peek', brand } });
+    S.blogPeek[brand] = { done: true, at: Date.now(), data: d };
+    if (S.brand === brand) paintQuickBlog(d);
+  } catch (e) {
+    S.blogPeek[brand] = { done: true, at: Date.now() - 25 * 60 * 1000, data: null };   // retry in ~5 min
+  }
+}
+function paintQuickBlog(d) {
+  const box = $('#quickBox'), long = $('#compLong'); if (!box || !long) return;
+  const fresh = d && Array.isArray(d.posts) ? d.posts.filter((p) => p.days <= (d.fresh_days || 60)) : [];
+  if (!fresh.length) { box.hidden = true; long.hidden = false; return; }
+  const max = Math.min(fresh.length, 5);
+  let n = Math.min(S.quickN || 2, max);
+  const showLong = S.quickLong === true;
+  box.hidden = false; long.hidden = !showLong;
+  const costTxt = () => { const c = costOf(n, QUICK_FMT); return `✦ ${c} credit${c === 1 ? '' : 's'} · ${n} post${n === 1 ? '' : 's'} × 3 images`; };
+  box.innerHTML = `<div class="eyebrow">Quick start</div>
+    <h2 style="margin-top:6px">Post about my latest blog posts</h2>
+    <p class="sub" style="margin-bottom:10px">One carousel (3 images) for each of your newest posts. Nothing to type.</p>
+    <ul class="quick-list">${fresh.slice(0, n).map((p) => `<li><b>${esc(p.title)}</b> <span class="muted small">${esc(quickDaysText(p.days))}</span></li>`).join('')}</ul>
+    <div class="row" style="gap:14px;align-items:center;flex-wrap:wrap;margin-top:12px">
+      <div class="stepper" id="qStep"><button type="button" id="qMinus" aria-label="Fewer">−</button><output id="qN">${n}</output><button type="button" id="qPlus" aria-label="More">+</button></div>
+      <span class="small muted" id="qCost">${costTxt()}</span>
+      <div class="spacer"></div>
+      <button type="button" class="btn btn-gold btn-lg" id="qGo">${icons.spark} Make ${n} post${n === 1 ? '' : 's'}</button>
+    </div>
+    <div id="qMsg"></div>
+    <p class="small" style="margin:12px 0 0"><a href="#" id="qToggle">${showLong ? 'Hide the full form' : 'Write my own brief instead'}</a>${fresh.length < 2 ? '' : ` <span class="muted">· only posts from the last ${esc(String(d.fresh_days || 60))} days are used</span>`}</p>`;
+  const repaint = () => { S.quickN = n; paintQuickBlog(d); };
+  $('#qMinus', box).onclick = () => { if (n > 1) { n--; repaint(); } };
+  $('#qPlus', box).onclick = () => { if (n < max) { n++; repaint(); } };
+  $('#qToggle', box).onclick = (e) => { e.preventDefault(); S.quickLong = !showLong; paintQuickBlog(d); };
+  $('#qGo', box).onclick = () => quickBlogGo(n, fresh.slice(0, n));
+}
+async function quickBlogGo(count, posts) {
+  const msg = $('#qMsg');
+  const err = (t) => { msg.innerHTML = '<div class="notice bad" style="margin-top:12px"></div>'; msg.firstChild.textContent = t; };
+  msg.innerHTML = '';
+  const cost = costOf(count, QUICK_FMT);
+  { const sm0 = shortText(cost); if (sm0) return err(sm0); }
+  const sl = campSlots();
+  if (sl && sl.limit != null && sl.running.length >= sl.limit) {
+    msg.innerHTML = campLimitNotice(sl);
+    wireCampSlots(msg, sl, () => { msg.innerHTML = '<div class="notice ok" style="margin-top:12px">A slot is free. Press Make again.</div>'; });
+    return;
+  }
+  const btn = $('#qGo'); btn.disabled = true;
+  const b = brew('Reading your blog', ['Reading your latest posts…', 'Choosing a different angle for each…', 'Writing captions…', 'Designing 3 images each…', 'Pointing every post at its article…', 'Almost there…'],
+    'Takes about a minute. Keep this tab open.', { give: `✦ ${cost}`, get: `${count} post${count === 1 ? '' : 's'}` });
+  const start = todayYmd();
+  const own = brandPlatformNames();
+  const plats = own && own.length ? own : defaultPlatforms();
+  let campaign = null;
+  try {
+    const title = 'Latest from the blog · ' + new Date().toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const c = await api('create-campaign', { body: {
+      brand: S.brand, name: title, goal: 'Share the newest blog posts', startDate: start, endDate: addDaysYmd(start, Math.max(7, count * 3)),
+      targetPlatforms: plats, targetContentCount: count, sourceNotes: 'Posts from the brand’s latest blog posts.', requiredLink: null, requiredHashtags: [],
+    } });
+    campaign = c.campaign;
+    if (own) await termsRpc('cc_campaign_set_platforms', { p_campaign: campaign.id, p_platforms: plats }).catch(() => {});
+    const g = await genApi('generate-campaign-content', { body: {
+      brand: S.brand, campaignId: campaign.id, count, slidesPerPost: slidesParam(QUICK_FMT), model: curModel(),
+      quickBlog: true, userRequest: 'Make one post from each of our latest blog posts.', feedKind: 'brief', today: todayYmd(),
+      research: false, includeQr: qrDefault(),
+    } });
+    b.stop(true);
+    sealPosts(g.skus); applyOutput(g.skus);
+    if (g.scenes_queued) markFinishing(g.skus);
+    await loadBrand(S.brand); setBrandChrome();
+    openCampaign(campaign.id);
+    const spent = g.credits_used != null ? g.credits_used : cost;
+    toast(`Done: ✦ ${spent} credit${spent === 1 ? '' : 's'} → ${g.created} post${g.created === 1 ? '' : 's'} from your latest blog posts.${g.scenes_queued ? ' The pictures are still finishing (about a minute).' : ''}`, 'ok', 9000);
+    loadProgress(true);
+  } catch (e) {
+    b.stop(false); btn.disabled = false;
+    if (e.status === 401) return;
+    if (campaign) {
+      if (maybeStillMaking(e) && await postsAppeared(campaign.id, 0, 4)) { setBrandChrome(); openCampaign(campaign.id); toast(STILL_MAKING_TOAST, 'ok', 8000); loadProgress(true); return; }
+      await loadBrand(S.brand).catch(() => {});
+      openCampaign(campaign.id);
+      toast('The campaign was saved, but the posts couldn’t be made: ' + e.message, 'err', 9000);
+      return;
+    }
+    err(e.message);
+  }
 }
 
 async function createCampaignFromComposer() {
