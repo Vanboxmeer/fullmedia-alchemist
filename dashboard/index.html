@@ -2401,12 +2401,15 @@ function wireFmtField(field, get, set) {
    The peek is free (no AI, no credits). Only posts from the last 60 days count. */
 const QUICK_FMT = 'carousel3';
 function quickDaysText(n) { return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago'; }
+function quickSavedN() { try { const v = parseInt(localStorage.getItem('fa-quick-n:' + S.brand), 10); return v >= 1 && v <= 5 ? v : 2; } catch (e) { return 2; } }
+function quickSaveN(n) { try { localStorage.setItem('fa-quick-n:' + S.brand, String(n)); } catch (e) {} }
 async function wireQuickBlog() {
   const box = $('#quickBox'); if (!box) return;
   const brand = S.brand; if (!brand) return;
   S.blogPeek = S.blogPeek || {};
   const cache = S.blogPeek[brand];
   if (cache && cache.done && Date.now() - cache.at < 30 * 60 * 1000) return paintQuickBlog(cache.data);
+  paintQuickBlog(null, true);   // always there; the titles fill in when the free look at the blog finishes
   if (cache && cache.busy) return;
   S.blogPeek[brand] = { busy: true, at: Date.now() };
   try {
@@ -2415,33 +2418,37 @@ async function wireQuickBlog() {
     if (S.brand === brand) paintQuickBlog(d);
   } catch (e) {
     S.blogPeek[brand] = { done: true, at: Date.now() - 25 * 60 * 1000, data: null };   // retry in ~5 min
+    if (S.brand === brand) paintQuickBlog(null);
   }
 }
-function paintQuickBlog(d) {
-  const box = $('#quickBox'), long = $('#compLong'); if (!box || !long) return;
+/* Always on the campaigns page: "Same as last time" (remembers how many) and "Feeling lucky" (1 post about the newest). */
+function paintQuickBlog(d, loading) {
+  const box = $('#quickBox'); if (!box) return;
   const fresh = d && Array.isArray(d.posts) ? d.posts.filter((p) => p.days <= (d.fresh_days || 60)) : [];
-  if (!fresh.length) { box.hidden = true; box.style.display = 'none'; return; }
-  const max = Math.min(fresh.length, 5);
-  let n = Math.min(S.quickN || 2, max);
-  box.hidden = false; box.style.display = ''; long.hidden = false;
-  const costTxt = () => { const c = costOf(n, QUICK_FMT); return `✦ ${c} credit${c === 1 ? '' : 's'} · ${n} post${n === 1 ? '' : 's'} × 3 images`; };
-  box.innerHTML = `<div class="eyebrow">Quick start</div>
-    <h2 style="margin-top:6px">Post about my latest blog posts</h2>
-    <p class="sub" style="margin-bottom:10px">One carousel (3 images) for each of your newest posts. Nothing to type.</p>
-    <ul class="quick-list">${fresh.slice(0, n).map((p) => `<li><b>${esc(p.title)}</b> <span class="muted small">${esc(quickDaysText(p.days))}</span></li>`).join('')}</ul>
-    <div class="row" style="gap:14px;align-items:center;flex-wrap:wrap;margin-top:12px">
+  const days = (d && d.fresh_days) || 60;
+  const max = Math.max(1, Math.min(fresh.length || 5, 5));
+  let n = Math.min(quickSavedN(), max);
+  const ready = fresh.length > 0;
+  const costTxt = () => { const c = costOf(n, QUICK_FMT); return `✦ ${c} · ${n} post${n === 1 ? '' : 's'} × 3 images`; };
+  box.hidden = false; box.style.display = '';
+  const status = loading ? '<span class="muted small">Looking at your blog…</span>'
+    : ready ? `<ul class="quick-list">${fresh.slice(0, n).map((p) => `<li><b>${esc(p.title)}</b> <span class="muted small">${esc(quickDaysText(p.days))}</span></li>`).join('')}</ul>`
+    : `<span class="muted small">${d && d.configured === false ? 'Add your blog page in Brand settings to use this.' : `No blog posts from the last ${days} days were found.`}</span>`;
+  box.innerHTML = `<div class="row" style="gap:12px;align-items:center;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px"><div class="eyebrow">Quick start · from your latest blog posts</div>${status}</div>
       <div class="stepper" id="qStep"><button type="button" id="qMinus" aria-label="Fewer">−</button><output id="qN">${n}</output><button type="button" id="qPlus" aria-label="More">+</button></div>
-      <span class="small muted" id="qCost">${costTxt()}</span>
-      <div class="spacer"></div>
-      <button type="button" class="btn btn-gold btn-lg" id="qGo">${icons.spark} Make ${n} post${n === 1 ? '' : 's'}</button>
+      <button type="button" class="btn btn-gold" id="qGo"${ready ? '' : ' disabled'}>${icons.spark} Make ${n} post${n === 1 ? '' : 's'}</button>
+      <button type="button" class="btn btn-ghost" id="qLucky"${ready ? '' : ' disabled'} title="One post about your newest blog post">🍀 Feeling lucky</button>
     </div>
-    <div id="qMsg"></div>
-    <p class="small" style="margin:12px 0 0"><a href="#" id="qToggle">Write my own brief instead</a>${fresh.length < 2 ? '' : ` <span class="muted">· only posts from the last ${esc(String(d.fresh_days || 60))} days are used</span>`}</p>`;
-  const repaint = () => { S.quickN = n; paintQuickBlog(d); };
+    ${ready ? `<div class="small muted" style="margin-top:8px">${costTxt()} · one 3-image carousel per post · only posts from the last ${days} days · nothing is spent until you press a button</div>` : ''}
+    <div id="qMsg"></div>`;
+  const repaint = () => { quickSaveN(n); paintQuickBlog(d, loading); };
   $('#qMinus', box).onclick = () => { if (n > 1) { n--; repaint(); } };
   $('#qPlus', box).onclick = () => { if (n < max) { n++; repaint(); } };
-  $('#qToggle', box).onclick = (e) => { e.preventDefault(); openComposer(true); };
-  $('#qGo', box).onclick = () => quickBlogGo(n, fresh.slice(0, n));
+  if (ready) {
+    $('#qGo', box).onclick = () => { quickSaveN(n); quickBlogGo(n, fresh.slice(0, n)); };
+    $('#qLucky', box).onclick = () => quickBlogGo(1, fresh.slice(0, 1));
+  }
 }
 async function quickBlogGo(count, posts) {
   const msg = $('#qMsg');
