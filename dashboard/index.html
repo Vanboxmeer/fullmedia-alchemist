@@ -3122,7 +3122,7 @@ async function openImageEditor(p, idx = 0) {
         <div class="stack" style="gap:6px" id="ieItems"></div>
         <button type="button" class="ie-add-item" id="ieAddItem">+ Add a point</button>
       </div>
-      ${!hasItems ? `<div class="field" id="ieSubField"><label for="ieSub">Line under the headline</label><textarea class="textarea" id="ieSub" rows="2" maxlength="220"></textarea></div>` : ''}
+      <div class="field" id="ieSubField"><label for="ieSub">Line under the headline <span class="muted">(optional)</span></label><textarea class="textarea" id="ieSub" rows="2" maxlength="220"></textarea></div>
       <div class="field"><label for="ieCta">Button text</label><input class="input" id="ieCta" maxlength="40"></div>
     </details>
     <details class="ie-sec" open><summary>Logo</summary>
@@ -3166,22 +3166,21 @@ async function openImageEditor(p, idx = 0) {
     const newInputs = $$('[data-item]', el);
     if (newInputs.length) newInputs[newInputs.length - 1].focus();
     livePreview();
-    if ($('#ieSubField', el)) { $('#ieSubField', el).style.display = 'none'; }
   };
   /* --- helpers --- */
   const paintSegs = () => $$('.ie-seg', el).forEach((g) => { const k = g.dataset.k; const cur = st[k] == null ? '' : String(st[k]); $$('button', g).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === cur))); });
   const words = () => {
     const items = $$('[data-item]', el).map((i) => i.value.trim()).filter(Boolean);
     const sub = $('#ieSub', el) ? $('#ieSub', el).value.trim() : '';
-    return { label: $('#ieLabel', el).value.trim(), headline: $('#ieHead', el).value.trim(), cta: $('#ieCta', el).value.trim(), ...(items.length ? { items } : { sub }) };
+    return { label: $('#ieLabel', el).value.trim(), headline: $('#ieHead', el).value.trim(), cta: $('#ieCta', el).value.trim(), items, sub };
   };
   const edits = () => {
     const w = words(); const e = {};
     if (w.label !== (W0.label || '')) e.label = w.label;
     if (w.headline !== (W0.headline || '')) e.headline = w.headline;
     if (w.cta !== (W0.cta || '')) e.cta = w.cta;
-    if ('sub' in w && w.sub !== (W0.sub || '')) e.sub = w.sub;
-    if ('items' in w && JSON.stringify(w.items) !== JSON.stringify(W0.items || [])) e.items = w.items;
+    if (w.sub !== (W0.sub || '')) e.sub = w.sub;
+    if (JSON.stringify(w.items) !== JSON.stringify(W0.items || [])) e.items = w.items;
     ['logo_mode', 'logo_size', 'logo_side', 'logo_asset', 'qr_side'].forEach((k) => { if ((st[k] || null) !== (st0[k] || null)) e[k] = st[k] || null; });
     if (st.include_qr !== (st0.include_qr !== false)) e.include_qr = st.include_qr;
     if ((st.include_character ?? null) !== (st0.include_character ?? null) && st.include_character != null) e.include_character = st.include_character;
