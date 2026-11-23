@@ -361,9 +361,24 @@ Deno.serve(async (req: Request) => {
     const slide = Math.max(1, Math.min(10, Number(body.slide) || 1));
     if (!preview && !/^[A-Za-z0-9_-]{3,40}$/.test(sku)) return json({ error: 'sku is required' }, 400);
 
-    const { data: row } = brand
-      ? await supabase.from('cc_brands').select('id, name, primary_color, secondary_color, accent_color, card_bg, card_paper, logo_url, character_asset_url, default_include_qr, default_include_character, brand_tone, brand_mission, target_audience, notes, content_niches, design_system, default_wheel_url').eq('name', brand).maybeSingle()
-      : { data: null };
+    // The brand's saved look. A failed lookup must never turn into a card
+    // drawn with the generic fallback look ("Brand", orange): retry, then try a
+    // case-insensitive match, and if the brand still can't be read, stop.
+    const BRAND_COLS = 'id, name, primary_color, secondary_color, accent_color, card_bg, card_paper, logo_url, character_asset_url, default_include_qr, default_include_character, brand_tone, brand_mission, target_audience, notes, content_niches, design_system, default_wheel_url';
+    let row: Record<string, any> | null = null;
+    if (brand) {
+      for (let a = 0; a < 4 && !row; a++) {
+        const r1 = await supabase.from('cc_brands').select(BRAND_COLS).eq('name', brand).limit(1);
+        if (!r1.error && r1.data && r1.data[0]) { row = r1.data[0] as Record<string, any>; break; }
+        if (!r1.error) {
+          const r2 = await supabase.from('cc_brands').select(BRAND_COLS).ilike('name', brand.replace(/[%_]/g, '')).limit(1);
+          if (!r2.error && r2.data && r2.data[0]) { row = r2.data[0] as Record<string, any>; break; }
+          if (!r2.error) break; // read fine, brand truly doesn't exist
+        }
+        await new Promise((r) => setTimeout(r, 400 * (a + 1)));
+      }
+      if (!row && !preview) return json({ ok: false, error: 'brand_unavailable', detail: 'The brand look could not be read. Nothing was drawn.' }, 503);
+    }
     // 2026-10-11 (v14): the homepage sample (site-preview, a server call) has
     // no brand row. It passes the site's name, colours and a short
     // description, so the look is derived the same way as an unscanned brand.

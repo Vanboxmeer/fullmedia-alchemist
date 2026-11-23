@@ -629,6 +629,15 @@ function A_numeral(ctx) {
   };
 }
 
+// 2026-11-23: a numbered badge must show up against the card's own ground. A block ground is painted in the
+// accent colour, so an accent badge on it vanished. Pick the first of accent / second / ink / paper that reads.
+function badgeCols(P, bg, i) {
+  const order = (i % 2 ? [P.second, P.accent] : [P.accent, P.second]).concat([P.ink0, P.paper0, '#111111', '#ffffff']);
+  const ok = typeof bg === 'string' && /^#[0-9a-f]{6}$/i.test(bg);
+  const pick = ok ? (order.find((c) => contrast(c, bg) >= 2.2) || order.slice().sort((a, b) => contrast(b, bg) - contrast(a, bg))[0]) : order[0];
+  return { backgroundColor: pick, color: contrast('#111111', pick) >= contrast('#ffffff', pick) ? '#111111' : '#ffffff' };
+}
+
 function A_list(ctx) {
   const { W, H, C, F, M, S, measure, P } = ctx;
   const G = groundEl(ctx, S.ground === 'block' ? 'paper' : undefined);
@@ -640,7 +649,7 @@ function A_list(ctx) {
   const rows = items.map((t, i) => {
     const f = fitText(measure, t, { family: F.body, weight: 600, maxW: maxW - 130, maxH: rowH - 30, min: 24, max: 40, lh: 1.2 });
     return div({ flexDirection: 'row', alignItems: 'center', gap: 28, borderTop: S.rule === 'none' ? undefined : `${S.rule === 'heavy' ? 4 : 1.5}px solid ${rgba(I.text, 0.35)}`, paddingTop: 18, paddingBottom: 18, minHeight: rowH }, [
-      div({ width: 92, height: 92, borderRadius: S.corner > 16 ? 999 : S.corner, backgroundColor: i % 2 ? P.second : P.accent, color: i % 2 ? P.onSecond : P.onAccent, fontFamily: F.display, fontWeight: ctx.weights.displayHeavy, fontSize: 46, alignItems: 'center', justifyContent: 'center' }, [String(i + 1)]),
+      div({ width: 92, height: 92, borderRadius: S.corner > 16 ? 999 : S.corner, ...badgeCols(P, G.bg, i), fontFamily: F.display, fontWeight: ctx.weights.displayHeavy, fontSize: 46, alignItems: 'center', justifyContent: 'center' }, [String(i + 1)]),
       textBlock(f, { fontFamily: F.body, fontWeight: 600, color: I.text, flex: 1 }),
     ]);
   });
@@ -755,7 +764,7 @@ function A_split(ctx) {
   const ptRows = hasPts ? pts.map((t, i) => {
     const f = fitText(measure, t, { family: F.body, weight: 600, maxW: maxW - 44 - 20, maxH: ptRowH, min: 20, max: 32, lh: 1.15 });
     return div({ flexDirection: 'row', alignItems: 'center', gap: 20 }, [
-      div({ width: 44, height: 44, borderRadius: S.corner > 16 ? 999 : S.corner, backgroundColor: i % 2 ? P.second : P.accent, color: i % 2 ? P.onSecond : P.onAccent, fontFamily: F.display, fontWeight: ctx.weights.displayHeavy, fontSize: 24, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }, [String(i + 1)]),
+      div({ width: 44, height: 44, borderRadius: S.corner > 16 ? 999 : S.corner, ...badgeCols(P, G.bg, i), fontFamily: F.display, fontWeight: ctx.weights.displayHeavy, fontSize: 24, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }, [String(i + 1)]),
       textBlock(f, { fontFamily: F.body, fontWeight: 600, color: I.text, flex: 1 }),
     ]);
   }) : [];
