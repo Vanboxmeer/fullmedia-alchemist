@@ -1021,7 +1021,7 @@ details.adv[open] summary::before{content:"−"}
 .cl-row{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px}
 .cl-url{display:flex;gap:8px;margin-top:8px}
 .cl-url input{flex:1;min-width:0}
-.fm-tip{display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:9px 12px;border-radius:12px;background:var(--gold-soft);color:var(--ink-2);font-size:13.5px;line-height:1.4}.fm-tip-s{color:var(--gold);flex:none}.fm-tip-t{flex:1;min-width:0}.fm-tip-x{flex:none;border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}.fm-tip-x:hover{color:var(--ink)}.fm-grow-a{color:var(--gold);font-weight:600;text-decoration:underline;margin-left:4px}.quick{margin-bottom:6px;padding:16px 18px;border:1px solid var(--line,rgba(127,127,127,.25));border-radius:14px}
+.fm-tip{display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:9px 12px;border-radius:12px;background:var(--gold-soft);color:var(--ink-2);font-size:13.5px;line-height:1.4}.fm-tip-s{color:var(--gold);flex:none}.fm-tip-t{flex:1;min-width:0}.fm-tip-x{flex:none;border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}.fm-tip-x:hover{color:var(--ink)}.fm-grow-a{color:var(--gold);font-weight:600;text-decoration:underline;margin-left:4px}.quick{margin-bottom:14px}
 .quick-list{margin:0;padding-left:18px;display:grid;gap:4px}
 </style>
 <style id="tg-nodismiss">div:has(.terms-gate) [data-close]{display:none!important}</style><style id="fm-studio-v22">.camp-studio .cs-tabs{display:flex;align-items:center}.camp-studio .cs-toggle{margin-left:auto;background:none;border:0;color:inherit;cursor:pointer;padding:8px 10px;opacity:.7;border-radius:8px;line-height:0}.camp-studio .cs-toggle:hover{opacity:1}.camp-studio .cs-toggle i{display:block;width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(225deg) translate(-1px,-1px);transition:transform .15s}.camp-studio.cs-collapsed .cs-toggle i{transform:rotate(45deg) translate(-1px,-1px)}.camp-studio.cs-collapsed .cs-pane{display:none!important}</style></head>
@@ -2165,10 +2165,10 @@ function renderHome() {
       ${learnedCardHtml()}
       ${firstRunHtml()}
       <div id="questStrip"></div>
+      <section class="card quick" id="quickBox" hidden aria-label="Quick start"></section>
       <section class="card composer${collapsed ? ' is-collapsed' : ''}" id="composer">
         <button type="button" class="comp-bar" id="compOpen"><span class="comp-bar-t"><b>Start a new campaign</b><span class="muted small">Tell the Alchemist what to post about. It makes the posts, images and schedule.</span></span><span class="btn btn-gold btn-sm">${icons.spark} New campaign</span></button>
         <div class="row" style="justify-content:space-between;align-items:center"><div class="eyebrow">New campaign · ${esc(S.brand)}</div>${camps.length ? '<button type="button" class="icon-btn" id="compClose" aria-label="Close the new campaign form">' + icons.close + '</button>' : ''}</div>
-        <div class="quick" id="quickBox" hidden></div>
         <div id="compLong">
         <h2 style="margin-top:6px">What should we post about?</h2>
         <p class="sub">You bring the materials: a sentence is enough. Offer them with your credits and we transmute them together into captions, hashtags and designed images.</p>
@@ -2420,11 +2420,10 @@ async function wireQuickBlog() {
 function paintQuickBlog(d) {
   const box = $('#quickBox'), long = $('#compLong'); if (!box || !long) return;
   const fresh = d && Array.isArray(d.posts) ? d.posts.filter((p) => p.days <= (d.fresh_days || 60)) : [];
-  if (!fresh.length) { box.hidden = true; long.hidden = false; return; }
+  if (!fresh.length) { box.hidden = true; box.style.display = 'none'; return; }
   const max = Math.min(fresh.length, 5);
   let n = Math.min(S.quickN || 2, max);
-  const showLong = S.quickLong === true;
-  box.hidden = false; long.hidden = !showLong;
+  box.hidden = false; box.style.display = ''; long.hidden = false;
   const costTxt = () => { const c = costOf(n, QUICK_FMT); return `✦ ${c} credit${c === 1 ? '' : 's'} · ${n} post${n === 1 ? '' : 's'} × 3 images`; };
   box.innerHTML = `<div class="eyebrow">Quick start</div>
     <h2 style="margin-top:6px">Post about my latest blog posts</h2>
@@ -2437,11 +2436,11 @@ function paintQuickBlog(d) {
       <button type="button" class="btn btn-gold btn-lg" id="qGo">${icons.spark} Make ${n} post${n === 1 ? '' : 's'}</button>
     </div>
     <div id="qMsg"></div>
-    <p class="small" style="margin:12px 0 0"><a href="#" id="qToggle">${showLong ? 'Hide the full form' : 'Write my own brief instead'}</a>${fresh.length < 2 ? '' : ` <span class="muted">· only posts from the last ${esc(String(d.fresh_days || 60))} days are used</span>`}</p>`;
+    <p class="small" style="margin:12px 0 0"><a href="#" id="qToggle">Write my own brief instead</a>${fresh.length < 2 ? '' : ` <span class="muted">· only posts from the last ${esc(String(d.fresh_days || 60))} days are used</span>`}</p>`;
   const repaint = () => { S.quickN = n; paintQuickBlog(d); };
   $('#qMinus', box).onclick = () => { if (n > 1) { n--; repaint(); } };
   $('#qPlus', box).onclick = () => { if (n < max) { n++; repaint(); } };
-  $('#qToggle', box).onclick = (e) => { e.preventDefault(); S.quickLong = !showLong; paintQuickBlog(d); };
+  $('#qToggle', box).onclick = (e) => { e.preventDefault(); openComposer(true); };
   $('#qGo', box).onclick = () => quickBlogGo(n, fresh.slice(0, n));
 }
 async function quickBlogGo(count, posts) {

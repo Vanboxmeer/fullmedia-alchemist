@@ -223,9 +223,9 @@ export async function peekBlog(seeds: string[]): Promise<{ found: boolean; posts
   if (!seeds.length) return { found: false, posts: [] };
   const cands = await discover(seeds, deadline);
   if (!cands.length) return { found: false, posts: [] };
-  const first = cands.slice(0, cands.every((c) => c.date) ? 40 : 12).map((c) => ({ ...c }));
+  const first = cands.slice(0, cands.every((c) => c.date) ? 40 : 14).map((c) => ({ ...c }));
   const dated = first.filter((c) => c.date);
-  const need = first.filter((c) => !c.date).slice(0, 8);
+  const need = first.filter((c) => !c.date).slice(0, 14);
   await pool(need, 6, async (c) => { const p = await fetchPage(c.url, deadline); if (p) { if (p.date) c.date = p.date; if (p.title) c.title = p.title; } });
   const now = Date.now();
   const posts: PeekPost[] = first.filter((c) => c.date && Number.isFinite(Date.parse(c.date)) && Date.parse(c.date) <= now + 864e5)
