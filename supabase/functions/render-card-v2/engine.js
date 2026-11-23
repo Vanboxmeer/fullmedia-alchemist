@@ -429,6 +429,14 @@ function accOn(ctx, fallback) {
   return [P.accent, P.second].find((c) => contrast(c, g) >= 2.4) || fallback || (isDark(g) ? '#ffffff' : '#111111');
 }
 
+// 2026-11-23: every card shows the "line under the headline". Ten of the fourteen layouts used to ignore it,
+// so words typed in the editor (or written by the model) silently vanished from some pictures.
+function subEl(ctx, ink, maxW, o = {}) {
+  const { C, F, measure } = ctx;
+  if (!C.sub) return null;
+  const f = fitText(measure, C.sub, { family: F.body, weight: ctx.weights.body, maxW: Math.min(maxW, o.w || 860), maxH: o.maxH || 100, min: 22, max: o.max || 32, lh: 1.3 });
+  return textBlock(f, { fontFamily: F.body, fontWeight: ctx.weights.body, color: ink });
+}
 function labelEl(text, ctx, onColor) {
   if (!text) return null;
   const { S, F, P } = ctx;
@@ -628,7 +636,7 @@ function A_list(ctx) {
   const maxW = W - 2 * M - (ctx.reserve || 0);
   const items = (C.items || []).filter(Boolean).slice(0, 4);
   const head = fitText(measure, C.headline, { family: F.display, weight: ctx.weights.display, maxW, maxH: H * 0.22, min: 40, max: 92, lh: 1.04, upper: S.displayCase === 'upper' });
-  const rowH = Math.min(150, (H * 0.5) / Math.max(1, items.length));
+  const rowH = Math.min(150, (H * (ctx.C.sub ? 0.44 : 0.5)) / Math.max(1, items.length));
   const rows = items.map((t, i) => {
     const f = fitText(measure, t, { family: F.body, weight: 600, maxW: maxW - 130, maxH: rowH - 30, min: 24, max: 40, lh: 1.2 });
     return div({ flexDirection: 'row', alignItems: 'center', gap: 28, borderTop: S.rule === 'none' ? undefined : `${S.rule === 'heavy' ? 4 : 1.5}px solid ${rgba(I.text, 0.35)}`, paddingTop: 18, paddingBottom: 18, minHeight: rowH }, [
@@ -641,6 +649,7 @@ function A_list(ctx) {
     body: div({ position: 'absolute', left: M, top: M + 110, width: maxW, flexDirection: 'column', gap: 30 }, [
       labelEl(C.label, ctx, I.text),
       textBlock(head, { fontFamily: F.display, fontWeight: ctx.weights.display, color: I.text }),
+      subEl(ctx, I.muted, maxW, { maxH: 80 }),
       div({ flexDirection: 'column' }, rows),
     ]),
     footer: true,
@@ -738,9 +747,10 @@ function A_split(ctx) {
   const imgTopRoll = r.chance(0.6);
   const imgTop = whole || hasPts ? true : imgTopRoll;
   const maxW = W - 2 * M - (ctx.reserve || 0);
-  const head = fitText(measure, C.headline, { family: F.display, weight: ctx.weights.display, maxW, maxH: hasPts ? (H - ph) * 0.2 : (H - ph) * 0.48, min: hasPts ? 34 : 36, max: hasPts ? 68 : 96, lh: 1.03, upper: S.displayCase === 'upper' });
+  const subFit = C.sub ? fitText(measure, C.sub, { family: F.body, weight: ctx.weights.body, maxW: Math.min(maxW, 860), maxH: hasPts ? 64 : 100, min: 22, max: 32, lh: 1.3 }) : null;
+  const head = fitText(measure, C.headline, { family: F.display, weight: ctx.weights.display, maxW, maxH: hasPts ? (H - ph) * 0.2 : (H - ph) * (subFit ? 0.32 : 0.48), min: hasPts ? 34 : 36, max: hasPts ? 68 : 96, lh: 1.03, upper: S.displayCase === 'upper' });
   // Room left under the picture and headline, keeping the footer (QR + CTA) clear.
-  const ptAvail = H - ph - 54 - 50 - (head.height || 0) - 40 - 250;
+  const ptAvail = H - ph - 54 - 50 - (head.height || 0) - 40 - 250 - (subFit ? (subFit.height || 60) + 20 : 0);
   const ptRowH = Math.max(34, Math.min(62, Math.floor((ptAvail - 14 * (pts.length - 1)) / Math.max(1, pts.length))));
   const ptRows = hasPts ? pts.map((t, i) => {
     const f = fitText(measure, t, { family: F.body, weight: 600, maxW: maxW - 44 - 20, maxH: ptRowH, min: 20, max: 32, lh: 1.15 });
@@ -760,6 +770,7 @@ function A_split(ctx) {
     body: div({ position: 'absolute', left: M, top: imgTop ? ph + 54 : M + 90, width: maxW, flexDirection: 'column', gap: 20 }, [
       labelEl(C.label, ctx, I.text),
       textBlock(head, { fontFamily: F.display, fontWeight: ctx.weights.display, color: I.text }),
+      subFit ? textBlock(subFit, { fontFamily: F.body, fontWeight: ctx.weights.body, color: I.muted }) : null,
       ...(hasPts ? [div({ flexDirection: 'column', gap: 14, marginTop: 6 }, ptRows)] : []),
     ]),
     footer: true, compactFooter: true, logoTop: !imgTop, noLogoTop: whole || undefined,
@@ -776,7 +787,7 @@ function A_typewall(ctx) {
   let cur = '';
   for (const w of words) { if ((cur + ' ' + w).trim().length <= 11 || !cur) cur = (cur + ' ' + w).trim(); else { lines.push(cur); cur = w; } }
   if (cur) lines.push(cur);
-  const availH = H * 0.6;
+  const availH = H * (C.sub ? 0.5 : 0.6);
   const rows = lines.slice(0, 5).map((l, i) => {
     let size = 300;
     while (size > 40 && measure(l, F.display, ctx.weights.displayHeavy, size, 0) > maxW) size -= 4;
@@ -787,6 +798,7 @@ function A_typewall(ctx) {
     body: div({ position: 'absolute', left: M, top: M + 100, width: maxW, flexDirection: 'column', gap: 0 }, [
       labelEl(C.label, ctx, I.text),
       div({ flexDirection: 'column', marginTop: 20 }, rows.map((x) => div({ fontFamily: F.display, fontWeight: ctx.weights.displayHeavy, fontSize: x.size, lineHeight: `${x.size * 0.9}px`, color: x.i % 2 ? I.accent : I.text, whiteSpace: 'pre' }, [x.l]))),
+      div({ marginTop: 24, flexDirection: 'column' }, [subEl(ctx, I.text, maxW, { maxH: 90 })]),
     ]),
     footer: true,
   };
@@ -806,6 +818,7 @@ function A_mascot(ctx) {
       div({ backgroundColor: bubbleBg, borderRadius: Math.max(28, S.corner), padding: '36px 40px', flexDirection: 'column', gap: 16, boxShadow: '8px 10px 0 rgba(0,0,0,0.16)' }, [
         C.label ? div({ fontFamily: F.body, fontWeight: 700, fontSize: 22, letterSpacing: '3px', textTransform: 'uppercase', color: BI.accent }, [String(C.label).slice(0, 40)]) : null,
         textBlock(head, { fontFamily: F.display, fontWeight: ctx.weights.display, color: BI.text }),
+        subEl(ctx, BI.muted, bw - 80, { maxH: 80, max: 30 }),
       ]),
       // The tail is a drawn triangle: the rasterizer can't do CSS border triangles (it drew a square).
       img(svgUri(`<svg xmlns="http://www.w3.org/2000/svg" width="68" height="46" viewBox="0 0 68 46"><path d="M0 0 L68 0 L${r.pick([18, 34, 50])} 46 Z" fill="${bubbleBg}"/></svg>`), { marginLeft: r.pick([90, bw - 190]), width: 68, height: 46, marginTop: -1 }),
@@ -873,6 +886,7 @@ function A_index(ctx) {
     body: div({ position: 'absolute', left: M, top: M + 110, width: maxW, flexDirection: 'column', gap: 34 }, [
       labelEl(C.label, ctx, I.text),
       textBlock(head, { fontFamily: F.display, fontWeight: ctx.weights.display, color: I.text }),
+      subEl(ctx, I.muted, maxW, { maxH: 80 }),
       div({ flexDirection: 'column', borderTop: `3px solid ${I.text}` }, pairs.map(([k, v]) => div({ flexDirection: 'row', borderBottom: `1.5px solid ${rgba(I.text, 0.3)}`, padding: '20px 0', gap: 24 }, [
         div({ width: 230, fontFamily: F.mono || F.body, fontWeight: 600, fontSize: 24, letterSpacing: '2px', textTransform: 'uppercase', color: I.accent }, [k.slice(0, 16)]),
         textBlock(fitText(measure, v, { family: F.body, weight: 500, maxW: maxW - 254, maxH: 96, min: 22, max: 34, lh: 1.25 }), { fontFamily: F.body, fontWeight: 500, color: I.text, flex: 1 }),
@@ -901,7 +915,7 @@ function A_sticker(ctx) {
   });
   return {
     G, I,
-    body: div({ position: 'absolute', left: M, top: M + 150, width: W - 2 * M, flexDirection: 'column', gap: 30 }, stickers),
+    body: div({ position: 'absolute', left: M, top: M + 150, width: W - 2 * M, flexDirection: 'column', gap: 30 }, [...stickers, subEl(ctx, I.text, W - 2 * M, { maxH: 90 })]),
     footer: true,
   };
 }
@@ -926,6 +940,7 @@ function A_cover(ctx) {
       div({ flexDirection: 'column', gap: 20, marginBottom: 150 }, [
         div({ width: 80, height: 80, borderRadius: 999, backgroundColor: I.accent }),
         textBlock(head, { fontFamily: F.display, fontWeight: ctx.weights.display, color: I.text }),
+        subEl(ctx, I.muted, maxW * 0.86, { maxH: 90 }),
       ]),
     ]),
     footer: true, noLogoTop: true,
@@ -954,7 +969,9 @@ export function possibleKinds(C, A, opts = {}) {
 }
 
 export function chooseKind(C, A, S, r, opts = {}) {
-  if (opts.kind && BUILDERS[opts.kind] && possibleKinds(C, A, opts).has(opts.kind)) return opts.kind;
+  // A kept layout is only kept when it can show every point; with two or more points it moves to one that can.
+  const nPts = (C.items || []).filter(Boolean).length;
+  if (opts.kind && BUILDERS[opts.kind] && possibleKinds(C, A, opts).has(opts.kind) && !(nPts >= 2 && !['list', 'index', 'split', 'quote', 'event', 'numeral', 'photoonly', 'mark'].includes(opts.kind))) return opts.kind;
   const can = possibleKinds(C, A, opts);
   if (!can.size) return A.photo ? 'photoonly' : 'mark';
   const avoid = new Set(opts.avoid || []);
@@ -962,6 +979,8 @@ export function chooseKind(C, A, S, r, opts = {}) {
   // date or the words are the point of the post, so variety never drops them.
   if (can.has('event')) return 'event';
   if (can.has('quote')) return 'quote';
+  // Points on a card that has a picture: the split card keeps the picture and shows the points.
+  if (nPts >= 2 && A.photo && opts.words !== 'none' && can.has('split')) return 'split';
   // A picture drawn for this post (the brand's character in a scene, or in a
   // new pose) is the star of the card.
   if (opts.preferPhoto && A.photo) {
@@ -976,7 +995,7 @@ export function chooseKind(C, A, S, r, opts = {}) {
   if (can.has('numeral') && (!avoid.has('numeral') || r.chance(0.5)) && r.chance(0.8)) return 'numeral';
   // A list of points needs a card that shows the points.
   const listy = ['list', 'index'].filter((k) => can.has(k) && !avoid.has(k));
-  if (listy.length && (C.items || []).filter(Boolean).length >= 3) {
+  if (listy.length && (C.items || []).filter(Boolean).length >= 2) {
     const lean = listy.filter((k) => S.lean.includes(k));
     return r.pick(lean.length ? lean : listy);
   }
@@ -1176,6 +1195,11 @@ export function buildCard({ design, content, assets, opts = {} }, measure) {
     ? (opts.mascotMode !== undefined ? opts.mascotMode : r.pick(opts.preferMascot ? ['peek', 'sticker'] : ['peek', 'sticker', 'peek', null]))
     : null;
   ctx.reserve = extraMascot === 'peek' ? Math.round(W * 0.3) : extraMascot === 'sticker' ? Math.round(W * 0.22) : 0;
+  { // layouts that cannot draw a list of points keep the words as one line instead of dropping them
+    const its = (C.items || []).filter(Boolean);
+    const drawsPts = kind === 'list' || kind === 'index' || (kind === 'split' && its.length >= 2) || kind === 'quote' || kind === 'photoonly' || kind === 'mark';
+    if (its.length && !drawsPts) C.sub = C.sub ? C.sub : its.join(' \u00b7 ').slice(0, 220);
+  }
   const out = BUILDERS[kind](ctx);
   const G = out.G;
   ctx.groundBg = G.bg;
