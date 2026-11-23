@@ -2814,7 +2814,9 @@ const FLOW_NAME={coverage:"Coverage",lead:"Leads & intros",community:"Communitie
 function waveFlow(w){ if(!w) return "coverage"; if((w.pipelineType||"coverage")==="lead") return "lead"; return w.mode==="communities"?"community":"coverage"; }
 function dealFlow(d){ if(isLead(d)) return "lead"; if(isCommunity(d)) return "community"; try{ if(waveFlow(waveOf(d))==="community") return "community"; }catch(e){} return "coverage"; }
 function stOf(d){ return isLead(d)?(d.dealStage||"New"):(d.outreachStatus||"Needs Research"); }
+function maxFuUI(d){ return /high|hot|vip/i.test(String(d.priority||d.leadPriority||""))||(d.followUpMax||0)>=2?2:1; }
 function phaseOf(d){
+  if(d.doNotContact) return "dnc";
   const s=d.dealStage||"", o=d.outreachStatus||"";
   if(isLead(d)){
     if(s==="Won - Client") return "won"; if(s==="Lost") return "closed"; if(s==="On Hold") return "hold";
@@ -3398,6 +3400,7 @@ function alertsFor(d){
   }
   if(open&&ph==="ready"&&em&&!subj.trim()&&hasDraft(d)) add("nosubj","info","No subject line yet.","No subject");
   if(open&&d.draftState==="agent"&&hasDraft(d)) add("agentdraft","info","Alchemist-written draft — read it, edit if needed, then accept.","Alchemist draft");
+  if(d.doNotContact) add("optout","bad","Do not send \u2014 never message this contact again."+(d.doNotContact.reason?" They wrote: \u201c"+String(d.doNotContact.reason).slice(0,160)+"\u201d":""),"Do not send");
   if(d.agentFlag) add("agentflag","bad",(d.agentFlag.kind==="no_result"?"Automation: ":d.agentFlag.kind==="bounced"?"Email bounced. ":d.agentFlag.kind==="wrong_account"?"Wrong account \u2014 nothing was sent. ":"Automation couldn't finish this \u2014 nothing was sent. ")+(d.agentFlag.reason||"Needs you.")+"","Automation held");
   else if(d.agentClaim&&d.agentClaim.at&&Date.now()-d.agentClaim.at<1800000) add("agentclaim","info","Handed to the automation just now \u2014 wait for its result before sending this yourself.","With automation");
   if(d.autoSentBy==="agent"&&d.lastSentDate===t) add("autosent","info","Sent by automation today.","Sent by automation");
@@ -3564,7 +3567,7 @@ function sentArchivePatch(d,when){
 function followUpDraftPatch(d){
   const n=d.followUps||0, key=isLead(d)?"LF":(n>=1?"F2":"F1"); const m=mergeTpl(d,key);
   return {draft:m.body,subject:routeKind(d)==="email"?m.subject:(d.subject||""),draftKind:"followup",draftState:"",draftFu:n,fuv:1}; }
-function followUpCandidate(d){ return !d.manualOnly&&phaseOf(d)==="sent"&&dueNow(d)&&(d.followUps||0)<2&&routeKind(d)!=="none"; }
+function followUpCandidate(d){ return !d.manualOnly&&phaseOf(d)==="sent"&&dueNow(d)&&(d.followUps||0)<maxFuUI(d)&&routeKind(d)!=="none"; }
 let reconT=0, reconBusy=false, reconTry=0;
 function scheduleReconcile(){ clearTimeout(reconT); reconT=setTimeout(reconcileDrafts,1800); }
 async function reconcileDrafts(){
@@ -5077,6 +5080,9 @@ function paneHtml(d){
    +'<div class="pscroll" id="pScroll"><div class="pb" data-deal="'+d.id+'">'
    +(wbMoved.has(d.id)?'<div class="al info"><span class="t">This row no longer matches the current tab, so it will leave the list when you move on. Keep working here.</span></div>':'')
    +(al.length?'<div class="psec"><div class="alist" id="pAlerts">'+alertRows+'</div></div>':'<div id="pAlerts"></div>')
+   +(d.doNotContact
+     ?'<div class="psec"><div class="al bad"><span class="t"><b>Do not send.</b> This contact opted out or replied rudely. Nothing is ever sent to them again, by you or the automation. <button class="btn tiny" data-p="optout" type="button">Undo</button></span></div></div>'
+     :'<div class="psec"><div class="mini" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn tiny" data-p="optout" type="button" title="Blocks this address everywhere and stops every follow-up">Do not send</button><span>They opted out or replied rudely? Stop all messages to them.</span></div></div>')
    +(d.manualOnly
      ?'<div class="psec"><div class="al good"><span class="t"><b>Manual only.</b> Left out of Automation, bulk drafting, Accept + approve and automatic follow-ups. You send this one yourself. <button class="btn tiny" data-p="manualonly" type="button">Turn off</button></span></div></div>'
      :'<div class="psec"><div class="mini" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn tiny" data-p="manualonly" type="button" title="Keeps this one out of every automated batch">Manual only</button><span>Keep this one out of every automated batch.</span></div></div>')
@@ -5414,6 +5420,10 @@ function paneClick(e){
     case "accept": return acceptProposed(id);
     case "reject": return rejectProposed(id);
     case "manualonly": { const dd=ix().deal.get(id); if(!dd) return; const on=!dd.manualOnly; patchDeal(id,on?{manualOnly:true,autoOk:false,autoHold:true,readyAfterDraft:false}:{manualOnly:false,autoHold:false}); if(on){ (async()=>{ try{ const R=await reachApi(); if(R&&R.agent) await R.agent("approve",{ids:[id],on:false}); }catch(e){} })(); } toast(on?"Marked Manual only. It will never be included in automation.":"Manual only turned off."); afterRowChange(id); return; }
+    case "optout": { const dd=ix().deal.get(id); if(!dd) return; const on=!dd.doNotContact;
+      patchDeal(id,on?{doNotContact:{at:Date.now(),by:"user",reason:"Marked Do not send by you"},followUpDue:"",autoOk:false,draft:"",suggest:null,agentFlag:null,nextAction:"Do not send. They asked us to stop."}:{doNotContact:null});
+      (async()=>{ try{ const R=await reachApi(); if(R&&R.agent) await R.agent("opt_out",{id,on}); }catch(e){} })();
+      toast(on?"Marked Do not send. Nothing more will go to them.":"Do not send turned off for this card."); afterRowChange(id); if(state.wb.active===id) renderPane(); return; }
     case "applysuggest": return applySuggest(id);
     case "dismisssuggest": return dismissSuggest(id);
     case "closeout": return applyStatus(id,isLead(d)?"Lost":"Declined");

@@ -34,7 +34,14 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 const addDays = (s: string, n: number) => { const d = new Date(s + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
 const clean = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim().slice(0, max);
 const EMAIL = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/;
-const FU1_DAYS = 4, FU2_DAYS = 10, MAX_FOLLOWUPS = 2;
+const FU1_DAYS = 7, FU2_DAYS = 14;
+// One follow-up by default. Only a deal marked high priority (priority high/hot/vip, or followUpMax 2) gets a second.
+function maxFu(d: any): number { return /high|hot|vip/i.test(String(d?.priority || d?.leadPriority || "")) || Number(d?.followUpMax) >= 2 ? 2 : 1; }
+const MIN_GAP_DAYS = 7;
+// Never message these again: they asked us to stop (or answered rudely). Email + business domain go on the shared block list.
+const OPT_RX = /(unsubscribe|remove me|take me off|stop (emailing|contacting|sending|messaging|spamming)|do not (contact|email)|don'?t (contact|email|message)|no more (emails?|messages?)|opt.?out|leave me alone|not interested|no thanks|no thank you|f+u+c+k|piss off|\bspam\b|harass|go away|never (contact|email))/i;
+const HOSTILE_RX = /(f+u+c+k|piss off|\bspam\b|harass|leave me alone|go away|never (contact|email)|report you|stop (emailing|contacting|spamming))/i;
+const FREEMAIL = /^(gmail|googlemail|yahoo|ymail|hotmail|outlook|live|msn|icloud|me|mac|aol|proton|protonmail|pm|gmx|mail|zoho|yandex|btinternet|eircom|sky|virginmedia)\./i;
 
 // ---- places we never automate: the user does these by hand ----
 const STRICT_HOST = /(^|\.)(linkedin|instagram|facebook|fb|tiktok|reddit|redd|discord|discordapp|twitter|x|t|telegram|whatsapp|wa|snapchat|threads|twitch|youtube|youtu|pinterest|slack|medium|quora|substack|patreon|tumblr|mastodon|bsky|bluesky)\.(com|gg|me|tv|be|net|social|app|co)$/i;
@@ -44,6 +51,7 @@ function hostOf(u: string) { try { return new URL(/^https?:/i.test(u) ? u : "htt
 function firstEmail(e: unknown) { return String(e || "").split(/[;, ]/)[0].trim(); }
 
 function phaseOf(r: any): string {
+  if (r.data && r.data.doNotContact) return "dnc";
   const s = r.deal_stage || "", o = r.outreach_status || "", lead = r.deal_type === "lead";
   if (lead) {
     if (s === "Won - Client") return "won"; if (s === "Lost") return "closed"; if (s === "On Hold") return "hold";
@@ -174,8 +182,17 @@ async function loadRows(client: string, brandOnly: string | null) {
   (rows || []).forEach((r: any) => { emails.push(r.contact_email, r.data?.contactEmail); });
   tmap.forEach((t: any) => emails.push(t.contact_email));
   await loadBad(emails.map((e) => firstEmail(e)).filter(Boolean));
+  // who has already been emailed, per brand: the earliest card owns the address, any other card for it is never sent
+  SENT_TO.clear();
+  (rows || []).slice().sort((a: any, b: any) => String(a.data?.sentDate || "~").localeCompare(String(b.data?.sentDate || "~"))).forEach((r: any) => {
+    const dd = r.data || {}; if (!dd.sentDate || (dd.sentVia && dd.sentVia !== "email")) return;
+    const em = firstEmail((tmap.get(r.target_id) || {}).contact_email || r.contact_email || dd.contactEmail).toLowerCase(); if (!em) return;
+    const k = r.brand_id + "|" + em; if (!SENT_TO.has(k)) SENT_TO.set(k, r.id);
+  });
   return { bmap, rows: rows || [], tmap };
 }
+const SENT_TO = new Map<string, string>();
+function alreadyEmailedByOther(brand: string, to: string, id: string): boolean { const o = SENT_TO.get(brand + "|" + String(to || "").toLowerCase()); return !!o && o !== id; }
 // merge column + data like the app does
 function flat(r: any) {
   const d = r.data || {};
@@ -219,6 +236,7 @@ function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, toda
     // never send a first message to a row that already shows it was contacted
     if (base.sent || base.lastSent) return { ...base, kind: "blocked", route, reason: "Already has a sent date (" + (base.sent || base.lastSent) + "). Check it before anything is sent." };
     if (route.route === "manual") return { ...base, kind: "manual", route, reason: route.reason };
+    if (route.route === "email" && alreadyEmailedByOther(r.brand_id, route.to, r.id)) return { ...base, kind: "blocked", route, reason: "Another card already emailed this address. It is not emailed twice." };
     if (!draft) return { ...base, kind: "blocked", route, reason: "No message written yet." };
     if (route.route === "email" && !base.subject) return { ...base, kind: "blocked", route, reason: "No subject line yet." };
     return { ...base, kind: "first", route, reason: "" };
@@ -234,8 +252,9 @@ function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, toda
   if (ph === "sent" && !snoozed) {
     if (route.route !== "email") return null; // forms/posts have no follow-ups
     if (base.via && base.via !== "email") return null; // first message went by DM/form: never email a follow-up
-    if (base.lastSent && (Date.parse(today) - Date.parse(base.lastSent)) / 86400000 < 3) return null; // contacted in the last 3 days
-    if (base.followUps >= MAX_FOLLOWUPS) return null;
+    if (base.lastSent && (Date.parse(today) - Date.parse(base.lastSent)) / 86400000 < MIN_GAP_DAYS) return null; // contacted in the last week
+    if (base.followUps >= maxFu(d)) return null;
+    if (alreadyEmailedByOther(r.brand_id, route.to, r.id)) return null; // a duplicate card: the other one owns this address
     if (!base.dueDate || base.dueDate > today) return null;
     return { ...base, kind: "followup", route, reason: "" };
   }
@@ -296,7 +315,7 @@ function taskOf(it: Item, r: any, t: any, sig: string, today: string, sendFrom: 
     return { ...common, action: "send_reply", to: it.route.to, subject: it.subject, htmlBody: toHtml(body, trk), body, originalSubject: it.sentSubject || it.subject, gmailThread: clean(d.gmailThread, 200) || undefined, theirLastMessage: clean(d.responseReceived, 600) || undefined, instructions: "The user read and approved THIS exact reply. First open the existing thread with this person (search the mail for their address and originalSubject) and read their newest message. If their newest message is not the one in theirLastMessage, or it raises prices, budget, a deal, terms, a contract, payment or an invoice, or asks something this reply does not answer, do NOT send: call reach_flag_for_user with kind conversation_changed and say what they wrote. Otherwise send exactly this text as a REPLY inside that thread (use the mail connector's reply, not a new message). Do not change the wording." + LINKS + ACCT + " Then call reach_report_result with outcome \"sent\", the subject line as evidence, and the text you sent as 'message'." };
   }
   const n = it.followUps + 1;
-  return { ...common, action: "send_followup", to: it.route.to, followUpNumber: n, originalSubject: it.sentSubject || it.subject, ownerDraftingNotes: it.notes || undefined, firstSentOn: clean(d.sentDate, 10), gmailThread: clean(d.gmailThread, 200) || undefined, instructions: "First open the original thread. When you write the follow-up, obey every line of ownerDraftingNotes (if present); they override your default style. If the person has replied, do NOT send anything: call reach_report_result with outcome \"replied_seen\" and a short quote. Otherwise write and send follow-up " + n + " in the same thread. " + FOLLOWUP_RULES + " Pass the text you sent as 'message' in reach_report_result (outcome \"sent\")." + LINKS.replace("exactly as given", "with real <a href> anchors for any links") + ACCT };
+  return { ...common, action: "send_followup", to: it.route.to, followUpNumber: n, originalSubject: it.sentSubject || it.subject, ownerDraftingNotes: it.notes || undefined, firstSentOn: clean(d.sentDate, 10), gmailThread: clean(d.gmailThread, 200) || undefined, instructions: "First open the original thread. When you write the follow-up, obey every line of ownerDraftingNotes (if present); they override your default style. If the person has replied, do NOT send anything: call reach_report_result with outcome \"replied_seen\" and a short quote (use outcome \"opted_out\" with their words if they asked us to stop, said not interested, or were rude). Otherwise write and send follow-up " + n + " in the same thread. " + FOLLOWUP_RULES + " Pass the text you sent as 'message' in reach_report_result (outcome \"sent\")." + LINKS.replace("exactly as given", "with real <a href> anchors for any links") + ACCT };
 }
 
 async function todayCount(client: string) {
@@ -536,6 +555,28 @@ async function agentQueue(sc: Scope) {
   return { ok: true, tasks: [task], checkBounces: cb.length ? cb.slice(0, 20) : undefined, status: "task", queued, remainingToday: st.dailyCap - done, minGapSeconds: st.gapSec, message: queued + " approved message" + (queued === 1 ? "" : "s") + " queued; this is the first. The user already approved this exact message in Alchemist Reach, so send it without asking them again. Then report the result" + (left ? ", wait about " + st.gapSec + " seconds, and ask again for the next (" + left + " more after this one)." : ". It is the last one.") };
 }
 
+function d0reason(raw: any) { return !!(raw.data && raw.data.doNotContact); }
+async function applyOptOut(client: string, rows: any[], tmap: Map<string, any>, raw: any, quote: string, by: string) {
+  const d0 = raw.data || {};
+  const em = firstEmail((tmap.get(raw.target_id) || {}).contact_email || raw.contact_email || d0.contactEmail).toLowerCase();
+  const hostile = HOSTILE_RX.test(quote);
+  const stamp = { at: Date.now(), by, reason: clean(quote || "Asked not to be contacted", 260), email: em || undefined };
+  const targets = rows.filter((r: any) => r.id === raw.id || (em && firstEmail((tmap.get(r.target_id) || {}).contact_email || r.contact_email || r.data?.contactEmail).toLowerCase() === em));
+  for (const r of targets) {
+    const d = Object.assign({}, r.data || {});
+    d.doNotContact = stamp; d.followUpDue = ""; d.draft = ""; d.draftKind = ""; d.draftState = ""; d.suggest = null; d.agentFlag = null;
+    delete d.autoOk; delete d.replyOk; delete d.agentClaim;
+    d.nextAction = "Do not send. They asked us to stop."; d.updatedAt = Date.now();
+    await admin.from("ar_deals").update({ data: d }).eq("id", r.id);
+  }
+  if (em) {
+    await addBad(em, "email", "Opted out: " + clean(quote, 150), client);
+    const dom = em.split("@")[1] || "";
+    if (hostile && dom && !FREEMAIL.test(dom)) await addBad(dom, "domain", "Opted out (rude reply): " + clean(quote, 130), client);
+  }
+  return { em, hostile, cards: targets.length };
+}
+
 async function logIt(client: string, brand: string | null, deal: string | null, key: string | null, action: string, outcome: string, detail: string) {
   await admin.from("ar_agent_log").insert({ client_id: client, brand_id: brand, deal_id: deal, key_id: key, action, outcome, detail: clean(detail, 400) });
 }
@@ -543,7 +584,7 @@ async function logIt(client: string, brand: string | null, deal: string | null, 
 async function agentResult(sc: Scope, a: any) {
   const id = String(a.id || ""), outcome = String(a.outcome || "");
   if (id === "import") return await addLinkedinContacts(sc, { problem: clean(a.reason, 300) || "Claude could not finish the import.", kind: clean(a.kind, 30) });
-  if (!["sent", "submitted", "needs_user", "failed", "replied_seen", "not_free", "bounced", "prepared", "checked"].includes(outcome)) return { ok: false, error: "outcome must be sent, submitted, prepared, checked, needs_user, failed, replied_seen, not_free or bounced" };
+  if (!["sent", "submitted", "needs_user", "failed", "replied_seen", "not_free", "bounced", "prepared", "checked", "opted_out"].includes(outcome)) return { ok: false, error: "outcome must be sent, submitted, prepared, checked, needs_user, failed, replied_seen, not_free, bounced or opted_out" };
   const today = iso(new Date());
   const { bmap, rows, tmap } = await loadRows(sc.client, sc.brand);
   const raw = rows.find((r: any) => r.id === id);
@@ -625,6 +666,12 @@ async function agentResult(sc: Scope, a: any) {
     await logIt(sc.client, raw.brand_id, id, sc.keyId, it?.kind || "unknown", outcome, cost + (quote ? " \u2014 " + quote : ""));
     return { ok: true, message: "Closed as a paid listing and marked on the option. Move on to the next task." };
   }
+  if (outcome === "opted_out" || (outcome === "replied_seen" && OPT_RX.test(String(evidence || "") + " " + String(a.reason || "")))) {
+    const q = clean(evidence || a.reason || "Asked not to be contacted", 260);
+    const r2 = await applyOptOut(sc.client, rows, tmap, raw, q, "agent");
+    await logIt(sc.client, raw.brand_id, id, sc.keyId, "optout", "opted_out", q);
+    return { ok: true, message: "Recorded as Do not send" + (r2.cards > 1 ? " on " + r2.cards + " cards" : "") + ". That address" + (r2.hostile ? " and its company" : "") + " is blocked. Send nothing more to them and do NOT reply. Move on to the next task." };
+  }
   if (outcome === "replied_seen") {
     d.suggest = { type: "replied", date: today, evidence: ("“" + (evidence || "reply found in thread") + "”").slice(0, 260), via: "agent", at: Date.now() };
     if (it?.kind === "licheck") d.liCheckedAt = Date.now();
@@ -655,8 +702,8 @@ async function agentResult(sc: Scope, a: any) {
   } else {
     const n = it.followUps + 1;
     d.lastSentDate = today; d.followUps = n; d.sentVia = "email";
-    d.followUpDue = n === 1 ? addDays(first, FU2_DAYS) : "";
-    if (n >= MAX_FOLLOWUPS) d.nextAction = "Stop — two follow-ups sent; close out if no reply";
+    d.followUpDue = n < maxFu(d) ? addDays(today, FU2_DAYS - FU1_DAYS) : "";
+    if (n >= maxFu(d)) d.nextAction = "Stop — follow-up sent; close out if no reply";
   }
   d.suggest = null; d.reviewState = ""; d.draftState = ""; d.agentFlag = null; d.autoSentBy = "agent"; d.updatedAt = Date.now();
   await admin.from("ar_deals").update({ data: d, outreach_status: status }).eq("id", id);
@@ -677,10 +724,10 @@ const MCP_INSTRUCTIONS =
   "do not retry a failed task more than once; one task at a time with natural pauses. " +
   "LINKS: send emails with htmlBody only (use the htmlBody the task gives; for follow-ups write real <a href=\"https://…\"> anchors); never put a bare web address in a plain body, the mail connector turns it into a google.com redirect. " +
   "ACCOUNT CHECK: every email task names sendFrom. Before the first send, and whenever unsure, confirm the mail account you are signed into is exactly that address; if not, send nothing and call reach_flag_for_user with kind wrong_account. " +
-  "BOUNCES: after each email send, and whenever get_next_task returns checkBounces, look in the inbox for delivery-failure notices (from:mailer-daemon, subject 'Delivery Status Notification'). If one names an address you emailed, call reach_report_result with outcome bounced, the task id, and the reason in plain words. Never resend to a bounced address.";
+  "BOUNCES: after each email send, and whenever get_next_task returns checkBounces, look in the inbox for delivery-failure notices (from:mailer-daemon, subject 'Delivery Status Notification'). If one names an address you emailed, call reach_report_result with outcome bounced, the task id, and the reason in plain words. Never resend to a bounced address. OPT-OUTS: in the same inbox check, also look for REAL replies (not out-of-office or auto-replies) from the addresses you emailed. If a person asks to stop, unsubscribe, be removed, says they are not interested, or answers rudely, call reach_report_result with outcome opted_out, the task id, and their exact words in evidence. Never reply to them and never write to them again.";
 const TOOLS = [
   { name: "reach_get_next_task", description: "Get the next approved, due outreach task (send an email, submit a web form, send a follow-up, or send an approved reply, or prepare / check a LinkedIn message). Returns nothing if automation is off, the daily limit is reached, or you must wait.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
-  { name: "reach_report_result", description: "Report what happened with a task. outcome: sent (email, follow-up or reply sent), prepared (LinkedIn text is in the box, NOT sent), checked (LinkedIn: no reply yet), submitted (web form submitted), replied_seen (they already replied — nothing sent), not_free (the place charges money — nothing submitted; put the price in 'cost' and the page's wording in 'evidence'), failed, needs_user, bounced (the email came back undeliverable — put the bounce reason in 'reason'; the address is then blocked for all users). Include proof in 'evidence' (subject line sent, or the form's confirmation text). For follow-ups also include the text you sent as 'message'.", inputSchema: { type: "object", properties: { id: { type: "string" }, outcome: { type: "string", enum: ["sent", "submitted", "replied_seen", "not_free", "failed", "needs_user", "bounced"] }, evidence: { type: "string" }, cost: { type: "string" }, message: { type: "string" }, reason: { type: "string" } }, required: ["id", "outcome"], additionalProperties: false } },
+  { name: "reach_report_result", description: "Report what happened with a task. outcome: sent (email, follow-up or reply sent), prepared (LinkedIn text is in the box, NOT sent), checked (LinkedIn: no reply yet), submitted (web form submitted), replied_seen (they already replied — nothing sent), not_free (the place charges money — nothing submitted; put the price in 'cost' and the page's wording in 'evidence'), failed, needs_user, opted_out (they asked us to stop, said not interested, or replied rudely: put their exact words in evidence; they are never contacted again and nothing is sent back), bounced (the email came back undeliverable — put the bounce reason in 'reason'; the address is then blocked for all users). Include proof in 'evidence' (subject line sent, or the form's confirmation text). For follow-ups also include the text you sent as 'message'.", inputSchema: { type: "object", properties: { id: { type: "string" }, outcome: { type: "string", enum: ["sent", "submitted", "replied_seen", "not_free", "failed", "needs_user", "bounced", "opted_out"] }, evidence: { type: "string" }, cost: { type: "string" }, message: { type: "string" }, reason: { type: "string" } }, required: ["id", "outcome"], additionalProperties: false } },
   { name: "reach_add_linkedin_contacts", description: "Finish a linkedin_import task (read only). Pass contacts: the people you read, each with name, profileUrl (linkedin.com/in/...), headline, company, location, about, connected (true/false) and, if you read a conversation, lastMessage {from: me|them, text, date}. If you could not confirm the LinkedIn account or LinkedIn warned you, pass problem (plain words) and kind (li_identity or li_restricted) with an empty list. Nothing is messaged: the user accepts or declines each person in Alchemist Reach.", inputSchema: { type: "object", properties: { contacts: { type: "array", items: { type: "object" } }, problem: { type: "string" }, kind: { type: "string" } }, additionalProperties: false } },
   { name: "reach_flag_for_user", description: "Hand a task back to the user because a person has to do it (CAPTCHA, login, payment, a field you can't fill, or anything unexpected). Say why in plain words.", inputSchema: { type: "object", properties: { id: { type: "string" }, kind: { type: "string", enum: ["captcha", "login", "payment", "missing_info", "mismatch", "wrong_account", "other"] }, reason: { type: "string" } }, required: ["id", "reason"], additionalProperties: false } },
 ];
@@ -807,6 +854,19 @@ async function appAction(u: any, client: string, body: any) {
     return { ok: true };
   }
   if (action === "li_import_clear") { await admin.from("ar_settings").delete().eq("client_id", client).eq("key", "li_import"); return { ok: true }; }
+  if (action === "opt_out") {
+    const id = String(body.id || "");
+    const { bmap, rows, tmap } = await loadRows(client, null); const raw = rows.find((r: any) => r.id === id);
+    if (!raw || !bmap.has(raw.brand_id)) return { ok: false, error: "Not found" };
+    if (body.on === false) {
+      const d = Object.assign({}, raw.data || {}); const em = String(d.doNotContact?.email || "").toLowerCase(); d.doNotContact = null; d.updatedAt = Date.now();
+      await admin.from("ar_deals").update({ data: d }).eq("id", id);
+      if (em && d0reason(raw)) { await admin.from("ar_bad_contacts").delete().eq("value", em).like("reason", "Opted out%"); }
+      return { ok: true };
+    }
+    const r2 = await applyOptOut(client, rows, tmap, raw, clean(body.reason, 260) || "Marked Do not send by you", "user");
+    return { ok: true, cards: r2.cards };
+  }
   if (action === "clear_flag") {
     const id = String(body.id || "");
     const { bmap, rows } = await loadRows(client, null); const raw = rows.find((r: any) => r.id === id);
