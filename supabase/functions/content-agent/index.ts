@@ -304,7 +304,7 @@ function pinOf(d: any, text: string, board: string) {
   const t = String(text || "").trim();
   const first = (t.split(/\n+/).find((l) => l.trim()) || "").replace(/#\w+/g, "").replace(/\s+/g, " ").trim();
   const title = clean(first || d.title, 100);
-  const desc = clean(t.replace(/\bhttps?:\/\/\S+/g, "").replace(/[ \t]+\n/g, "\n"), 500);
+  const desc = clean(t.replace(/\s*(?:\bor\s+)?\bhttps?:\/\/\S+/g, "").replace(/:[ \t]*(\n|$)/g, "$1").replace(/[ \t]+\n/g, "\n"), 500); // link goes in the link box; drop the dangling "Try it free:" it leaves
   let link = clean(d.link, 300);
   if (link && !/[?&]utm_/.test(link)) link += (link.includes("?") ? "&" : "?") + "utm_source=pinterest&utm_medium=pin&utm_content=" + encodeURIComponent(String(d.sku || ""));
   return { title, description: desc, link: link || undefined, alt: clean((d.title ? d.title + ". " : "") + first, 480), board };
