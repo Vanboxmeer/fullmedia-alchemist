@@ -177,6 +177,18 @@ export const STATIC_POSTS: { slug: string; title: string }[] = [
   "title": "Jump-start Reach: let Claude fill in your brand settings"
  },
  {
+  "slug": "content-reminders-due-and-falling-behind",
+  "title": "Stay on top of every brand: due, coming up and falling behind"
+ },
+ {
+  "slug": "content-reminder-emails-and-phone-notifications",
+  "title": "Reminder emails and phone notifications: what we send, and when"
+ },
+ {
+  "slug": "weekly-check-in-keep-posting-on-track",
+  "title": "A ten-minute weekly check-in to keep your posting on track"
+ },
+ {
   "slug": "creative-engine-upgrade",
   "title": "The creative engine, rewritten: posts that stop the scroll"
  },
