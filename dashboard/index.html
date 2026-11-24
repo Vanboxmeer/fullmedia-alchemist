@@ -1021,10 +1021,13 @@ details.adv[open] summary::before{content:"−"}
 .cl-row{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px}
 .cl-url{display:flex;gap:8px;margin-top:8px}
 .cl-url input{flex:1;min-width:0}
-.fm-tip{display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:9px 12px;border-radius:12px;background:var(--gold-soft);color:var(--ink-2);font-size:13.5px;line-height:1.4}.fm-tip-s{color:var(--gold);flex:none}.fm-tip-t{flex:1;min-width:0}.fm-tip-x{flex:none;border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}.fm-tip-x:hover{color:var(--ink)}.fm-grow-a{color:var(--gold);font-weight:600;text-decoration:underline;margin-left:4px}.srcbox{margin:0 0 16px}
-.srcbox .seg{margin-bottom:12px}
+.fm-tip{display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:9px 12px;border-radius:12px;background:var(--gold-soft);color:var(--ink-2);font-size:13.5px;line-height:1.4}.fm-tip-s{color:var(--gold);flex:none}.fm-tip-t{flex:1;min-width:0}.fm-tip-x{flex:none;border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}.fm-tip-x:hover{color:var(--ink)}.fm-grow-a{color:var(--gold);font-weight:600;text-decoration:underline;margin-left:4px}.qcard{border:1px solid var(--line);border-radius:14px;padding:16px;margin:4px 0 6px;background:var(--surface)}
+.qc-top{margin-bottom:10px;font-size:15px}
+.qc-act{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:6px}
+.or-line{display:flex;align-items:center;gap:12px;margin:14px 0;color:var(--muted);font-size:13px}
+.or-line::before,.or-line::after{content:'';flex:1;height:1px;background:var(--line)}
 .quick-list{margin:0 0 6px;padding-left:18px;display:grid;gap:4px}
-#ownBrief[hidden],#srcBox[hidden]{display:none}
+details.adv>summary{font-size:14px}
 </style>
 <style id="tg-nodismiss">div:has(.terms-gate) [data-close]{display:none!important}</style><style id="fm-studio-v22">.camp-studio .cs-tabs{display:flex;align-items:center}.camp-studio .cs-toggle{margin-left:auto;background:none;border:0;color:inherit;cursor:pointer;padding:8px 10px;opacity:.7;border-radius:8px;line-height:0}.camp-studio .cs-toggle:hover{opacity:1}.camp-studio .cs-toggle i{display:block;width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(225deg) translate(-1px,-1px);transition:transform .15s}.camp-studio.cs-collapsed .cs-toggle i{transform:rotate(45deg) translate(-1px,-1px)}.camp-studio.cs-collapsed .cs-pane{display:none!important}</style></head>
 <body>
@@ -2156,7 +2159,7 @@ function renderHome() {
   // the create/start campaign section if campaigns exist ... or better
   // navigation in brands". Brand tabs on top; the composer is a one-line
   // "Start a new campaign" bar when the brand already has campaigns.
-  const collapsed = camps.length > 0 && S.compOpen !== true;
+  const collapsed = camps.length > 0 && S.compOpen === false;
   main.innerHTML = `
     <div class="view">
       ${brandNavHtml('camps')}
@@ -2173,16 +2176,18 @@ function renderHome() {
         <div id="compLong">
         <h2 style="margin-top:6px">What should we post about?</h2>
         <p class="sub">You bring the materials: a sentence is enough. Offer them with your credits and we transmute them together into captions, hashtags and designed images.</p>
-        <div class="srcbox" id="srcBox" hidden>
-          <div class="seg" id="srcSeg" role="group" aria-label="What should we post about"><button type="button" data-s="blog">My latest blog posts</button><button type="button" data-s="own">Something else</button></div>
-          <div class="src-blog" id="srcBlog" aria-live="polite"></div>
+        <div class="qcard" id="qCard" aria-live="polite">
+          <div class="qc-top"><b>Quick: post about my latest blog posts</b></div>
+          <div id="qBody"><span class="muted small">Looking at your blog…</span></div>
         </div>
+        <div class="or-line"><span>or tell me what to post about</span></div>
         <div id="ownBrief">
         <textarea class="textarea" id="compPrompt" maxlength="2000" placeholder="e.g. Our autumn menu launches Oct 20 — pumpkin cold brew and two new pastries. Get people in for opening weekend."></textarea>
         <button type="button" class="plist-toggle" id="plistToggle" aria-expanded="${comp.listOn}">☰ ${comp.listOn ? 'Back to one brief for all posts' : 'One post per event, product or link'}</button>
         <div id="compList"></div>
-        ${link ? '' : `<div class="field" style="margin-top:14px;position:relative"><label for="compLink">Where should these posts send people?</label><input class="input" id="compLink" maxlength="500" placeholder="https://yourbrand.com/the-page"><span class="hint">Use your own site. A link to another site is only read for facts, never used as the destination.</span></div>`}
         </div>
+        <details class="adv" id="moreOpts"><summary>More options</summary>
+        ${link ? '' : `<div class="field" style="margin-top:12px;position:relative"><label for="compLink">Where should these posts send people?</label><input class="input" id="compLink" maxlength="500" placeholder="https://yourbrand.com/the-page"><span class="hint">Use your own site. A link to another site is only read for facts, never used as the destination.</span></div>`}
         <div class="comp-row" style="margin-top:16px">
           <div class="field"><span class="label">Posts</span>
             <div class="stepper" id="cntStep"><button type="button" id="cntMinus" aria-label="Fewer">−</button><output id="cnt">${comp.count}</output><button type="button" id="cntPlus" aria-label="More">+</button></div><span class="small muted" id="cntList" hidden></span></div>
@@ -2221,6 +2226,7 @@ function renderHome() {
           <div style="margin-top:14px">${endingFieldHtml({}, { p: 'cp', apply: false, remove: false, optional: true, hint: `Added as the last image of every post in this campaign (up to ${MAX_IMAGES} images).` })}</div>
           ${researchPickHtml('compRes')}${assetPickHtml('compAssets')}
         </section>
+        </details>
         <div class="materials" id="matLine" aria-live="polite"></div>
         <div class="ex-line" id="exLine"></div>
         <div class="comp-foot">
@@ -2239,7 +2245,6 @@ function renderHome() {
         : `<div class="card empty-state"><p>The crucible is empty. Describe your first campaign above and I’ll turn it into posts.</p></div>`}
     </div>`;
   wireComposer();
-  wireBlogSourceSwitch();
   wireQuickBlog();
   wireFirstRun();
   wireBrandNav(main);
@@ -2338,10 +2343,10 @@ function wireComposer(prefill) {
   const seg = $('#fmtSeg');
   const paintFmt = () => { paintFmtField(seg.parentElement, comp.format); optSummary(); };
   wireFmtField(seg.parentElement, () => comp.format, (f) => { comp.format = f; paintFmt(); });
-  paintFmt(); comp.repaintFmt = paintFmt;
+  paintFmt();
   const out = $('#cnt');
-  $('#cntMinus').onclick = () => { comp.count = Math.max(1, comp.count - 1); out.textContent = comp.count; if (blogMode()) { srcSave('blog'); const c = S.blogPeek && S.blogPeek[S.brand]; paintBlogSource(c && c.data); } optSummary(); };
-  $('#cntPlus').onclick = () => { comp.count = Math.min(blogMode() ? S.blogFresh.length : 10, comp.count + 1); out.textContent = comp.count; if (blogMode()) { srcSave('blog'); const c = S.blogPeek && S.blogPeek[S.brand]; paintBlogSource(c && c.data); } optSummary(); };
+  $('#cntMinus').onclick = () => { comp.count = Math.max(1, comp.count - 1); out.textContent = comp.count; optSummary(); };
+  $('#cntPlus').onclick = () => { comp.count = Math.min(10, comp.count + 1); out.textContent = comp.count; optSummary(); };
   const cl2 = $('#compLink'); if (cl2) cl2.addEventListener('input', optSummary);
   $$('#compPlats .chip').forEach((c) => c.onclick = () => c.setAttribute('aria-pressed', c.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'));
   $('#ideasBtn').onclick = () => loadIdeas();
@@ -2403,72 +2408,63 @@ function wireFmtField(field, get, set) {
 }
 
 
-/* ── Posts from the brand's latest blog posts, part of the new-campaign form (2026-11-24) ──
-   Pick "My latest blog posts" at the top of the form: the brief and link boxes step aside, and the
-   usual Posts / Slides / Start / Post to fields and the Transmute button do the rest.
-   Looking at the blog is free (no AI, no credits). Only posts from the last 60 days count. */
-const QUICK_FMT = 'carousel3';
+/* ── Quick blog posts (2026-11-24): a card at the top of the New campaign form.
+   Pick 1 to 4, press the button. Looking at the blog is free; only posts from the last 60 days count. */
+const QUICK_FMT = 'carousel3', QUICK_MAX = 4;
 function quickDaysText(n) { return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago'; }
-function srcKey() { return 'fa-src:' + S.brand; }
-function srcPref() { try { return localStorage.getItem(srcKey()) === 'own' ? 'own' : 'blog'; } catch (e) { return 'blog'; } }
-function srcSave(v) { try { localStorage.setItem(srcKey(), v); localStorage.setItem('fa-src-n:' + S.brand, String(comp.count)); } catch (e) {} }
-function srcSavedN() { try { const v = parseInt(localStorage.getItem('fa-src-n:' + S.brand), 10); return v >= 1 && v <= 10 ? v : 2; } catch (e) { return 2; } }
-function blogMode() { return comp.src === 'blog' && Array.isArray(S.blogFresh) && S.blogFresh.length > 0; }
+function quickN() { try { const v = parseInt(localStorage.getItem('fa-src-n:' + S.brand), 10); return v >= 1 && v <= QUICK_MAX ? v : 2; } catch (e) { return 2; } }
+function quickSaveN(n) { try { localStorage.setItem('fa-src-n:' + S.brand, String(n)); } catch (e) {} }
 async function wireQuickBlog() {
-  if (!$('#srcBox')) return;
+  if (!$('#qCard')) return;
   const brand = S.brand; if (!brand) return;
   S.blogPeek = S.blogPeek || {};
   const cache = S.blogPeek[brand];
-  if (cache && cache.done && Date.now() - cache.at < 30 * 60 * 1000) return paintBlogSource(cache.data);
+  if (cache && cache.done && Date.now() - cache.at < 30 * 60 * 1000) return paintQuick(cache.data, cache.failed);
+  paintQuick(null, false, true);
   if (cache && cache.busy) return;
   S.blogPeek[brand] = { busy: true, at: Date.now() };
   try {
     const d = await genApi('generate-campaign-content', { body: { action: 'blog_peek', brand } });
     S.blogPeek[brand] = { done: true, at: Date.now(), data: d };
-    if (S.brand === brand) paintBlogSource(d);
+    if (S.brand === brand) paintQuick(d);
   } catch (e) {
-    S.blogPeek[brand] = { done: true, at: Date.now() - 25 * 60 * 1000, data: null };   // look again in ~5 minutes
+    S.blogPeek[brand] = { done: true, failed: true, at: Date.now() - 25 * 60 * 1000, data: null };
+    if (S.brand === brand) paintQuick(null, true);
   }
 }
-function paintBlogSource(d) {
-  const box = $('#srcBox'), own = $('#ownBrief'); if (!box || !own) return;
-  const fresh = d && Array.isArray(d.posts) ? d.posts.filter((p) => p.days <= (d.fresh_days || 60)) : [];
+function paintQuick(d, failed, loading) {
+  const body = $('#qBody'); if (!body) return;
+  const days = (d && d.fresh_days) || 60;
+  const fresh = d && Array.isArray(d.posts) ? d.posts.filter((p) => p.days <= days) : [];
   S.blogFresh = fresh;
-  const bar = $('#compOpen .comp-bar-t .muted');
-  if (!fresh.length) { box.hidden = true; own.hidden = false; comp.src = 'own'; return; }
-  if (!comp.src) { comp.src = srcPref(); if (comp.src === 'blog') { comp.count = Math.min(srcSavedN(), fresh.length); comp.format = QUICK_FMT; } }
-  if (bar) bar.textContent = 'Make posts from your latest blog posts, or describe your own. It makes the posts, images and schedule.';
-  box.hidden = false;
-  const blog = comp.src === 'blog';
-  $$('#srcSeg [data-s]', box).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.s === comp.src)));
-  own.hidden = blog;
-  const lf = $('#compLink'); if (lf) { const f = lf.closest('.field'); if (f) f.hidden = blog; }
-  const n = Math.min(comp.count, fresh.length);
-  $('#srcBlog').innerHTML = blog
-    ? `<ul class="quick-list">${fresh.slice(0, n).map((p) => `<li><b>${esc(p.title)}</b> <span class="muted small">${esc(quickDaysText(p.days))}</span></li>`).join('')}</ul>
-       <p class="hint">One post for each of your newest blog posts, from the last ${esc(String((d && d.fresh_days) || 60))} days. ${fresh.length < comp.count ? `Only ${fresh.length} recent post${fresh.length === 1 ? '' : 's'} found, so that is how many it makes.` : ''}</p>`
-    : '';
-  const out = $('#cnt'); if (out) out.textContent = blog ? n : comp.count;
-  if (blog && comp.count > fresh.length) comp.count = fresh.length;
-  if (blog && comp.repaintFmt) comp.repaintFmt();
-  if (typeof optSummary === 'function') optSummary();
-}
-function wireBlogSourceSwitch() {
-  $$('#srcSeg [data-s]').forEach((b) => b.onclick = () => {
-    comp.src = b.dataset.s;
-    if (comp.src === 'blog') { comp.format = QUICK_FMT; if (S.blogFresh && comp.count > S.blogFresh.length) comp.count = S.blogFresh.length; }
-    srcSave(comp.src);
-    const c = S.blogPeek && S.blogPeek[S.brand]; paintBlogSource(c && c.data);
-  });
+  if (loading) { body.innerHTML = '<span class="muted small">Looking at your blog…</span>'; return; }
+  if (failed) { body.innerHTML = '<span class="small">Couldn’t look at your blog just now. <a href="#" id="qRetry">Try again</a></span>'; $('#qRetry').onclick = (e) => { e.preventDefault(); delete S.blogPeek[S.brand]; wireQuickBlog(); }; return; }
+  if (!fresh.length) {
+    body.innerHTML = `<span class="small muted">${d && d.configured === false ? 'No blog page set for this brand yet. Add it in <a href="#" data-socfix>Brand settings</a> and your latest posts show up here.' : `No blog posts from the last ${days} days were found, so there is nothing recent to post about.`}</span>`;
+    return;
+  }
+  const max = Math.min(QUICK_MAX, fresh.length);
+  let n = Math.min(quickN(), max);
+  const draw = () => {
+    const cost = costOf(n, QUICK_FMT);
+    body.innerHTML = `<ul class="quick-list">${fresh.slice(0, n).map((p) => `<li><b>${esc(p.title)}</b> <span class="muted small">${esc(quickDaysText(p.days))}</span></li>`).join('')}</ul>
+      <div class="qc-act"><div class="stepper" id="qStep"><button type="button" id="qMinus" aria-label="Fewer posts">−</button><output id="qN">${n}</output><button type="button" id="qPlus" aria-label="More posts">+</button></div>
+      <button type="button" class="btn btn-gold btn-lg" id="qGo">${icons.spark} Make ${n} post${n === 1 ? '' : 's'}</button></div>
+      <p class="hint" style="margin-top:8px">One 3-image post per blog post, newest first. ✦ ${cost} credits.</p>`;
+    $('#qMinus').onclick = () => { if (n > 1) { n--; quickSaveN(n); draw(); } };
+    $('#qPlus').onclick = () => { if (n < max) { n++; quickSaveN(n); draw(); } };
+    $('#qGo').onclick = () => { quickSaveN(n); blogFromForm(n); };
+  };
+  draw();
 }
 /* Transmute in blog mode: same form fields, but the brief comes from the blog posts. */
-async function blogFromForm() {
+async function blogFromForm(want) {
   const msg = $('#compMsg');
   const err = (t) => { msg.innerHTML = '<div class="notice bad" style="margin-top:14px"></div>'; msg.firstChild.textContent = t; };
   msg.innerHTML = '';
   const fresh = S.blogFresh || [];
-  const count = Math.max(1, Math.min(comp.count, fresh.length, 10));
-  const fmt = comp.format;
+  const count = Math.max(1, Math.min(want || 1, fresh.length, QUICK_MAX));
+  const fmt = QUICK_FMT;
   const cost = costOf(count, fmt);
   { const sm0 = shortText(cost); if (sm0) return err(sm0); }
   const start = $('#compStart').value || todayYmd();
@@ -2483,8 +2479,7 @@ async function blogFromForm() {
     wireCampSlots(msg, sl, () => { msg.innerHTML = '<div class="notice ok" style="margin-top:14px">A slot is free. Press Transmute again.</div>'; });
     return;
   }
-  srcSave('blog');
-  const btn = $('#compGo'); btn.disabled = true;
+  const btn = $('#qGo'); if (btn) btn.disabled = true;
   const b = brew('Reading your blog', ['Reading your latest posts…', 'Choosing a different angle for each…', 'Writing captions…', 'Designing the images…', 'Pointing every post at its article…', 'Almost there…'],
     'Takes about a minute. Keep this tab open.', { give: `${materialsShort()} + ✦ ${cost}`, get: `${count} post${count === 1 ? '' : 's'}` });
   const compTone = $('#compTone') ? $('#compTone').value : '';
@@ -2516,7 +2511,7 @@ async function blogFromForm() {
     toast(`Done: ✦ ${spent} credit${spent === 1 ? '' : 's'} → ${g.created} post${g.created === 1 ? '' : 's'} from your latest blog posts.${g.scenes_queued ? ' The pictures are still finishing (about a minute).' : ''}`, 'ok', 9000);
     loadProgress(true);
   } catch (e) {
-    b.stop(false); btn.disabled = false;
+    b.stop(false); if (btn) btn.disabled = false;
     if (e.status === 401) return;
     if (campaign) {
       if (maybeStillMaking(e) && await postsAppeared(campaign.id, 0, 4)) { setBrandChrome(); openCampaign(campaign.id); toast(STILL_MAKING_TOAST, 'ok', 8000); loadProgress(true); return; }
@@ -2530,7 +2525,6 @@ async function blogFromForm() {
 }
 
 async function createCampaignFromComposer() {
-  if (blogMode()) return blogFromForm();
   const prompt = $('#compPrompt').value.trim();
   let link = normalizeUrl($('#compLink').value);
   const msg = $('#compMsg');
