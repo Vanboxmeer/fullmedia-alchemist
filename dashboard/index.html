@@ -2424,7 +2424,7 @@ async function wireQuickBlog() {
   if (cache && cache.busy) return;
   S.blogPeek[brand] = { busy: true, at: Date.now() };
   try {
-    const d = await genApi('generate-campaign-content', { body: { action: 'blog_peek', brand } });
+    const d = await api('generate-campaign-content', { body: { action: 'blog_peek', brand } });   // a direct free look: not a generation job
     S.blogPeek[brand] = { done: true, at: Date.now(), data: d };
     if (S.brand === brand) paintQuick(d);
   } catch (e) {
@@ -2440,7 +2440,22 @@ function paintQuick(d, failed, loading) {
   if (loading) { body.innerHTML = '<span class="muted small">Looking at your blog…</span>'; return; }
   if (failed) { body.innerHTML = '<span class="small">Couldn’t look at your blog just now. <a href="#" id="qRetry">Try again</a></span>'; $('#qRetry').onclick = (e) => { e.preventDefault(); delete S.blogPeek[S.brand]; wireQuickBlog(); }; return; }
   if (!fresh.length) {
-    body.innerHTML = `<span class="small muted">${d && d.configured === false ? 'No blog page set for this brand yet. Add it in <a href="#" data-socfix>Brand settings</a> and your latest posts show up here.' : `No blog posts from the last ${days} days were found, so there is nothing recent to post about.`}</span>`;
+    let hid = false; try { hid = localStorage.getItem('fa-qhide:' + S.brand) === '1'; } catch (e) {}
+    const none = d && d.configured === false;
+    body.innerHTML = hid ? '<span class="small muted">Hidden. <a href="#" id="qShow">Show it again</a></span>'
+      : `<p class="small" style="margin:0 0 10px">${none ? 'I don’t know where this brand’s blog is yet.' : `I couldn’t find blog posts from the last ${days} days.`} Paste your blog’s address and I’ll use your newest posts.</p>
+      <div class="qc-act"><input class="input" id="qUrl" style="flex:1;min-width:200px" maxlength="300" placeholder="https://yourbrand.com/blog" aria-label="Your blog address"><button type="button" class="btn btn-gold" id="qSave">Save and look</button></div>
+      <div id="qMsg2" class="small" style="margin-top:8px"></div>
+      <p class="hint" style="margin-top:8px"><a href="#" id="qHide">No blog? Hide this</a></p>`;
+    const sh = $('#qShow'); if (sh) sh.onclick = (e) => { e.preventDefault(); try { localStorage.removeItem('fa-qhide:' + S.brand); } catch (x) {} paintQuick(d); };
+    const hd = $('#qHide'); if (hd) hd.onclick = (e) => { e.preventDefault(); try { localStorage.setItem('fa-qhide:' + S.brand, '1'); } catch (x) {} paintQuick(d); };
+    const sv = $('#qSave'); if (sv) sv.onclick = async () => {
+      const u = normalizeUrl($('#qUrl').value);
+      if (!u) { $('#qMsg2').textContent = 'That doesn’t look like a web address. Paste the full link to your blog.'; return; }
+      sv.disabled = true; $('#qMsg2').textContent = 'Saving…';
+      try { await rpc('cc_brand_set_news', { p_brand: S.brand, p_url: u }); delete S.blogPeek[S.brand]; wireQuickBlog(); }
+      catch (e) { sv.disabled = false; $('#qMsg2').textContent = e.message || 'Couldn’t save that. Try again.'; }
+    };
     return;
   }
   const max = Math.min(QUICK_MAX, fresh.length);
