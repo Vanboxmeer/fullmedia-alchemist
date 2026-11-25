@@ -2414,83 +2414,73 @@ const QUICK_FMT = 'carousel3', QUICK_MAX = 4;
 function quickDaysText(n) { return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago'; }
 function quickN() { try { const v = parseInt(localStorage.getItem('fa-src-n:' + S.brand), 10); return v >= 1 && v <= QUICK_MAX ? v : 2; } catch (e) { return 2; } }
 function quickSaveN(n) { try { localStorage.setItem('fa-src-n:' + S.brand, String(n)); } catch (e) {} }
-async function wireQuickBlog() {
-  if (!$('#qCard')) return;
-  const brand = S.brand; if (!brand) return;
-  S.blogPeek = S.blogPeek || {};
-  const cache = S.blogPeek[brand];
-  if (cache && cache.done && Date.now() - cache.at < 30 * 60 * 1000) return paintQuick(cache.data, cache.failed);
-  paintQuick(null, false, true);
-  if (cache && cache.busy) return;
-  S.blogPeek[brand] = { busy: true, at: Date.now() };
-  try {
-    const d = await api('generate-campaign-content', { body: { action: 'blog_peek', brand } });   // a direct free look: not a generation job
-    S.blogPeek[brand] = { done: true, at: Date.now(), data: d };
-    if (S.brand === brand) paintQuick(d);
-  } catch (e) {
-    S.blogPeek[brand] = { done: true, failed: true, at: Date.now() - 25 * 60 * 1000, data: null };
-    if (S.brand === brand) paintQuick(null, true);
-  }
-}
-function paintQuick(d, failed, loading) {
+function wireQuickBlog() { paintQuick(); }
+/* Nothing is read until the person presses the button. The free look at the blog happens then. */
+function paintQuick() {
   const body = $('#qBody'); if (!body) return;
-  const days = (d && d.fresh_days) || 60;
-  const fresh = d && Array.isArray(d.posts) ? d.posts.filter((p) => p.days <= days) : [];
-  S.blogFresh = fresh;
-  if (loading) { body.innerHTML = '<span class="muted small">Looking at your blog…</span>'; return; }
-  if (failed) { body.innerHTML = '<span class="small">Couldn’t look at your blog just now. <a href="#" id="qRetry">Try again</a></span>'; $('#qRetry').onclick = (e) => { e.preventDefault(); delete S.blogPeek[S.brand]; wireQuickBlog(); }; return; }
-  if (!fresh.length) {
-    let hid = false; try { hid = localStorage.getItem('fa-qhide:' + S.brand) === '1'; } catch (e) {}
-    const none = d && d.configured === false;
-    body.innerHTML = hid ? '<span class="small muted">Hidden. <a href="#" id="qShow">Show it again</a></span>'
-      : `<p class="small" style="margin:0 0 10px">${none ? 'I don’t know where this brand’s blog is yet.' : `I couldn’t find blog posts from the last ${days} days.`} Paste your blog’s address and I’ll use your newest posts.</p>
-      <div class="qc-act"><input class="input" id="qUrl" style="flex:1;min-width:200px" maxlength="300" placeholder="https://yourbrand.com/blog" aria-label="Your blog address"><button type="button" class="btn btn-gold" id="qSave">Save and look</button></div>
-      <div id="qMsg2" class="small" style="margin-top:8px"></div>
-      <p class="hint" style="margin-top:8px"><a href="#" id="qHide">No blog? Hide this</a></p>`;
-    const sh = $('#qShow'); if (sh) sh.onclick = (e) => { e.preventDefault(); try { localStorage.removeItem('fa-qhide:' + S.brand); } catch (x) {} paintQuick(d); };
-    const hd = $('#qHide'); if (hd) hd.onclick = (e) => { e.preventDefault(); try { localStorage.setItem('fa-qhide:' + S.brand, '1'); } catch (x) {} paintQuick(d); };
-    const sv = $('#qSave'); if (sv) sv.onclick = async () => {
-      const u = normalizeUrl($('#qUrl').value);
-      if (!u) { $('#qMsg2').textContent = 'That doesn’t look like a web address. Paste the full link to your blog.'; return; }
-      sv.disabled = true; $('#qMsg2').textContent = 'Saving…';
-      try { await rpc('cc_brand_set_news', { p_brand: S.brand, p_url: u }); delete S.blogPeek[S.brand]; wireQuickBlog(); }
-      catch (e) { sv.disabled = false; $('#qMsg2').textContent = e.message || 'Couldn’t save that. Try again.'; }
-    };
-    return;
-  }
-  const max = Math.min(QUICK_MAX, fresh.length);
-  let n = Math.min(quickN(), max);
+  let n = quickN();
   const draw = () => {
-    const cost = costOf(n, QUICK_FMT);
-    body.innerHTML = `<ul class="quick-list">${fresh.slice(0, n).map((p) => `<li><b>${esc(p.title)}</b> <span class="muted small">${esc(quickDaysText(p.days))}</span></li>`).join('')}</ul>
-      <div class="qc-act"><div class="stepper" id="qStep"><button type="button" id="qMinus" aria-label="Fewer posts">−</button><output id="qN">${n}</output><button type="button" id="qPlus" aria-label="More posts">+</button></div>
+    body.innerHTML = `<div class="qc-act"><div class="stepper" id="qStep"><button type="button" id="qMinus" aria-label="Fewer posts">−</button><output id="qN">${n}</output><button type="button" id="qPlus" aria-label="More posts">+</button></div>
       <button type="button" class="btn btn-gold btn-lg" id="qGo">${icons.spark} Make ${n} post${n === 1 ? '' : 's'}</button></div>
-      <p class="hint" style="margin-top:8px">One 3-image post per blog post, newest first. ✦ ${cost} credits.</p>`;
+      <p class="hint" style="margin-top:8px">Looks at your blog when you press it, then makes one 3-image post for each of your newest posts (last 60 days only). ✦ ${costOf(n, QUICK_FMT)} credits. Nothing to type.</p>
+      <div id="qNone"></div>`;
     $('#qMinus').onclick = () => { if (n > 1) { n--; quickSaveN(n); draw(); } };
-    $('#qPlus').onclick = () => { if (n < max) { n++; quickSaveN(n); draw(); } };
+    $('#qPlus').onclick = () => { if (n < QUICK_MAX) { n++; quickSaveN(n); draw(); } };
     $('#qGo').onclick = () => { quickSaveN(n); blogFromForm(n); };
   };
   draw();
+}
+async function quickLook() {
+  const brand = S.brand;
+  S.blogPeek = S.blogPeek || {};
+  const c = S.blogPeek[brand];
+  if (c && c.data && Date.now() - c.at < 10 * 60 * 1000) return c.data;
+  const d = await api('generate-campaign-content', { body: { action: 'blog_peek', brand } });   // a direct free look: not a generation job
+  S.blogPeek[brand] = { at: Date.now(), data: d };
+  return d;
+}
+/* No recent posts: ask for the blog address. */
+function paintQuickNone(d) {
+  const box = $('#qNone'); if (!box) return;
+  const days = (d && d.fresh_days) || 60, unknown = d && d.configured === false;
+  box.innerHTML = `<div class="notice" style="margin-top:12px"><p class="small" style="margin:0 0 10px">${unknown ? 'I don’t know where this brand’s blog is yet.' : `I couldn’t find blog posts from the last ${days} days.`} Paste your blog’s address, save it, and press the button again.</p>
+    <div class="qc-act"><input class="input" id="qUrl" style="flex:1;min-width:200px" maxlength="300" placeholder="https://yourbrand.com/blog" aria-label="Your blog address"><button type="button" class="btn btn-ghost" id="qSave">Save</button></div>
+    <div id="qMsg2" class="small" style="margin-top:8px"></div></div>`;
+  $('#qSave').onclick = async () => {
+    const u = normalizeUrl($('#qUrl').value), sv = $('#qSave');
+    if (!u) { $('#qMsg2').textContent = 'That doesn’t look like a web address. Paste the full link to your blog.'; return; }
+    sv.disabled = true; $('#qMsg2').textContent = 'Saving…';
+    try { await rpc('cc_brand_set_news', { p_brand: S.brand, p_url: u }); delete S.blogPeek[S.brand]; $('#qMsg2').textContent = 'Saved. Press the button again.'; sv.disabled = false; }
+    catch (e) { sv.disabled = false; $('#qMsg2').textContent = e.message || 'Couldn’t save that. Try again.'; }
+  };
 }
 /* Transmute in blog mode: same form fields, but the brief comes from the blog posts. */
 async function blogFromForm(want) {
   const msg = $('#compMsg');
   const err = (t) => { msg.innerHTML = '<div class="notice bad" style="margin-top:14px"></div>'; msg.firstChild.textContent = t; };
   msg.innerHTML = '';
-  const fresh = S.blogFresh || [];
+  const goBtn = $('#qGo'); if (goBtn) { goBtn.disabled = true; goBtn.textContent = 'Looking at your blog…'; }
+  let look;
+  try { look = await quickLook(); } catch (e) { paintQuick(); if (e.status === 401) return; return err('Couldn’t look at your blog just now. Try again in a moment.'); }
+  const days = look.fresh_days || 60;
+  const fresh = (look.posts || []).filter((p) => p.days <= days);
+  if (!fresh.length) { paintQuick(); return paintQuickNone(look); }
+  S.blogFresh = fresh;
   const count = Math.max(1, Math.min(want || 1, fresh.length, QUICK_MAX));
   const fmt = QUICK_FMT;
+  const fail = (t) => { paintQuick(); err(t); };
   const cost = costOf(count, fmt);
-  { const sm0 = shortText(cost); if (sm0) return err(sm0); }
+  { const sm0 = shortText(cost); if (sm0) return fail(sm0); }
   const start = $('#compStart').value || todayYmd();
   const end = $('#compEnd').value || addDaysYmd(start, Math.max(14, count * 3));
-  if (end < start) return err('Check the dates — the finish date needs to be after the start.');
+  if (end < start) return fail('Check the dates — the finish date needs to be after the start.');
   const plats = $$('#compPlats .chip[aria-pressed="true"]').map((c) => c.dataset.p);
-  if (!plats.length) return err('Pick at least one platform.');
+  if (!plats.length) return fail('Pick at least one platform.');
   const tags = normTags($('#compTags').value).split(' ').filter(Boolean);
   const sl = campSlots();
   if (sl && sl.limit != null && sl.running.length >= sl.limit) {
     msg.innerHTML = campLimitNotice(sl);
+    paintQuick();
     wireCampSlots(msg, sl, () => { msg.innerHTML = '<div class="notice ok" style="margin-top:14px">A slot is free. Press Transmute again.</div>'; });
     return;
   }
@@ -2526,7 +2516,7 @@ async function blogFromForm(want) {
     toast(`Done: ✦ ${spent} credit${spent === 1 ? '' : 's'} → ${g.created} post${g.created === 1 ? '' : 's'} from your latest blog posts.${g.scenes_queued ? ' The pictures are still finishing (about a minute).' : ''}`, 'ok', 9000);
     loadProgress(true);
   } catch (e) {
-    b.stop(false); if (btn) btn.disabled = false;
+    b.stop(false); paintQuick();
     if (e.status === 401) return;
     if (campaign) {
       if (maybeStillMaking(e) && await postsAppeared(campaign.id, 0, 4)) { setBrandChrome(); openCampaign(campaign.id); toast(STILL_MAKING_TOAST, 'ok', 8000); loadProgress(true); return; }
@@ -2549,7 +2539,7 @@ async function createCampaignFromComposer() {
   msg.innerHTML = '';
   const useList = comp.listOn && comp.items.length > 0;
   if (comp.listOn && !comp.items.length) return err('Add at least one item to the list, or switch back to one brief for all posts.');
-  if (prompt.length < 8) return under($('#compPrompt'), useList ? 'Add a line that ties the posts together — e.g. "Halloween events worth a spin this month".' : 'Tell me what the posts are about — a sentence or two is plenty.');
+  if (prompt.length < 8) return under($('#compPrompt'), useList ? 'Add a line that ties the posts together — e.g. "Halloween events worth a spin this month".' : 'Tell me what the posts are about — a sentence or two is plenty. Or use the blog box above: no typing needed.');
   if (useList) { const pb = await itemsProblem(comp.items, link, (t) => { msg.innerHTML = '<div class="notice" style="margin-top:14px"></div>'; msg.firstChild.textContent = t; }); if (pb) { msg.innerHTML = ''; return pb === ITEM_INLINE ? undefined : err(pb); } msg.innerHTML = ''; }
   if (!link && !(useList && comp.items.every((it) => normalizeUrl(it.link)))) {
     $('#compLink').classList.add('err');
