@@ -6,6 +6,8 @@
 const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_BYTES = 600_000;
+/** Hosts that answered 401/403/429/503 this run (a firewall or bot check refused us). */
+export const refusedHosts = new Set<string>();
 
 function ipv4Blocked(ip: string): boolean {
   const p = ip.split('.').map(Number);
@@ -69,7 +71,7 @@ export async function safeFetchRaw(rawUrl: string, maxBytes = MAX_BYTES): Promis
       res = await fetch(url.toString(), {
         redirect: 'manual',
         signal: ctrl.signal,
-        headers: { 'User-Agent': 'FullmediaAlchemist/1.0 (+https://www.fullmediaalchemist.com)', accept: 'text/html,application/xhtml+xml,application/xml,text/plain' },
+        headers: { 'User-Agent': 'FullmediaAlchemist-LinkReader/1.0 (+https://www.fullmediaalchemist.com)', accept: 'text/html,application/xhtml+xml,application/xml,text/plain' },
       });
     } catch {
       clearTimeout(timer);
@@ -83,7 +85,7 @@ export async function safeFetchRaw(rawUrl: string, maxBytes = MAX_BYTES): Promis
       try { url = new URL(loc, url); } catch { return null; }
       continue;
     }
-    if (!res.ok) { clearTimeout(timer); try { await res.body?.cancel(); } catch { /* ignore */ } return null; }
+    if (!res.ok) { if ([401, 403, 429, 503].includes(res.status)) refusedHosts.add(url.hostname.replace(/^www\./, '')); clearTimeout(timer); try { await res.body?.cancel(); } catch { /* ignore */ } return null; }
     const ctype = (res.headers.get('content-type') || '').toLowerCase();
     if (ctype && !/text\/|xml|html/.test(ctype)) { clearTimeout(timer); try { await res.body?.cancel(); } catch { /* ignore */ } return null; }
     const reader = res.body?.getReader();

@@ -6,7 +6,7 @@
 //   - links typed into the request: one post per link
 //   - "recent / latest blog posts" with no links: the newest N posts, N = number of posts asked for
 // Every fetch goes through ssrf.ts (public addresses only, redirects re-checked, size/time caps).
-import { safeFetchRaw, htmlToText } from './ssrf.ts';
+import { safeFetchRaw, htmlToText, refusedHosts } from './ssrf.ts';
 
 export type Brief = { brief: string; link: string | null; date: string | null; sendTo: boolean; use: string; pageText?: string; pageTitle?: string };
 export type BlogResult = { used: boolean; mode: 'links' | 'recent' | ''; titles: string[]; note: string };
@@ -47,7 +47,7 @@ function abs(href: string, base: string): URL | null {
 }
 const sameSite = (a: URL, b: URL) => a.hostname.replace(/^www\./, '') === b.hostname.replace(/^www\./, '');
 
-type Cand = { url: string; title: string; date: string | null; desc: string };
+type Cand = { url: string; title: string; date: string | null; desc: string; lm?: boolean };
 
 function parseFeed(xml: string, base: string): Cand[] {
   const out: Cand[] = [];
@@ -89,7 +89,7 @@ function parseSitemap(xml: string, indexUrl: URL): { subs: string[]; urls: Cand[
   for (const m of xml.matchAll(/<url>[\s\S]*?<loc>\s*([^<\s]+)\s*<\/loc>([\s\S]*?)<\/url>/gi)) {
     const u = abs(m[1], indexUrl.toString()); if (!u || !sameSite(u, indexUrl) || SKIP_PATH.test(u.pathname)) continue;
     if (!u.pathname.startsWith(base) || u.pathname.replace(/\/+$/, '') === base.replace(/\/+$/, '')) continue;
-    urls.push({ url: u.toString(), title: '', date: isoDate(m[2].match(/<lastmod>\s*([^<\s]+)/i)?.[1]), desc: '' });
+    urls.push({ url: u.toString(), title: '', date: isoDate(m[2].match(/<lastmod>\s*([^<\s]+)/i)?.[1]), desc: '', lm: true });
   }
   return { subs, urls };
 }
@@ -148,10 +148,10 @@ async function discover(seeds: string[], deadline: number): Promise<Cand[]> {
     // 3. the sitemap
     for (const sm of ['/sitemap.xml', '/sitemap_index.xml', '/post-sitemap.xml', '/blog-sitemap.xml']) {
       if (Date.now() > deadline) break;
-      const sr = await safeFetchRaw(new URL(sm, here.origin).toString(), 900_000); if (!sr || !/<(urlset|sitemapindex)/i.test(sr.raw.slice(0, 2000))) continue;
+      const sr = await safeFetchRaw(new URL(sm, here.origin).toString(), 4_000_000); if (!sr || !/<(urlset|sitemapindex)/i.test(sr.raw.slice(0, 2000))) continue;
       let { subs, urls } = parseSitemap(sr.raw, here);
       if (!urls.length && subs.length) {
-        for (const s of subs.filter((x) => /post|blog|news|article|journal/i.test(x)).slice(0, 3)) { const c = await safeFetchRaw(s, 900_000); if (c) urls = urls.concat(parseSitemap(c.raw, here).urls); }
+        for (const s of subs.filter((x) => /post|blog|news|article|journal/i.test(x)).slice(0, 3)) { const c = await safeFetchRaw(s, 4_000_000); if (c) urls = urls.concat(parseSitemap(c.raw, here).urls); }
       }
       if (urls.length) return urls;
     }
@@ -218,22 +218,27 @@ export async function prepareBlogSources(o: { requestText: string; briefs: Brief
 /** 2026-11-23 quick start: the brand's newest blog posts, read for title + date only. No AI, no credits. */
 export const FRESH_DAYS = 60;
 export type PeekPost = { url: string; title: string; date: string; days: number };
-export async function peekBlog(seeds: string[]): Promise<{ found: boolean; posts: PeekPost[] }> {
+const slugTitle = (u: string) => { try { const s = decodeURIComponent(new URL(u).pathname.replace(/\/+$/, '').split('/').pop() || '').replace(/[-_]+/g, ' ').trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : u; } catch { return u; } };
+export async function peekBlog(seeds: string[]): Promise<{ found: boolean; posts: PeekPost[]; blocked?: boolean }> {
   const deadline = Date.now() + 20_000;
+  refusedHosts.clear();
   if (!seeds.length) return { found: false, posts: [] };
   const cands = await discover(seeds, deadline);
-  if (!cands.length) return { found: false, posts: [] };
-  const first = cands.slice(0, cands.every((c) => c.date) ? 40 : 14).map((c) => ({ ...c }));
-  const dated = first.filter((c) => c.date);
-  const need = first.filter((c) => !c.date).slice(0, 14);
-  await pool(need, 6, async (c) => { const p = await fetchPage(c.url, deadline); if (p) { if (p.date) c.date = p.date; if (p.title) c.title = p.title; } });
+  if (!cands.length) return { found: false, posts: [], blocked: refusedHosts.size > 0 };
+  // Newest first: dated entries by date, undated ones keep the blog page's own order (newest first on most blogs).
+  const dated = cands.filter((c) => c.date).sort((a, b) => (a.date! < b.date! ? 1 : a.date! > b.date! ? -1 : 0));
+  const undated = cands.filter((c) => !c.date);
+  const first = dated.concat(undated).slice(0, 16).map((c) => ({ ...c }));
+  // Undated posts need their page read; sitemap dates are only "last changed", so the page's own date wins when it has one.
+  const need = first.filter((c) => !c.date || c.lm);
+  await pool(need, 8, async (c) => {
+    const p = await fetchPage(c.url, deadline); if (!p) return;
+    if (p.date) { c.date = p.date; if (p.title) c.title = p.title; }   // a real article page; a bare app shell has no date and a generic title
+  });
   const now = Date.now();
   const posts: PeekPost[] = first.filter((c) => c.date && Number.isFinite(Date.parse(c.date)) && Date.parse(c.date) <= now + 864e5)
     .sort((a, b) => (a.date! < b.date! ? 1 : a.date! > b.date! ? -1 : 0))
-    .map((c) => ({ url: c.url, title: clip(c.title, 140) || c.url, date: c.date as string, days: Math.max(0, Math.floor((now - Date.parse(c.date as string)) / 864e5)) }));
-  void dated;
-  // titles still empty (sitemap): read the page title for the few we show
-  const top = posts.slice(0, 6);
-  await pool(top.filter((p) => p.title === p.url), 6, async (p) => { const pg = await fetchPage(p.url, deadline); if (pg?.title) p.title = clip(pg.title, 140); });
-  return { found: true, posts: top };
+    .slice(0, 6)
+    .map((c) => ({ url: c.url, title: clip(c.title, 140) || slugTitle(c.url), date: c.date as string, days: Math.max(0, Math.floor((now - Date.parse(c.date as string)) / 864e5)) }));
+  return { found: true, posts };
 }

@@ -2443,6 +2443,7 @@ async function quickLook() {
 function paintQuickNone(d) {
   const box = $('#qNone'); if (!box) return;
   const days = (d && d.fresh_days) || 60, unknown = d && d.configured === false;
+  if (d && d.blocked) { box.innerHTML = '<div class="notice" style="margin-top:12px"><p class="small" style="margin:0">Your website is blocking automatic readers, so I can’t see your blog. In your site’s firewall or bot protection, allow requests whose User-Agent contains <b>FullmediaAlchemist-LinkReader</b>, then press the button again.</p></div>'; return; }
   box.innerHTML = `<div class="notice" style="margin-top:12px"><p class="small" style="margin:0 0 10px">${unknown ? 'I don’t know where this brand’s blog is yet.' : `I couldn’t find blog posts from the last ${days} days.`} Paste your blog’s address, save it, and press the button again.</p>
     <div class="qc-act"><input class="input" id="qUrl" style="flex:1;min-width:200px" maxlength="300" placeholder="https://yourbrand.com/blog" aria-label="Your blog address"><button type="button" class="btn btn-ghost" id="qSave">Save</button></div>
     <div id="qMsg2" class="small" style="margin-top:8px"></div></div>`;
