@@ -6179,15 +6179,15 @@ async function runResearch(r,ctl){
   const brand=brandById(r.brandId); if(!brand) throw {message:"Brand not found"};
   const lead=r.flow==="lead"; const count=Math.max(1,Math.min(60,r.count||15));
   patchDoc("requests",r.id,{status:"working",startedAt:Date.now(),runVia:"app",summary:""});
-  const depth=({quick:"quick",deep:"deep"})[r.depth]||"standard", dmul=depth==="quick"?0.6:depth==="deep"?1.6:1; const HARD=Math.min(depth==="deep"?120:80,Math.round((20+count*4)*dmul)); const run=newRun(HARD,(c,t,inp)=>{ if(ctl.setStat) ctl.setStat({calls:run.calls,cap:HARD}); const q=inp&&(inp.query||inp.q||inp.objective||inp.url||(inp.search_queries&&inp.search_queries[0])||""); ctl.log((t==="web_fetch"?"Reading ":"Searching ")+(q?String(Array.isArray(q)?q[0]:q).slice(0,90):"…")); });
+  const depth=({quick:"quick",deep:"deep"})[r.depth]||"standard", dmul=depth==="quick"?0.6:depth==="deep"?1.6:1; const HARD=Math.min(depth==="deep"?320:240,Math.max(40,Math.round((20+count*6)*dmul))); /* 2026-11-26: was min(80,…) for every request, so asking for 55 still stopped after ~15 results */ const run=newRun(HARD,(c,t,inp)=>{ if(ctl.setStat) ctl.setStat({calls:run.calls,cap:HARD}); const q=inp&&(inp.query||inp.q||inp.objective||inp.url||(inp.search_queries&&inp.search_queries[0])||""); ctl.log((t==="web_fetch"?"Reading ":"Searching ")+(q?String(Array.isArray(q)?q[0]:q).slice(0,90):"…")); });
   if(ctl.setStat) ctl.setStat({want:count,found:0,cap:HARD,calls:0});
   ctl.log("Connecting to web research…","spin"); const tools=await connTools("web",run); ctl.unspin();
   const found=[], dropped=[], reasons={}; const runSeen=new Set(); const seen=(ix().byBrand.get(brand.id)||[]).map(d=>nameOf(d)).filter(Boolean); (ix().byBrand.get(brand.id)||[]).forEach(d=>{ const t=targetForDeal(d)||{}; [t.website,t.contactLink].forEach(u=>{ const h=urlKey(u); if(h) seen.push(h); }); }); let pass=0;
-  const maxPass=Math.min(12,Math.ceil(count/8)+3+(depth==="deep"?2:0)-(depth==="quick"?1:0)); let badJson=0, limitErr=null;
+  const maxPass=Math.min(14,Math.ceil(count/10)+4+(depth==="deep"?2:0)-(depth==="quick"?1:0)); let badJson=0, limitErr=null;
   while(found.length<count&&pass<maxPass&&!ctl.signal.aborted){
     if(run.calls>=HARD){ ctl.log("Lookup limit reached ("+run.calls+") \u2014 stopping with what was found.","warn"); break; }
     run.maxCalls=Math.min(HARD,run.calls+(liOnly(r)?25:Math.max(30,Math.ceil(HARD/3))));
-    pass++; const ask=Math.min(count-found.length,8); ctl.log("Round "+pass+": looking for "+ask+" "+(found.length?"more ":"")+"…","spin");
+    pass++; const ask=Math.min(count-found.length,12); ctl.log("Round "+pass+": looking for "+ask+" "+(found.length?"more ":"")+"…","spin");
     let out; try{ out=await agentWithTools(researchPrompt(r,brand,ask,found.map(f=>f.name),seen,pass),tools,ctl,"web",run,depth==="deep"?"default":"quick"); }
     catch(e){ if(e&&e.code==="cancelled") break;
       if(e&&(e.code==="bad_json"||e.code==="invalid_json")&&badJson<3){ badJson++; ctl.unspin(); ctl.log("The reply was cut off or malformed — trying again with a different angle.","warn"); continue; }
