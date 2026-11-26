@@ -75,18 +75,21 @@ function phaseOf(r: any): string {
 
 // ---- shared bad-contacts list (any bounce, any user, blocks everyone) + quick "does this domain exist" check ----
 const BAD = new Set<string>();
+const HOLD_DOM = new Map<string, string>();
+const HOLD_REASON_RX = /^(hold:|opted out \(rude reply\))/i;
 async function loadBad(vals: string[]) {
   const set = new Set<string>();
   vals.forEach((v) => { const e = String(v || "").trim().toLowerCase(); if (!e) return; set.add(e); if (e.includes("@")) set.add(e.split("@")[1]); });
   const list = [...set].filter((v) => !BAD.has(v));
   for (let i = 0; i < list.length; i += 200) {
-    const { data } = await admin.from("ar_bad_contacts").select("value").in("value", list.slice(i, i + 200));
-    (data || []).forEach((b: any) => BAD.add(b.value));
+    const { data } = await admin.from("ar_bad_contacts").select("value,kind,reason").in("value", list.slice(i, i + 200));
+    (data || []).forEach((b: any) => { if (b.kind === "domain" && HOLD_REASON_RX.test(String(b.reason || ""))) HOLD_DOM.set(b.value, String(b.reason || "")); else BAD.add(b.value); });
   }
 }
-function isBad(email: string) { const e = String(email || "").trim().toLowerCase(); return !!e && (BAD.has(e) || BAD.has(e.split("@")[1] || "~")); }
+// a bounce blocks the MAILBOX. A whole domain is blocked only when DNS says it cannot receive mail, and never a free-mail domain.
+function isBad(email: string) { const e = String(email || "").trim().toLowerCase(); const dom = e.split("@")[1] || ""; return !!e && (BAD.has(e) || (!!dom && !FREEMAIL.test(dom) && BAD.has(dom))); }
 async function addBad(value: string, kind: "email" | "domain", reason: string, client: string) {
-  const v = value.trim().toLowerCase(); if (!v) return; BAD.add(v);
+  const v = value.trim().toLowerCase(); if (!v) return; if (kind === "domain" && HOLD_REASON_RX.test(reason)) HOLD_DOM.set(v, reason); else BAD.add(v);
   const { data } = await admin.from("ar_bad_contacts").select("hits").eq("value", v).maybeSingle();
   if (data) await admin.from("ar_bad_contacts").update({ hits: ((data as any).hits || 1) + 1, updated_at: new Date().toISOString() }).eq("value", v);
   else await admin.from("ar_bad_contacts").insert({ value: v, kind, reason: clean(reason, 200), first_client: client });
@@ -165,31 +168,38 @@ async function getSettings(client: string) {
   return { on: d.on === true, autoReady: d.autoReady === true, autoFu: d.autoFu === true, brands, dailyCap: Math.max(1, Math.min(40, Number(d.dailyCap) || 15)), gapSec: Math.max(30, Math.min(900, Number(d.gapSec) || 120)), sendFrom: EMAIL.test(String(d.sendFrom || "").trim()) ? String(d.sendFrom).trim().toLowerCase() : "", preflight: d.preflight === true, accounts, li: { on: d.li?.on === true, dailyCap: Math.max(1, Math.min(25, Number(d.li?.dailyCap) || 10)), gapSec: Math.max(120, Math.min(1800, Number(d.li?.gapSec) || 240)) } };
 }
 
+async function loadWsDnc(client: string) {
+  const { data } = await admin.from("ar_settings").select("data").eq("client_id", client).eq("key", "dnc").maybeSingle();
+  const d: any = (data as any)?.data || {};
+  return { emails: new Set<string>((Array.isArray(d.emails) ? d.emails : []).map((x: any) => String(x).toLowerCase())), domains: new Set<string>((Array.isArray(d.domains) ? d.domains : []).map((x: any) => String(x).toLowerCase())) };
+}
 async function loadRows(client: string, brandOnly: string | null) {
-  let bq = admin.from("ar_brands").select("id,name,data,archived_at").eq("client_id", client).is("archived_at", null);
-  if (brandOnly) bq = bq.eq("id", brandOnly);
-  const { data: brands } = await bq;
-  const bmap = new Map<string, any>(); (brands || []).forEach((b: any) => bmap.set(b.id, b));
-  if (!bmap.size) return { bmap, rows: [] as any[], tmap: new Map<string, any>() };
-  const { data: rows } = await admin.from("ar_deals").select("id,brand_id,target_id,deal_type,deal_stage,outreach_status,target_name,contact_email,contact_link,data").in("brand_id", [...bmap.keys()]).limit(3000);
-  const ids = [...new Set((rows || []).map((r: any) => r.target_id).filter(Boolean))];
+  // every brand of the workspace (archived too) feeds the contact index; only the scoped, live brands are classified
+  const { data: bAll } = await admin.from("ar_brands").select("id,name,data,archived_at").eq("client_id", client);
+  const names = new Map<string, string>(); const bmap = new Map<string, any>();
+  (bAll || []).forEach((b: any) => { names.set(b.id, b.name); if (!b.archived_at && (!brandOnly || b.id === brandOnly)) bmap.set(b.id, b); });
   const tmap = new Map<string, any>();
+  if (!(bAll || []).length) return { bmap, rows: [] as any[], tmap, all: [] as any[] };
+  const { data: all0 } = await admin.from("ar_deals").select("id,brand_id,target_id,deal_type,deal_stage,outreach_status,target_name,contact_email,contact_link,data").in("brand_id", (bAll || []).map((b: any) => b.id)).limit(5000);
+  const all: any[] = all0 || []; const rows = all.filter((r: any) => bmap.has(r.brand_id));
+  const ids = [...new Set(all.map((r: any) => r.target_id).filter(Boolean))];
   for (let i = 0; i < ids.length; i += 150) {
     const { data: ts } = await admin.from("ar_targets").select("id,name,platform,type,contact_email,contact_link,data").in("id", ids.slice(i, i + 150));
     (ts || []).forEach((t: any) => tmap.set(t.id, t));
   }
   const emails: string[] = [];
-  (rows || []).forEach((r: any) => { emails.push(r.contact_email, r.data?.contactEmail); });
+  all.forEach((r: any) => { emails.push(r.contact_email, r.data?.contactEmail, r.data?.bounced?.email); });
   tmap.forEach((t: any) => emails.push(t.contact_email));
   await loadBad(emails.map((e) => firstEmail(e)).filter(Boolean));
   // who has already been emailed, per brand: the earliest card owns the address, any other card for it is never sent
   SENT_TO.clear();
-  (rows || []).slice().sort((a: any, b: any) => String(a.data?.sentDate || "~").localeCompare(String(b.data?.sentDate || "~"))).forEach((r: any) => {
+  rows.slice().sort((a: any, b: any) => String(a.data?.sentDate || "~").localeCompare(String(b.data?.sentDate || "~"))).forEach((r: any) => {
     const dd = r.data || {}; if (!dd.sentDate || (dd.sentVia && dd.sentVia !== "email")) return;
     const em = firstEmail((tmap.get(r.target_id) || {}).contact_email || r.contact_email || dd.contactEmail).toLowerCase(); if (!em) return;
     const k = r.brand_id + "|" + em; if (!SENT_TO.has(k)) SENT_TO.set(k, r.id);
   });
-  return { bmap, rows: rows || [], tmap };
+  (tmap as any).IDX = buildIdx(all, tmap, names, await loadWsDnc(client));
+  return { bmap, rows, tmap, all };
 }
 const SENT_TO = new Map<string, string>();
 function alreadyEmailedByOther(brand: string, to: string, id: string): boolean { const o = SENT_TO.get(brand + "|" + String(to || "").toLowerCase()); return !!o && o !== id; }
@@ -202,25 +212,117 @@ function flat(r: any) {
   });
 }
 
-type Item = { id: string; brandId: string; brand: string; name: string; kind: "first" | "followup" | "reply" | "liprep" | "lireply" | "licheck" | "manual" | "blocked"; route: Route; subject: string; hasDraft: boolean; approved: boolean; flag: any; dueDate: string; followUps: number; ph: string; reason: string; sent: string; lastSent: string; via: string; notes: string; sentSubject: string };
+type Item = { id: string; brandId: string; brand: string; name: string; kind: "first" | "followup" | "reply" | "liprep" | "lireply" | "licheck" | "manual" | "blocked"; route: Route; subject: string; hasDraft: boolean; approved: boolean; flag: any; dueDate: string; followUps: number; ph: string; reason: string; sent: string; lastSent: string; via: string; notes: string; sentSubject: string; hold?: any; lint?: string };
+
+// ================= contact protection: one contact = one relationship across all brands =================
+type Dup = { level: "block" | "hold"; code: string; reason: string; key?: string; other?: { id: string; brand: string; name: string; when: string } };
+type CRow = { id: string; brandId: string; brand: string; name: string; email: string; dom: string; lk: string; channel: string; ph: string; sent: string; lastSent: string; replied: boolean; bounced: boolean; dnc: boolean; contacted: boolean; inflight: boolean };
+type Idx = { rows: CRow[]; dncEmails: Set<string>; dncDomains: Set<string> };
+// shared platforms: many unrelated people use them, so the host alone never identifies a company
+const GENERIC_HOST = /(^|\.)(typeform|jotform|airtable|google|hubspot|hsforms|formstack|wufoo|tally|calendly|notion|wordpress|wixsite|squarespace|weebly|linktr|github|producthunt|betalist|forms|substack|medium)\./i;
+function baseDom(host: string) {
+  const h = String(host || "").toLowerCase().replace(/^www\./, ""); const p = h.split("."); if (p.length <= 2) return h;
+  const sld = p[p.length - 2], tld = p[p.length - 1];
+  return sld.length <= 3 && tld.length === 2 ? p.slice(-3).join(".") : p.slice(-2).join(".");
+}
+function linkKeyOf(u: string) { try { const x = new URL(/^https?:/i.test(u) ? u : "https://" + u); return x.hostname.replace(/^www\./, "").toLowerCase() + x.pathname.replace(/\/+$/, "").toLowerCase(); } catch { return ""; } }
+function domFor(email: string, link: string) {
+  if (email) { const d = email.split("@")[1] || ""; return !d || FREEMAIL.test(d) ? "" : baseDom(d); }
+  const h = hostOf(link); return !h || GENERIC_HOST.test(h + ".") || STRICT_HOST.test(h) ? "" : baseDom(h);
+}
+function buildIdx(all: any[], tmap: Map<string, any>, names: Map<string, string>, ws: { emails: Set<string>; domains: Set<string> }): Idx {
+  const rows: CRow[] = [];
+  for (const r of all) {
+    const f = flat(r), d = f.data || {}, t = tmap.get(r.target_id) || {};
+    const e0 = firstEmail(t.contact_email || r.contact_email || d.contactEmail || d.bounced?.email).toLowerCase(); const email = EMAIL.test(e0) ? e0 : "";
+    const link = clean(t.contact_link || r.contact_link || d.contactLink, 400);
+    const li = /linkedin\.com\/in\//i.test(link);
+    const ph = phaseOf(f);
+    rows.push({ id: r.id, brandId: r.brand_id, brand: clean(names.get(r.brand_id), 80), name: clean(t.name || r.target_name, 80), email, dom: domFor(email, li ? "" : link), lk: !email && link ? linkKeyOf(link) : "", channel: email ? "email" : li ? "linkedin" : link ? "form" : "none", ph, sent: clean(d.sentDate, 10), lastSent: clean(d.lastSentDate, 10),
+      replied: ["replied", "deal", "won"].includes(ph) || !!d.repliedDate || d.suggest?.type === "replied", bounced: !!d.bounced, dnc: !!d.doNotContact || ph === "dnc",
+      contacted: !!(d.sentDate || d.lastSentDate) || ["sent", "replied", "deal", "won"].includes(ph),
+      inflight: !!(d.agentClaim && d.agentClaim.at && Date.now() - Number(d.agentClaim.at) < 30 * 60_000) });
+  }
+  return { rows, dncEmails: ws.emails, dncDomains: ws.domains };
+}
+// kind first = a brand-new intro; followup = a bump in the original thread; reply = an answer the user approved.
+function dupCheck(raw: any, route: Route, idx: Idx, kind: "first" | "followup" | "reply"): Dup | null {
+  const d = raw.data || {};
+  const em = route.route === "email" ? String(route.to || "").toLowerCase() : "";
+  const link = route.route === "form" || route.route === "linkedin" ? route.link : "";
+  const lk = link ? linkKeyOf(link) : "";
+  const dom = domFor(em, route.route === "linkedin" ? "" : link);
+  const ch = em ? "email" : route.route;
+  const others = idx.rows.filter((o) => o.id !== raw.id);
+  const same = (o: CRow) => (!!em && o.email === em) || (!em && !!lk && o.lk === lk);
+  const nm = (o: CRow) => o.brand + (o.name ? " (" + o.name + ")" : "");
+  const when = (o: CRow) => { const w = o.lastSent || o.sent; return w ? " on " + w : ""; };
+  const who = (o: CRow) => ({ id: o.id, brand: o.brand, name: o.name, when: o.lastSent || o.sent });
+  // ---- hard blocks: every brand, every kind of message ----
+  const dncRow = others.find((o) => same(o) && o.dnc);
+  if ((em && idx.dncEmails.has(em)) || dncRow) return { level: "block", code: "dnc", reason: "Do not contact: this person asked to be left alone" + (dncRow ? " (" + nm(dncRow) + ")" : "") + ". Blocked for every brand.", other: dncRow ? who(dncRow) : undefined };
+  if (dom && idx.dncDomains.has(dom)) return { level: "block", code: "dnc_domain", reason: "Do not contact: " + dom + " is on your global Do-not-contact list." };
+  const bncRow = em ? others.find((o) => o.email === em && o.bounced) : undefined;
+  if (em && (bncRow || BAD.has(em))) return { level: "block", code: "bounced", reason: "This mailbox bounced before, so it is blocked for every brand. Other mailboxes at the same company are not affected.", other: bncRow ? who(bncRow) : undefined };
+  if (kind === "reply") return null;
+  // somebody on our side is already talking with them: no new intros, no bumps
+  const talking = others.find((o) => same(o) && o.replied);
+  if (talking) return { level: "block", code: "ongoing", reason: nm(talking) + " is already in a conversation with this contact. A new intro from another brand would cut across it. You can add a short note to that thread instead.", other: who(talking) };
+  if (kind === "followup") return null;
+  const mine = others.find((o) => o.brandId === raw.brand_id && same(o) && (o.contacted || o.inflight));
+  if (mine) return { level: "block", code: "dup_same_brand", reason: "Another card in this brand already reached this contact (" + nm(mine) + ").", other: who(mine) };
+  // ---- holds: the user decides yes or no ----
+  const ok = new Set<string>(d.dupOk && Array.isArray(d.dupOk.keys) ? d.dupOk.keys : []);
+  const cands: Dup[] = [];
+  const add = (code: string, o: CRow | null, reason: string) => { const key = code + ":" + (o ? o.id : dom); if (!ok.has(key)) cands.push({ level: "hold", code, reason, key, other: o ? who(o) : undefined }); };
+  const sameE = others.find((o) => same(o) && (o.contacted || o.inflight));
+  if (sameE) add(em ? "same_email" : "same_form", sameE, "Already reached via " + nm(sameE) + when(sameE) + " (same " + (em ? "email address" : "contact") + ").");
+  if (dom) {
+    const sd = others.find((o) => o.dom === dom && !same(o) && (o.contacted || o.inflight || o.replied));
+    if (sd) add(sd.channel !== ch ? "same_company_channel" : "same_domain", sd, "Someone at " + dom + " was already reached via " + nm(sd) + when(sd) + (sd.channel !== ch ? " on a different channel (" + sd.channel + ")." : " (a different mailbox)."));
+    if (HOLD_DOM.has(dom)) add("domain_hostile", null, "Someone at " + dom + " asked us to stop. Check before writing to anyone else there.");
+  }
+  return cands[0] || null;
+}
+// ---- drafting rules, enforced here as well as in the prompt ----
+const CALL_PUSH = /\b(hop|jump|get|hopping|jumping|getting) on (a |an )?(quick |short |brief )?(call|chat|zoom|meeting|video)\b|\b(book|schedule|set up|arrange|grab|have|propose|suggest|up for|open to|keen on|down for|happy to|glad to|love to|like to)\b[^.?!\n]{0,30}\b(a |an |the |our )?(quick |short |brief |little |15.?min(ute)?s? |20.?min(ute)?s? |30.?min(ute)?s? |intro |discovery |exploratory )?(call|chat|conversation|convo|discussion|discuss|meeting|zoom|demo|catch.?up|sync|talk)\b|\b(let'?s|lets|can we|could we|shall we|should we|we should) (chat|talk|discuss|connect|speak|catch up|jump on|hop on|sync)\b|\b(pick your brain|15.?minutes? of your time|a few minutes of your time)\b/i;
+const CONVEYOR = /conveyor[\s-]*belt/i;
+const VOLUME_Q = /[^.?!\n]*(\b(how (much|many|often)|what('?s| is) your|do you (publish|post|produce|create|write|ship)|are you (publishing|posting|producing|creating))\b[^.?!\n]*\b(content|pieces?|posts?|articles?|videos?|blogs?|workflow|process|hours?|volume|output|calendar)\b|\b(pieces?|posts?|articles?|videos?|hours?)\s+(a|per|each|every)\s+(week|month|day)\b|\bcontent (volume|workflow|process|calendar|output)\b|\bworkflow\b)[^.?!\n]*\?/i;
+function draftProblem(text: string): string {
+  const t = String(text || ""); if (!t) return "";
+  if (CONVEYOR.test(t)) return "it uses the phrase \"content conveyor belt\"";
+  if (CALL_PUSH.test(t)) return "it pushes for a call, chat or discussion";
+  if (VOLUME_Q.test(t)) return "it asks about their content volume, workflow or hours";
+  return "";
+}
+// forms that want details the user has not given (last name, phone, budget, a client quote) are not queued
+const FORM_NEEDS = /\b(last name|surname|phone( number)?|telephone|mobile|budget|client quote|testimonial|company (size|revenue))\b[^.;\n]{0,30}\b(required|mandatory|needed|must)\b|\b(requires?|needs?|asks? for|must (enter|provide)|have to (enter|provide))\b[^.;\n]{0,40}\b(last name|surname|phone|telephone|mobile|budget|client quote|testimonial)\b/i;
+function formNeeds(t: any, d: any): string {
+  if (d.formInfoOk) return "";
+  const hay = [t?.data?.howToPost, t?.data?.formFields, t?.data?.notes, d.formNeeds, d.howToPost].filter(Boolean).join(" . ");
+  const m = hay.match(FORM_NEEDS); return m ? clean(m[0], 80) : "";
+}
 
 // money talk: a reply that touches prices, a deal or payment is never sent automatically; the user does those by hand
 const MONEY = /[$€£]|\b(usd|eur|gbp|price|prices|pricing|rate|rates|fee|fees|cost|costs|budget|invoice|invoices|payment|payments|pay|paid|paypal|stripe|wire|quote|quoted|contract|agreement|deal|deals|sponsor|sponsored|sponsorship|commission|retainer|discount|per post|terms|negotiate)\b/i;
 function hashStr(x: string) { let h = 5381; for (let i = 0; i < x.length; i++) h = ((h << 5) + h + x.charCodeAt(i)) | 0; return String(h >>> 0); }
 function replyHash(d: any) { return hashStr(clean(d.subject, 200) + "\n" + clean(d.draft, 8000)); }
 
-function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, today: string): Item | null {
+function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, today: string, opts?: { skipChecks?: boolean }): Item | null {
   const r = flat(raw), d = r.data || {}, ph = phaseOf(r);
   const t = tmap.get(r.target_id) || {}, b = bmap.get(r.brand_id) || {};
   const draft = clean(d.draft, 8000);
   const base = { id: r.id, brandId: r.brand_id, brand: clean(b.name, 80), name: clean(t.name || r.target_name, 120), subject: clean(d.subject, 200), hasDraft: !!draft, approved: !!d.autoOk, flag: d.agentFlag || null, followUps: Number(d.followUps) || 0, ph, dueDate: clean(d.followUpDue, 10), sent: clean(d.sentDate, 10), lastSent: clean(d.lastSentDate, 10), via: clean(d.sentVia, 10), sentSubject: clean(d.sentSubject, 200), notes: ((Array.isArray(b.draftNotes) ? b.draftNotes : Array.isArray(b.data?.draftNotes) ? b.data.draftNotes : []) as any[]).filter((n) => n && n.on !== false && String(n.text || "").trim() && (!n.waves || !n.waves.length || n.waves.includes(d.waveId))).map((n) => "- " + clean(n.text, 300)).join("\n").slice(0, 1500) };
   const route = routeOf(r, t, b);
+  const idx: Idx | undefined = (tmap as any).IDX; const chk = !!idx && !opts?.skipChecks;
+  const held = (dp: Dup) => ({ ...base, kind: "blocked" as const, route, reason: dp.reason, hold: dp });
   if (d.manualOnly && (ph === "ready" || ph === "sent")) return { ...base, kind: "manual", route, reason: "Marked Manual only. You send this one yourself." };
   const snoozed = d.stallSnooze && String(d.stallSnooze).slice(0, 10) > today;
   if (route.route === "linkedin") {
     // LinkedIn assist: Claude only PREPARES the text in LinkedIn's box. The user presses Send.
     if (ph === "ready") {
       if (base.sent || base.lastSent) return { ...base, kind: "blocked", route, reason: "Already has a sent date (" + (base.sent || base.lastSent) + "). Check it before anything is prepared." };
+      if (chk) { const dp = dupCheck(r, route, idx!, "first"); if (dp) return held(dp); }
       if (!draft) return { ...base, kind: "blocked", route, reason: "No message written yet." };
       return { ...base, kind: "liprep", route, reason: "" };
     }
@@ -237,6 +339,11 @@ function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, toda
     if (base.sent || base.lastSent) return { ...base, kind: "blocked", route, reason: "Already has a sent date (" + (base.sent || base.lastSent) + "). Check it before anything is sent." };
     if (route.route === "manual") return { ...base, kind: "manual", route, reason: route.reason };
     if (route.route === "email" && alreadyEmailedByOther(r.brand_id, route.to, r.id)) return { ...base, kind: "blocked", route, reason: "Another card already emailed this address. It is not emailed twice." };
+    if (chk) {
+      const dp = dupCheck(r, route, idx!, "first"); if (dp) return held(dp);
+      const pr = draftProblem(draft); if (pr) return { ...base, kind: "blocked", route, reason: "Held: the draft is not sent because " + pr + ". Edit it or regenerate it.", lint: pr };
+      if (route.route === "form") { const need = formNeeds(t, d); if (need) return { ...base, kind: "blocked", route, reason: "Needs info: this form asks for details you have not given (" + need + "). Fill it yourself, or add the details and mark it done.", lint: "needs_info" }; }
+    }
     if (!draft) return { ...base, kind: "blocked", route, reason: "No message written yet." };
     if (route.route === "email" && !base.subject) return { ...base, kind: "blocked", route, reason: "No subject line yet." };
     return { ...base, kind: "first", route, reason: "" };
@@ -244,6 +351,7 @@ function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, toda
   if (ph === "replied" && d.draftKind === "reply" && draft) {
     if (d.manualOnly) return { ...base, kind: "manual", route, reason: "Marked Manual only. You send this one yourself." };
     if (route.route !== "email") return { ...base, kind: "manual", route, reason: "Replies by email only. You send this one yourself." };
+    if (chk) { const dp = dupCheck(r, route, idx!, "reply"); if (dp) return held(dp); }
     if (!base.subject) return { ...base, kind: "blocked", route, reason: "No subject line on the reply yet." };
     if (MONEY.test(draft) || MONEY.test(clean(d.responseReceived, 1500)) || clean(d.quotedRate, 80) || Number(d.rateUSD) > 0) return { ...base, kind: "manual", route, reason: "Pricing, a deal or payment is involved. You review and send this one yourself." };
     const ok = !!(d.replyOk && d.replyOk.h === replyHash(d));
@@ -251,6 +359,7 @@ function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, toda
   }
   if (ph === "sent" && !snoozed) {
     if (route.route !== "email") return null; // forms/posts have no follow-ups
+    if (chk && dupCheck(r, route, idx!, "followup")) return null; // opted out, bounced, or already talking with another brand
     if (base.via && base.via !== "email") return null; // first message went by DM/form: never email a follow-up
     if (base.lastSent && (Date.parse(today) - Date.parse(base.lastSent)) / 86400000 < MIN_GAP_DAYS) return null; // contacted in the last week
     if (base.followUps >= maxFu(d)) return null;
@@ -268,7 +377,7 @@ function applyAuto(it: Item | null, st: { autoReady: boolean; autoFu: boolean },
   if ((it.kind === "first" && st.autoReady) || (it.kind === "followup" && st.autoFu)) it.approved = true;
 }
 
-const FOLLOWUP_RULES = "Follow-up text (you write it): 2–4 plain sentences, same thread (reply to the original message so the subject starts with Re:), friendly and low-pressure, no flattery, no guilt, no new claims, no prices or budget talk, no signature beyond the one provided. Follow-up 1 is a short bump; follow-up 2 is one last light check-in that says you will close it out if you don't hear back.";
+const FOLLOWUP_RULES = "Follow-up text (you write it): 2–4 plain sentences, same thread (reply to the original message so the subject starts with Re:), friendly and low-pressure, no flattery, no guilt, no new claims, no prices or budget talk, no signature beyond the one provided. Never ask for a call, chat, meeting or discussion; never ask about their content volume, workflow, pieces or hours per week; never use the phrase \"content conveyor belt\". Follow-up 1 is a short bump; follow-up 2 is one last light check-in that says you will close it out if you don't hear back.";
 
 // The Gmail connector turns bare domains in a plain body into ugly google.com/url?q=... text. Send HTML with real anchors instead.
 function toHtml(text: string, trk: Record<string, { href: string; text?: string }> = {}) {
@@ -290,16 +399,28 @@ function toHtml(text: string, trk: Record<string, { href: string; text?: string 
 }
 const LINKS = " Send it with the htmlBody field ONLY (do not fill body), exactly as given, so links stay clean. Never paste a bare web address into a plain body: the mail connector rewrites it into an ugly google.com redirect.";
 
-// append the signature, but drop a sign-off the draft already ends with (e.g. the draft ends "Brad" and the signature is "Brad\nUPM")
+// append the signature, but drop a sign-off the draft already ends with (a draft ending "Brad" with the signature "Brad\nUPM" must not read "Brad / Brad UPM")
 function withSig(draft: string, sig: string) {
   if (!sig) return draft;
-  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, "").trim();
-  const sigLines = new Set(sig.split("\n").map(norm).filter(Boolean));
-  const lines = draft.split("\n");
-  while (lines.length && (!lines[lines.length - 1].trim() || sigLines.has(norm(lines[lines.length - 1])))) lines.pop();
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  const CLOSE = /^(best|thanks|thank you|cheers|regards|kind regards|warm regards|best regards|sincerely|many thanks)\b\s*/;
+  const sigLines = sig.split("\n").map(norm).filter(Boolean);
+  const sigAll = sigLines.join(" "); const sigWords = new Set(sigAll.split(" ").filter(Boolean));
+  const matches = (n: string) => !!n && (sigLines.includes(n) || sigAll === n || (n.length >= 3 && sigAll.includes(n)) || (n.split(" ").length <= 4 && n.split(" ").every((w) => sigWords.has(w))));
+  const lines = draft.split("\n"); let dropped = "";
+  while (lines.length) {
+    const raw = lines[lines.length - 1], n = norm(raw);
+    if (!n) { lines.pop(); continue; }
+    if (matches(n)) { lines.pop(); continue; }
+    const m = n.match(CLOSE); // "Best, Brad" on one line
+    if (m && matches(n.slice(m[0].length))) { dropped = raw.split(/[,\s]/)[0]; lines.pop(); continue; }
+    break;
+  }
   const last = lines.length ? lines[lines.length - 1].trim() : "";
   const closing = /^(best|thanks|thank you|cheers|regards|kind regards|warm regards|best regards|sincerely|many thanks)[,!. ]*$/i.test(last);
-  return lines.join("\n").trimEnd() + (closing ? "\n" : "\n\n") + sig;
+  const body = lines.join("\n").trimEnd();
+  if (!closing && dropped && /^[A-Za-z ]+$/.test(dropped)) return body + "\n\n" + dropped + ",\n" + sig;
+  return body + (closing ? "\n" : "\n\n") + sig;
 }
 function taskOf(it: Item, r: any, t: any, sig: string, today: string, sendFrom: string, trk: Record<string, { href: string; text?: string }> = {}) {
   const d = r.data || {};
@@ -490,6 +611,13 @@ async function liQueue(sc: Scope): Promise<any | null> {
   return { ok: true, tasks: [task], status: "task", queued, remainingToday: st.li.dailyCap - prepDone, minGapSeconds: gap, message: queued + " LinkedIn task(s) queued; this is the first. The user approved it, and you only PREPARE the text: never press Send. Report the result, then ask for the next task." };
 }
 
+// an approved card that turned out to be a duplicate / protected contact: take the approval back and say why
+async function holdIt(sc: Scope, r: any, it: Item) {
+  const d2 = Object.assign({}, r.data || {}); delete d2.autoOk; delete d2.agentClaim;
+  d2.agentFlag = { kind: "held_duplicate", reason: it.reason, at: Date.now() }; d2.dupHold = { code: it.hold?.code, level: it.hold?.level, otherId: it.hold?.other?.id, at: Date.now() }; d2.updatedAt = Date.now();
+  await admin.from("ar_deals").update({ data: d2 }).eq("id", r.id);
+  await logIt(sc.client, r.brand_id, r.id, sc.keyId, "first", "held_duplicate", it.reason);
+}
 async function agentQueue(sc: Scope) {
   const today = iso(new Date());
   const st = await getSettings(sc.client);
@@ -503,6 +631,8 @@ async function agentQueue(sc: Scope) {
     if (!st.brands[r.brand_id]) continue;
     const it = classify(r, tmap, bmap, today);
     applyAuto(it, st, r);
+    if (it && it.hold && (r.data || {}).autoOk) { await holdIt(sc, r, it); continue; }
+    if (it && it.flag && it.flag.kind === "held_duplicate" && !it.hold && it.kind !== "blocked") { const d9 = Object.assign({}, r.data || {}); d9.agentFlag = null; d9.dupHold = null; d9.updatedAt = Date.now(); await admin.from("ar_deals").update({ data: d9 }).eq("id", r.id); it.flag = null; }
     if (!it || !it.approved || it.flag) continue;
     if (it.kind !== "first" && it.kind !== "followup" && it.kind !== "reply") continue;
     if (!acctOf(st, (bmap.get(r.brand_id) || {}).data || {}, r.brand_id).ok) { needAcct.add(String((bmap.get(r.brand_id) || {}).name || "a brand")); continue; }
@@ -527,7 +657,7 @@ async function agentQueue(sc: Scope) {
   if (!queued) return { ok: true, tasks: [], status: "empty", queued: 0, remainingToday: st.dailyCap - done, minGapSeconds: st.gapSec, message: heldAlready ? "Nothing new to hand out. " + heldAlready + " task(s) were already handed out and are waiting for a result." : "Nothing approved and due right now." };
   const ws = await wsOf(sc.client);
   // skip (and permanently block) any address whose domain doesn't exist or can't take mail
-  let pick: { r: any; it: Item } | null = null;
+  let pick: { r: any; it: Item; tm?: Map<string, any> } | null = null;
   for (const e of eligible) {
     if (e.it.route.route === "email") {
       const dom = e.it.route.to.split("@")[1] || "";
@@ -540,13 +670,19 @@ async function agentQueue(sc: Scope) {
         continue;
       }
     }
-    pick = e; break;
+    // last look, right before handing it out: a duplicate created since approval is caught here
+    const fresh = await loadRows(sc.client, null);
+    const fr = fresh.rows.find((x: any) => x.id === e.r.id);
+    const it2 = fr ? classify(fr, fresh.tmap, fresh.bmap, today) : null;
+    if (it2) applyAuto(it2, st, fr);
+    if (!fr || !it2 || !it2.approved || it2.flag || (it2.kind !== "first" && it2.kind !== "followup" && it2.kind !== "reply")) { if (fr && it2 && it2.hold) await holdIt(sc, fr, it2); continue; }
+    pick = { r: fr, it: it2, tm: fresh.tmap }; break;
   }
   if (!pick) return { ok: true, tasks: [], status: "empty", queued: 0, message: "Every queued address had a domain that can't receive email, so they were skipped and flagged for the user." };
   const { r, it } = pick;
   const trk = it.kind === "first" && it.route.route === "email" ? await trackLinks(sc.client, it.brand, it.id, clean(flat(r).data?.draft, 8000)) : {};
   const bd = (bmap.get(it.brandId) || {}).data || {};
-  const task = taskOf(it, flat(r), tmap.get(r.target_id), sigFor(ws, bd), today, acctOf(st, bd, it.brandId).addr, trk);
+  const task = taskOf(it, flat(r), (pick.tm || tmap).get(r.target_id), sigFor(ws, bd), today, acctOf(st, bd, it.brandId).addr, trk);
   const d3 = Object.assign({}, r.data || {}); d3.agentClaim = { at: Date.now(), kind: it.kind }; d3.updatedAt = Date.now();
   await admin.from("ar_deals").update({ data: d3 }).eq("id", r.id);
   const left = queued - 1;
@@ -570,9 +706,13 @@ async function applyOptOut(client: string, rows: any[], tmap: Map<string, any>, 
     await admin.from("ar_deals").update({ data: d }).eq("id", r.id);
   }
   if (em) {
-    await addBad(em, "email", "Opted out: " + clean(quote, 150), client);
+    // blocked for every brand of this workspace. A real opt-out reply (not the user's own switch) also joins the shared list.
+    const cur = await loadWsDnc(client); cur.emails.add(em);
+    await admin.from("ar_settings").upsert({ client_id: client, key: "dnc", data: { emails: [...cur.emails], domains: [...cur.domains], updatedAt: Date.now() }, updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
+    if (by === "agent") await addBad(em, "email", "Opted out: " + clean(quote, 150), client);
     const dom = em.split("@")[1] || "";
-    if (hostile && dom && !FREEMAIL.test(dom)) await addBad(dom, "domain", "Opted out (rude reply): " + clean(quote, 130), client);
+    // a rude reply puts a HOLD on the company (anyone else there needs your yes); it does not block them
+    if (hostile && by === "agent" && dom && !FREEMAIL.test(dom)) await addBad(dom, "domain", "Opted out (rude reply): " + clean(quote, 130), client);
   }
   return { em, hostile, cards: targets.length };
 }
@@ -586,10 +726,10 @@ async function agentResult(sc: Scope, a: any) {
   if (id === "import") return await addLinkedinContacts(sc, { problem: clean(a.reason, 300) || "Claude could not finish the import.", kind: clean(a.kind, 30) });
   if (!["sent", "submitted", "needs_user", "failed", "replied_seen", "not_free", "bounced", "prepared", "checked", "opted_out"].includes(outcome)) return { ok: false, error: "outcome must be sent, submitted, prepared, checked, needs_user, failed, replied_seen, not_free, bounced or opted_out" };
   const today = iso(new Date());
-  const { bmap, rows, tmap } = await loadRows(sc.client, sc.brand);
+  const { bmap, rows, tmap, all } = await loadRows(sc.client, sc.brand);
   const raw = rows.find((r: any) => r.id === id);
   if (!raw) return { ok: false, error: "That row isn't in this workspace." };
-  const it = classify(raw, tmap, bmap, today);
+  const it = classify(raw, tmap, bmap, today, { skipChecks: true }); // it was already checked when it was handed out
   const d = Object.assign({}, raw.data || {}); delete d.agentClaim;
   const evidence = clean(a.evidence, 300), reason = clean(a.reason, 300);
 
@@ -599,8 +739,9 @@ async function agentResult(sc: Scope, a: any) {
     const em = firstEmail(t.contact_email || raw.contact_email || raw.data?.contactEmail).toLowerCase();
     const why = clean(reason || evidence, 200) || "Bounced";
     if (em) await addBad(em, "email", why, sc.client);
-    const domGone = a.kind === "domain" || /couldn.?t be found|domain|no such host|nxdomain|no mx|does not exist/i.test(why);
-    if (em && domGone) await addBad(em.split("@")[1], "domain", why, sc.client);
+    const domGone = a.kind === "domain" || /domain\b[^.]{0,60}(couldn.?t be found|not found|does not exist|doesn'?t exist)|dns (error|failure)|no such host|nxdomain|no mx/i.test(why);
+    // the whole domain is blocked only when DNS agrees it cannot receive mail (never a free-mail domain); otherwise just this mailbox
+    if (em && domGone) { const dom0 = em.split("@")[1]; if (dom0 && !FREEMAIL.test(dom0) && !(await domainReceivesMail(dom0))) await addBad(dom0, "domain", why, sc.client); }
     const nowMs = Date.now();
     d.bounced = { at: nowMs, email: em, reason: why };
     delete d.sentDate; delete d.lastSentDate; delete d.sentVia; delete d.autoOk; d.followUps = 0; d.followUpDue = ""; d.suggest = null;
@@ -668,9 +809,9 @@ async function agentResult(sc: Scope, a: any) {
   }
   if (outcome === "opted_out" || (outcome === "replied_seen" && OPT_RX.test(String(evidence || "") + " " + String(a.reason || "")))) {
     const q = clean(evidence || a.reason || "Asked not to be contacted", 260);
-    const r2 = await applyOptOut(sc.client, rows, tmap, raw, q, "agent");
+    const r2 = await applyOptOut(sc.client, all, tmap, raw, q, "agent");
     await logIt(sc.client, raw.brand_id, id, sc.keyId, "optout", "opted_out", q);
-    return { ok: true, message: "Recorded as Do not send" + (r2.cards > 1 ? " on " + r2.cards + " cards" : "") + ". That address" + (r2.hostile ? " and its company" : "") + " is blocked. Send nothing more to them and do NOT reply. Move on to the next task." };
+    return { ok: true, message: "Recorded as Do not send" + (r2.cards > 1 ? " on " + r2.cards + " cards" : "") + ". That address is blocked for every brand" + (r2.hostile ? " and the company is on hold for a yes" : "") + ". Send nothing more to them and do NOT reply. Move on to the next task." };
   }
   if (outcome === "replied_seen") {
     d.suggest = { type: "replied", date: today, evidence: ("“" + (evidence || "reply found in thread") + "”").slice(0, 260), via: "agent", at: Date.now() };
@@ -789,7 +930,7 @@ async function appStatus(client: string) {
   const pipe = { proposed: 0, review: 0, ready: 0, waiting: 0 };
   for (const r of rows) { const f = flat(r), d = f.data || {}, ph = phaseOf(f); if (d.reviewState === "proposed") { pipe.proposed++; continue; } if (ph === "research" && clean(d.draft, 20)) pipe.review++; else if (ph === "ready") pipe.ready++; else if (ph === "sent") pipe.waiting++; }
   const rowsById = new Map<string, any>(); rows.forEach((r: any) => rowsById.set(r.id, r));
-  const pub = (it: Item) => ({ id: it.id, brandId: it.brandId, brand: it.brand, name: it.name, kind: it.kind, route: it.route.route, to: it.route.to || undefined, link: it.route.link || undefined, subject: it.subject, approved: it.approved, flag: it.flag, reason: it.reason, due: it.dueDate || undefined, sent: it.sent || undefined, lastSent: it.lastSent || undefined, via: it.via || undefined, followUps: it.followUps, draft: (it.kind === "reply" || it.kind === "lireply" || it.kind === "liprep") ? clean((rowsById.get(it.id) || {}).data?.draft, 1500) : undefined, theirs: (it.kind === "reply" || it.kind === "lireply") ? clean((rowsById.get(it.id) || {}).data?.responseReceived, 500) : undefined, needProfile: liNeed.has(it.id) || undefined, prepared: (it.kind === "liprep" || it.kind === "lireply") && (rowsById.get(it.id) || {}).data?.liPrepared?.h === replyHash((rowsById.get(it.id) || {}).data || {}) ? true : undefined });
+  const pub = (it: Item) => ({ id: it.id, brandId: it.brandId, brand: it.brand, name: it.name, kind: it.kind, route: it.route.route, to: it.route.to || undefined, link: it.route.link || undefined, subject: it.subject, approved: it.approved, flag: it.flag, reason: it.reason, hold: it.hold || undefined, lint: it.lint || undefined, due: it.dueDate || undefined, sent: it.sent || undefined, lastSent: it.lastSent || undefined, via: it.via || undefined, followUps: it.followUps, draft: (it.kind === "reply" || it.kind === "lireply" || it.kind === "liprep") ? clean((rowsById.get(it.id) || {}).data?.draft, 1500) : undefined, theirs: (it.kind === "reply" || it.kind === "lireply") ? clean((rowsById.get(it.id) || {}).data?.responseReceived, 500) : undefined, needProfile: liNeed.has(it.id) || undefined, prepared: (it.kind === "liprep" || it.kind === "lireply") && (rowsById.get(it.id) || {}).data?.liPrepared?.h === replyHash((rowsById.get(it.id) || {}).data || {}) ? true : undefined });
   const { data: keys } = await admin.from("ar_agent_keys").select("id,brand_id,label,key_prefix,created_at,last_used_at").eq("client_id", client).is("revoked_at", null).order("created_at", { ascending: false });
   const { data: log } = await admin.from("ar_agent_log").select("deal_id,action,outcome,detail,created_at").eq("client_id", client).order("created_at", { ascending: false }).limit(15);
   const names = new Map<string, string>(); rows.forEach((r: any) => names.set(r.id, clean((tmap.get(r.target_id) || {}).name || r.target_name, 80)));
@@ -798,8 +939,10 @@ async function appStatus(client: string) {
     brands: [...bmap.values()].map((b: any) => ({ id: b.id, name: b.name, on: !!st.brands[b.id], li: liProfileOf(b.data || {}, wsA) || undefined })),
     ready: items.filter((i) => i.kind === "first" || i.kind === "followup" || i.kind === "reply" || i.kind === "liprep" || i.kind === "lireply").map(pub),
     manual: items.filter((i) => i.kind === "manual").map(pub),
-    blocked: items.filter((i) => i.kind === "blocked").map(pub),
-    needsYou: items.filter((i) => i.flag).map(pub),
+    blocked: items.filter((i) => i.kind === "blocked" && !i.hold).map(pub),
+    held: items.filter((i) => i.hold).map(pub),
+    needsYou: items.filter((i) => i.flag && !i.hold).map(pub),
+    dnc: await (async () => { const w = await loadWsDnc(client); return { emails: [...w.emails].slice(0, 200), domains: [...w.domains].slice(0, 200) }; })(),
     keys: keys || [], log: (log || []).map((l: any) => ({ ...l, name: names.get(l.deal_id) || "" })),
   };
 }
@@ -862,6 +1005,7 @@ async function appAction(u: any, client: string, body: any) {
       const d = Object.assign({}, raw.data || {}); const em = String(d.doNotContact?.email || "").toLowerCase(); d.doNotContact = null; d.updatedAt = Date.now();
       await admin.from("ar_deals").update({ data: d }).eq("id", id);
       if (em && d0reason(raw)) { await admin.from("ar_bad_contacts").delete().eq("value", em).like("reason", "Opted out%"); }
+      if (em) { const cur = await loadWsDnc(client); cur.emails.delete(em); await admin.from("ar_settings").upsert({ client_id: client, key: "dnc", data: { emails: [...cur.emails], domains: [...cur.domains], updatedAt: Date.now() }, updated_at: new Date().toISOString() }, { onConflict: "client_id,key" }); }
       return { ok: true };
     }
     const r2 = await applyOptOut(client, rows, tmap, raw, clean(body.reason, 260) || "Marked Do not send by you", "user");
@@ -873,6 +1017,75 @@ async function appAction(u: any, client: string, body: any) {
     if (!raw || !bmap.has(raw.brand_id)) return { ok: false, error: "Not found" };
     const d = Object.assign({}, raw.data || {}); d.agentFlag = null; if (body.keepApproval !== true) delete d.autoOk; d.updatedAt = Date.now();
     await admin.from("ar_deals").update({ data: d }).eq("id", id); return { ok: true };
+  }
+  if (action === "contact_history") {
+    const L = await loadRows(client, null); const idx: Idx = (L.tmap as any).IDX;
+    let em = String(body.email || "").trim().toLowerCase(), lk = "", dom = "";
+    if (!em && body.id) { const me = idx.rows.find((x) => x.id === String(body.id)); if (me) { em = me.email; lk = me.lk; dom = me.dom; } }
+    else if (em) dom = domFor(em, "");
+    if (!em && !lk) return { ok: false, error: "No contact to look up." };
+    const mine = idx.rows.filter((o) => (em && o.email === em) || (lk && o.lk === lk));
+    const company = dom ? idx.rows.filter((o) => o.dom === dom && !mine.includes(o)) : [];
+    const pr = (o: CRow) => ({ id: o.id, brandId: o.brandId, brand: o.brand, name: o.name, email: o.email, channel: o.channel, phase: o.ph, sent: o.sent || undefined, lastSent: o.lastSent || undefined, replied: o.replied, bounced: o.bounced, dnc: o.dnc });
+    return { ok: true, email: em, domain: dom || undefined, dnc: { email: !!em && idx.dncEmails.has(em), domain: !!dom && idx.dncDomains.has(dom) }, bounced: !!em && (isBad(em) || mine.some((o) => o.bounced)), rows: mine.map(pr), company: company.map(pr) };
+  }
+  if (action === "dnc_set") {
+    const value = String(body.value || "").trim().toLowerCase(), kind = body.kind === "domain" ? "domain" : "email", on = body.on !== false;
+    if (kind === "email" && !EMAIL.test(value)) return { ok: false, error: "That is not an email address." };
+    if (kind === "domain" && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(value)) return { ok: false, error: "That is not a domain." };
+    if (kind === "domain" && FREEMAIL.test(value)) return { ok: false, error: "A free-mail domain (like gmail.com) can't be blocked as a whole. Block the address instead." };
+    const cur = await loadWsDnc(client); const set = kind === "email" ? cur.emails : cur.domains; if (on) set.add(value); else set.delete(value);
+    await admin.from("ar_settings").upsert({ client_id: client, key: "dnc", data: { emails: [...cur.emails], domains: [...cur.domains], updatedAt: Date.now() }, updated_at: new Date().toISOString() }, { onConflict: "client_id,key" });
+    let cards = 0;
+    if (kind === "email") {
+      const L = await loadRows(client, null);
+      const em = (r: any) => firstEmail((L.tmap.get(r.target_id) || {}).contact_email || r.contact_email || r.data?.contactEmail || r.data?.bounced?.email).toLowerCase();
+      if (on) { const raw = L.all.find((r: any) => em(r) === value); if (raw) cards = (await applyOptOut(client, L.all, L.tmap, raw, clean(body.reason, 260) || "Marked Do not contact by you", "user")).cards; }
+      else for (const r of L.all) { if (em(r) === value && r.data?.doNotContact && r.data.doNotContact.by === "user") { const d = Object.assign({}, r.data); d.doNotContact = null; d.updatedAt = Date.now(); await admin.from("ar_deals").update({ data: d }).eq("id", r.id); cards++; } }
+    }
+    return { ok: true, cards };
+  }
+  if (action === "form_info_ok") {
+    const id = String(body.id || ""); const L = await loadRows(client, null); const raw = L.rows.find((r: any) => r.id === id);
+    if (!raw) return { ok: false, error: "Not found" };
+    const d = Object.assign({}, raw.data || {}); d.formInfoOk = { at: Date.now(), by: u.uid }; d.updatedAt = Date.now();
+    await admin.from("ar_deals").update({ data: d }).eq("id", id); return { ok: true };
+  }
+  if (action === "dup_release") {
+    const id = String(body.id || ""), decision = String(body.decision || "");
+    const L = await loadRows(client, null); const raw = L.all.find((r: any) => r.id === id);
+    if (!raw) return { ok: false, error: "Not found" };
+    const idx: Idx = (L.tmap as any).IDX; const t = L.tmap.get(raw.target_id) || {};
+    const dup = dupCheck(flat(raw), routeOf(raw, t, L.bmap.get(raw.brand_id) || {}), idx, "first");
+    const d = Object.assign({}, raw.data || {});
+    if (decision === "no") {
+      const lead = raw.deal_type === "lead" || d.dealType === "lead";
+      d.dealStage = lead ? "Lost" : "Do Not Pursue"; d.followUpDue = ""; d.agentFlag = null; delete d.autoOk;
+      d.dupSkip = { at: Date.now(), by: u.uid, reason: dup?.reason || "" }; d.nextAction = "Skipped" + (dup?.other ? " \u2014 already reached via " + dup.other.brand : "") + "."; d.updatedAt = Date.now();
+      await admin.from("ar_deals").update({ data: d }).eq("id", id); return { ok: true };
+    }
+    if (!dup) { d.agentFlag = null; d.dupHold = null; d.updatedAt = Date.now(); await admin.from("ar_deals").update({ data: d }).eq("id", id); return { ok: true, message: "Nothing is holding this card any more." }; }
+    if (decision === "yes") {
+      if (dup.level === "block") return { ok: false, error: dup.code === "ongoing" ? "That person is already in a conversation. Use \"Add as a note\" instead." : "This contact is blocked and can't be released." };
+      const keys = (d.dupOk && Array.isArray(d.dupOk.keys) ? d.dupOk.keys : []).concat(dup.key ? [dup.key] : []);
+      d.dupOk = { keys, at: Date.now(), by: u.uid }; d.agentFlag = null; d.dupHold = null; d.updatedAt = Date.now();
+      await admin.from("ar_deals").update({ data: d }).eq("id", id); return { ok: true };
+    }
+    if (decision === "note") {
+      if (dup.code !== "ongoing" || !dup.other) return { ok: false, error: "A note can only be added to a conversation that is already going." };
+      const other = L.all.find((r: any) => r.id === dup.other!.id); if (!other) return { ok: false, error: "The original conversation was not found." };
+      const bn = clean(idx.rows.find((x) => x.id === id)?.brand, 80) || "my other brand";
+      const od = Object.assign({}, other.data || {});
+      od.draft = "One more thing, unrelated to the above: I also look after " + bn + ". If it could ever be useful to you I'm glad to send a link. No need to reply."; od.draftKind = "reply"; od.draftState = ""; delete od.replyOk;
+      if (!od.subject) od.subject = od.sentSubject ? (/^re:/i.test(od.sentSubject) ? od.sentSubject : "Re: " + od.sentSubject) : "";
+      od.nextAction = "Review the short note about " + bn + " and approve it."; od.updatedAt = Date.now();
+      await admin.from("ar_deals").update({ data: od }).eq("id", other.id);
+      const lead = raw.deal_type === "lead" || d.dealType === "lead";
+      d.dealStage = lead ? "Lost" : "Do Not Pursue"; d.agentFlag = null; delete d.autoOk; d.dupSkip = { at: Date.now(), by: u.uid, reason: "Merged into the existing conversation" }; d.nextAction = "Handled as a note in the existing conversation with " + dup.other.brand + "."; d.updatedAt = Date.now();
+      await admin.from("ar_deals").update({ data: d }).eq("id", id);
+      return { ok: true, message: "A short note is ready to review in the existing conversation." };
+    }
+    return { ok: false, error: "Choose yes, no or note." };
   }
   if (action === "create_key") {
     let brand: string | null = null;
