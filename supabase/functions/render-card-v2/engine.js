@@ -972,7 +972,9 @@ export function possibleKinds(C, A, opts = {}) {
     if (C.headline && C.headline.split(/\s+/).length <= 9) k.add('sticker');
     if (C.number) k.add('numeral');
     if ((C.items || []).filter(Boolean).length >= 2) { k.add('list'); k.add('index'); }
-    if (C.quote) { k.clear(); k.add('quote'); return k; }
+    // 2026-11-26: a quote card has no place for a picture. When a picture was drawn for this post (preferPhoto), the picture wins and the quote
+    // words ride on a picture card, or the new picture never shows (CoachDrills: two redraws, same card, credits spent for nothing).
+    if (C.quote && !(opts.preferPhoto && A.photo && C.headline)) { k.clear(); k.add('quote'); return k; }
     if (C.event && C.event.day && C.event.month) k.add('event');
     if (A.photo && C.headline) { k.add('photo'); k.add('split'); }
     if (A.mascot && C.headline) k.add('mascot');
