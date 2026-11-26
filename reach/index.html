@@ -3044,7 +3044,7 @@ function renderCommandCenter(){
   const g=[
     ["Brands",state.brands.length],["Coverage deals",allDeals.filter(d=>(d.dealType||"coverage")==="coverage").length],
     ["Lead deals",allDeals.filter(d=>d.dealType==="lead").length],["Open / in-flight",openCount(allDeals)],
-    ["Ready to send",cnt(allDeals,"outreachStatus","Ready to Send")],["Awaiting reply",cnt(allDeals,"outreachStatus","Sent - Awaiting Reply")],
+    ["Ready to send",allDeals.filter(d=>d.outreachStatus==="Ready to Send"&&!d.manualOnly).length],["Awaiting reply",cnt(allDeals,"outreachStatus","Sent - Awaiting Reply")],
     ["Needs attention",attn.length],["Won",allDeals.filter(d=>["Closed - Won","Won - Client"].includes(d.dealStage)).length]
   ];
   const stats='<div class="stat-row">'+g.map(([l,n])=>'<div class="stat"><div class="n">'+n+'</div><div class="l">'+esc(l)+'</div></div>').join("")+'</div>';
@@ -3091,7 +3091,7 @@ function renderOverview0(brand){
     const cov=dealsForBrand(brand.id,"coverage");
     const q=quotaUsage(brand);
     const quota=q?(()=>{const pct=Math.min(100,Math.round(q.used/q.quota*100));return '<div class="quota-bar-wrap"><div class="qtop"><span>Free outreach quota — '+esc(brand.planPeriod)+'</span><span class="mono">'+q.used+' / '+q.quota+(q.used>q.quota?' — over':'')+'</span></div><div class="qtrack"><div class="qfill'+(q.used>q.quota?' over':'')+'" style="width:'+pct+'%"></div></div><div style="font-size:11px;color:var(--fg-faint);margin-top:6px">Counts every coverage send this period — UPM-sent and client self-outreach (own Discord/socials) both count.</div></div>';})():'';
-    const s=[["Coverage targets",cov.length],["Needs research",cnt(cov,"outreachStatus","Needs Research")],["Ready to send",cnt(cov,"outreachStatus","Ready to Send")],["Awaiting reply",cnt(cov,"outreachStatus","Sent - Awaiting Reply")],["Replied",cnt(cov,"outreachStatus","Replied / In Discussion")],["Won",cnt(cov,"dealStage","Closed - Won")]];
+    const s=[["Coverage targets",cov.length],["Needs research",cnt(cov,"outreachStatus","Needs Research")],["Ready to send",cov.filter(d=>d.outreachStatus==="Ready to Send"&&!d.manualOnly).length],["Awaiting reply",cnt(cov,"outreachStatus","Sent - Awaiting Reply")],["Replied",cnt(cov,"outreachStatus","Replied / In Discussion")],["Won",cnt(cov,"dealStage","Closed - Won")]];
     html+='<div class="section-title cov"><span class="dot"></span>Coverage — free/paid creator &amp; media</div>'+scopeCard("coverage",brand.coverageScope)+quota+'<div class="stat-row">'+s.map(([l,n])=>'<div class="stat accent-cov"><div class="n">'+n+'</div><div class="l">'+esc(l)+'</div></div>').join("")+'</div>'+renderWaveCards(brand,"coverage");
   }
   if(brandUses(brand,"lead")){
@@ -4459,7 +4459,7 @@ function renderBell(){
 /* =====================================================================
    WORKBENCH — spreadsheet grid + inbox pane, across brands / campaigns / both pipelines
    ===================================================================== */
-const VIEWS=[["inbox","Act now"],["proposed","Proposed"],["suggested","Suggested"],["draft","Needs draft"],["review","Review drafts"],["ready","Ready to send"],["waiting","Awaiting reply"],["stalled","Stalled"],["clientrev","Client review"],["due","Follow-ups due"],["replies","Replies"],["deals","Deals"],["closed","Closed / on hold"],["hold","Paused"],["all","All"]];
+const VIEWS=[["inbox","Act now"],["proposed","Proposed"],["suggested","Suggested"],["draft","Needs draft"],["review","Review drafts"],["ready","Ready to send"],["manual","You do these"],["waiting","Awaiting reply"],["stalled","Stalled"],["clientrev","Client review"],["due","Follow-ups due"],["replies","Replies"],["deals","Deals"],["closed","Closed / on hold"],["hold","Paused"],["all","All"]];
 const PHASE_ORDER={replied:0,deal:1,ready:2,sent:3,research:4,won:5,hold:6,closed:7,dnc:8};
 const COV_STATUS_UNION=OUTREACH_STATUSES, LEAD_STATUS_UNION=LEAD_STAGES;
 function hostOf(u){ try{ return new URL(/^https?:/i.test(u)?u:"https://"+u).hostname.replace(/^www\./,""); }catch(e){ return String(u||"").slice(0,24); } }
@@ -4495,7 +4495,8 @@ function inView(d,v,ph){
     case "suggested": return !!d.suggest;
     case "draft": return open&&!prop&&!heldQuiet(d)&&(ph==="research"||ph==="ready")&&!hasDraft(d);
     case "review": return open&&!prop&&!heldQuiet(d)&&ph==="research"&&hasDraft(d);
-    case "ready": return open&&!prop&&!heldQuiet(d)&&ph==="ready";
+    case "ready": return open&&!prop&&!heldQuiet(d)&&ph==="ready"&&!d.manualOnly;
+    case "manual": return open&&!prop&&!heldQuiet(d)&&ph==="ready"&&!!d.manualOnly;
     case "waiting": return ph==="sent";
     case "due": return open&&dueNow(d);
     case "replies": return ph==="replied";

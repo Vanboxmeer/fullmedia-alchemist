@@ -316,7 +316,7 @@ function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, toda
   const route = routeOf(r, t, b);
   const idx: Idx | undefined = (tmap as any).IDX; const chk = !!idx && !opts?.skipChecks;
   const held = (dp: Dup) => ({ ...base, kind: "blocked" as const, route, reason: dp.reason, hold: dp });
-  if (d.manualOnly && (ph === "ready" || ph === "sent")) return { ...base, kind: "manual", route, reason: "Marked Manual only. You send this one yourself." };
+  if (d.manualOnly && (ph === "ready" || ph === "sent")) return { ...base, kind: "manual", route, reason: d.manualReason ? "Claude could not do this one: " + clean(d.manualReason, 200) : "Marked Manual only. You send this one yourself." };
   const snoozed = d.stallSnooze && String(d.stallSnooze).slice(0, 10) > today;
   if (route.route === "linkedin") {
     // LinkedIn assist: Claude only PREPARES the text in LinkedIn's box. The user presses Send.
@@ -349,7 +349,7 @@ function classify(raw: any, tmap: Map<string, any>, bmap: Map<string, any>, toda
     return { ...base, kind: "first", route, reason: "" };
   }
   if (ph === "replied" && d.draftKind === "reply" && draft) {
-    if (d.manualOnly) return { ...base, kind: "manual", route, reason: "Marked Manual only. You send this one yourself." };
+    if (d.manualOnly) return { ...base, kind: "manual", route, reason: d.manualReason ? "Claude could not do this one: " + clean(d.manualReason, 200) : "Marked Manual only. You send this one yourself." };
     if (route.route !== "email") return { ...base, kind: "manual", route, reason: "Replies by email only. You send this one yourself." };
     if (chk) { const dp = dupCheck(r, route, idx!, "reply"); if (dp) return held(dp); }
     if (!base.subject) return { ...base, kind: "blocked", route, reason: "No subject line on the reply yet." };
@@ -937,7 +937,7 @@ async function appStatus(client: string) {
   return {
     ok: true, settings: st, pipe, today, doneToday: await todayCount(client), liImport: await getImport(client),
     brands: [...bmap.values()].map((b: any) => ({ id: b.id, name: b.name, on: !!st.brands[b.id], li: liProfileOf(b.data || {}, wsA) || undefined })),
-    ready: items.filter((i) => i.kind === "first" || i.kind === "followup" || i.kind === "reply" || i.kind === "liprep" || i.kind === "lireply").map(pub),
+    ready: items.filter((i) => !i.flag && (i.kind === "first" || i.kind === "followup" || i.kind === "reply" || i.kind === "liprep" || i.kind === "lireply")).map(pub),
     manual: items.filter((i) => i.kind === "manual").map(pub),
     blocked: items.filter((i) => i.kind === "blocked" && !i.hold).map(pub),
     held: items.filter((i) => i.hold).map(pub),
