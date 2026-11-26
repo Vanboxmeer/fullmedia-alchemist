@@ -2916,13 +2916,36 @@ function splitPlat(s){ s=String(s||"").trim(); if(!s) return []; if(_platCache.h
 function platsOf(t){ t=t||{}; return t.platform?splitPlat(t.platform):(t.category?[t.category]:[]); }
 function platCounts(list){ const n={}; list.forEach(t=>platsOf(t).forEach(p=>{ n[p]=(n[p]||0)+1; })); return Object.keys(n).sort((a,b)=>n[b]-n[a]||a.localeCompare(b)).map(p=>[p,p+" ("+n[p]+")"]); }
 
+function crossPaneHtml(d){
+  if(d.sentDate||d.lastSentDate||d.doNotContact||d.dupSkip) return ""; const t=targetForDeal(d)||{};
+  const xr=reachedElsewhere(d.brandId,{email:emailOf(d),urls:[t.website,t.contactLink]}); if(!xr) return ""; if(d.dupOk&&!xr.replied&&!xr.dnc) return "";
+  return '<div class="psec"><div class="al warn"><span class="t"><b>Already reached via '+esc(xr.brand)+'</b>'+(xr.when?' on '+esc(xr.when):'')+' ('+esc(xr.why)+'). '+(xr.dnc?'They asked not to be contacted, so this card will not be sent.':xr.replied?'That brand is already talking with them, so a new intro would cut across it.':'Reaching the same contact from two brands can hurt the relationship. Send this one anyway?')+'</span><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'+(xr.dnc?'':xr.replied?'<button class="btn tiny" data-p="dupnote" type="button">Add as a note there</button>':'<button class="btn tiny primary" data-p="dupyes" type="button">Yes, send it</button>')+'<button class="btn tiny" data-p="dupno" type="button">No, skip this one</button><button class="btn tiny" data-p="chist" type="button">Contact history</button></div></div></div>'; }
+async function dupDecide(id,a){
+  const decision=a==="dupyes"?"yes":a==="dupno"?"no":"note";
+  try{ const R=await reachApi(); const r=R&&R.agent?await R.agent("dup_release",{id,decision}):null;
+    if(!r||r.ok===false){ toast((r&&r.error)||"Could not do that right now"); return; }
+    if(r.patch) patchDeal(id,r.patch); if(r.other&&r.other.id) patchDeal(r.other.id,r.other.patch);
+    toast(decision==="yes"?"Okay, this one can go ahead":decision==="no"?"Skipped":"A short note is ready to review in that conversation"); afterRowChange(id); if(state.wb.active===id) renderPane(); render();
+  }catch(e){ toast("Could not do that right now"); } }
+async function openContactHistory(id){
+  const d=ix().deal.get(id); if(!d) return; const R=await reachApi(); if(!R||!R.agent){ toast("Not available in this view"); return; }
+  const r=await R.agent("contact_history",{id}); if(!r||r.ok===false){ toast((r&&r.error)||"No contact details on this card"); return; }
+  const line=o=>'<div class="mini" style="margin:6px 0"><b>'+esc(o.brand)+'</b> · '+esc(o.name||"")+' · '+esc(o.channel)+' · '+esc(o.phase)+(o.sent?' · first sent '+esc(o.sent):'')+(o.lastSent&&o.lastSent!==o.sent?' · last '+esc(o.lastSent):'')+(o.replied?' <span class="pill p-good">replied</span>':'')+(o.bounced?' <span class="pill p-bad">bounced</span>':'')+(o.dnc?' <span class="pill p-bad">do not contact</span>':'')+'</div>';
+  openModal('<div class="mhead"><div><h3>Contact history</h3><div class="ikstep">'+esc(r.email||"this contact")+(r.domain?' · '+esc(r.domain):'')+'</div></div><button class="iconbtn" id="mClose">&times;</button></div><div class="mbody">'
+    +'<p class="fine">Every brand in this workspace that has touched this contact.</p>'+(r.rows.length?r.rows.map(line).join(""):'<div class="mini">Nothing sent yet.</div>')
+    +(r.company&&r.company.length?'<p class="fine" style="margin-top:10px">Others at the same company</p>'+r.company.map(line).join(""):'')
+    +(r.email?'<div class="bar" style="margin-top:12px"><button class="btn small'+(r.dnc.email?'':' danger')+'" id="chDnc" type="button">'+(r.dnc.email?'Allow contact again':'Do not contact this person, for every brand')+'</button></div>':'')
+    +'</div>',true); wireClose();
+  const b=document.getElementById("chDnc"); if(b) b.addEventListener("click",async()=>{ b.disabled=true; const x=await R.agent("dnc_set",{value:r.email,kind:"email",on:!r.dnc.email}); if(x&&x.ok){ toast(r.dnc.email?"Contact allowed again":"Blocked for every brand"); closeModal(); render(); } else { toast((x&&x.error)||"Could not save"); b.disabled=false; } }); }
 function addOptionsToWave(ids,brand,wave){
-  ids.forEach(oid=>{ const o=optionById(oid); createDoc("deals",uid("deal"),{brandId:brand.id,waveId:wave.id,dealType:"coverage",optionId:oid,targetName:o?o.channelName:"",dealStage:"Pre-Deal",outreachStatus:"Needs Research",ownerType:"UPM Account Manager",ownerName:"",draft:"",subject:"",notes:"",createdAt:Date.now(),updatedAt:Date.now()}); });
-  toast("Added "+ids.length+" to "+wave.name); state.addTargetToWave=null; openWave(wave.id);
+  const xs=[];
+  ids.forEach(oid=>{ const o=optionById(oid); const xr=crossFor(brand.id,o); if(xr) xs.push(xr); createDoc("deals",uid("deal"),{brandId:brand.id,waveId:wave.id,dealType:"coverage",optionId:oid,targetName:o?o.channelName:"",dealStage:"Pre-Deal",outreachStatus:"Needs Research",ownerType:"UPM Account Manager",ownerName:"",draft:"",subject:"",notes:"",createdAt:Date.now(),updatedAt:Date.now()}); });
+  toast("Added "+ids.length+" to "+wave.name+crossNote(xs)); state.addTargetToWave=null; openWave(wave.id);
 }
 function addLeadsToWave(ids,brand,wave){
-  ids.forEach(lid=>{ const l=leadById(lid); createDoc("deals",uid("deal"),{brandId:brand.id,waveId:wave.id,dealType:"lead",leadId:lid,targetName:l?l.name:"",dealStage:"New",ownerType:"UPM Account Manager",ownerName:"",introType:"",draft:"",subject:"",notes:"",createdAt:Date.now(),updatedAt:Date.now()}); });
-  toast("Added "+ids.length+" to "+wave.name); state.addTargetToWave=null; openWave(wave.id);
+  const xs=[];
+  ids.forEach(lid=>{ const l=leadById(lid); const xr=crossFor(brand.id,l); if(xr) xs.push(xr); createDoc("deals",uid("deal"),{brandId:brand.id,waveId:wave.id,dealType:"lead",leadId:lid,targetName:l?l.name:"",dealStage:"New",ownerType:"UPM Account Manager",ownerName:"",introType:"",draft:"",subject:"",notes:"",createdAt:Date.now(),updatedAt:Date.now()}); });
+  toast("Added "+ids.length+" to "+wave.name+crossNote(xs)); state.addTargetToWave=null; openWave(wave.id);
 }
 /* ---- workspace / plan surface — honest: records the chosen plan, no checkout ---- */
 /* ---- 2026-11-09: first-run setup. Nobody inherits another person's name, agency or address: each workspace says who it is. ---- */
@@ -3436,7 +3459,15 @@ function ackAlert(id,code){ const d=ix().deal.get(id); if(!d) return; patchDeal(
    ===================================================================== */
 function sigText(b){ const own=((b&&b.managerSig)||"").trim(); if(own) return own; const mn=((b&&b.managerName)||"").trim(); if(mn){ const ag=agencyName(); return mn+(ag?"\n"+ag:""); } return (wsMeta().signature||"").trim(); }
 /* Add the saved signature once: if the message already ends with the sign-off name alone, expand that line into the full signature; if it already holds the whole signature, leave it. */
-function withSig(body,br){ let b=(body||"").replace(/\s+$/,""); const sig=sigText(br); if(!sig||!b||b.includes(sig)) return b; const first=sig.split("\n")[0].trim(); const lines=b.split("\n"); if(first&&lines[lines.length-1].trim()===first){ lines.pop(); return lines.join("\n").replace(/\s+$/,"")+"\n"+sig; } return b+"\n\n"+sig; }
+function withSig(body,br){ let b=(body||"").replace(/\s+$/,""); const sig=sigText(br); if(!sig||!b||b.includes(sig)) return b;
+  const norm=x=>String(x||"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim(), CL=/^(best|thanks|thank you|cheers|regards|kind regards|warm regards|best regards|sincerely|many thanks)\b\s*/;
+  const sl=sig.split("\n").map(norm).filter(Boolean), all=sl.join(" "), words=new Set(all.split(" ").filter(Boolean));
+  const hit=n=>!!n&&(sl.includes(n)||all===n||(n.length>=3&&all.includes(n))||(n.split(" ").length<=4&&n.split(" ").every(w=>words.has(w))));
+  const lines=b.split("\n"); let dropped="";
+  while(lines.length){ const raw=lines[lines.length-1], n=norm(raw); if(!n){ lines.pop(); continue; } if(hit(n)){ lines.pop(); continue; } const m=n.match(CL); if(m&&hit(n.slice(m[0].length))){ dropped=raw.split(/[,\s]/)[0]; lines.pop(); continue; } break; }
+  const last=(lines[lines.length-1]||"").trim(), closing=/^(best|thanks|thank you|cheers|regards|kind regards|warm regards|best regards|sincerely|many thanks)[,!. ]*$/i.test(last), out=lines.join("\n").replace(/\s+$/,"");
+  if(!closing&&dropped&&/^[A-Za-z ]+$/.test(dropped)) return out+"\n\n"+dropped+",\n"+sig;
+  return out+(closing?"\n":"\n\n")+sig; }
 /* Safety net: a sign-off name that nobody gave the writer (it made one up, or lifted one from a website) is replaced with the sender's real name. Only touches a short Capitalised name alone on the last line. */
 function cleanSignoff(body,br,clientOwned){
   let b=(body||"").replace(/\s+$/,""); if(!b) return b; const lines=b.split("\n"); if(lines.length<2) return b;
@@ -4991,9 +5022,9 @@ function openPicker(preset){
     $("pkAdd").addEventListener("click",async()=>{
       const ids=Object.keys(P.sel); if(!ids.length) return; let wid=P.waveId;
       if(wid==="__new"){ const nm=(P.newName||$("pkNew").value||"").trim(); if(!nm){ toast("Name the new "+(lead?"wave":"campaign")); return; } wid=uid("wave"); createDoc("waves",wid,{brandId:P.brandId,pipelineType:P.flow==="lead"?"lead":"coverage",mode:P.flow==="community"?"communities":"",name:nm,startedDate:todayISO(),status:"Active",nextStep:"",createdAt:Date.now()}); }
-      ids.forEach(oid=>{ const o=lead?leadById(oid):optionById(oid); const id=uid("deal");
+      const pkX=[]; ids.forEach(oid=>{ const o=lead?leadById(oid):optionById(oid); const xr=crossFor(P.brandId,o,lead); if(xr) pkX.push(xr); const id=uid("deal");
         createDoc("deals",id,lead?{brandId:P.brandId,waveId:wid,dealType:"lead",leadId:oid,targetName:o?o.name:"",dealStage:"New",ownerType:"UPM Account Manager",ownerName:"",introType:"",draft:"",subject:"",notes:"",createdAt:Date.now(),updatedAt:Date.now()}:{brandId:P.brandId,waveId:wid,dealType:"coverage",optionId:oid,targetName:o?o.channelName:"",dealStage:"Pre-Deal",outreachStatus:"Needs Research",ownerType:"UPM Account Manager",ownerName:"",draft:"",subject:"",notes:"",createdAt:Date.now(),updatedAt:Date.now()}); });
-      closeModal(); toast("Added "+ids.length+" to the campaign"); state.currentBrandId=P.brandId; state.wb.wave=wid; state.wb.view="all"; render();
+      closeModal(); toast("Added "+ids.length+" to the campaign"+crossNote(pkX)); state.currentBrandId=P.brandId; state.wb.wave=wid; state.wb.view="all"; render();
     });
   }
   draw();
@@ -5080,6 +5111,7 @@ function paneHtml(d){
    +'<div class="pscroll" id="pScroll"><div class="pb" data-deal="'+d.id+'">'
    +(wbMoved.has(d.id)?'<div class="al info"><span class="t">This row no longer matches the current tab, so it will leave the list when you move on. Keep working here.</span></div>':'')
    +(al.length?'<div class="psec"><div class="alist" id="pAlerts">'+alertRows+'</div></div>':'<div id="pAlerts"></div>')
+   +crossPaneHtml(d)
    +(d.doNotContact
      ?'<div class="psec"><div class="al bad"><span class="t"><b>Do not send.</b> This contact opted out or replied rudely. Nothing is ever sent to them again, by you or the automation. <button class="btn tiny" data-p="optout" type="button">Undo</button></span></div></div>'
      :'<div class="psec"><div class="mini" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn tiny" data-p="optout" type="button" title="Blocks this address everywhere and stops every follow-up">Do not send</button><span>They opted out or replied rudely? Stop all messages to them.</span></div></div>')
@@ -5420,6 +5452,8 @@ function paneClick(e){
     case "accept": return acceptProposed(id);
     case "reject": return rejectProposed(id);
     case "manualonly": { const dd=ix().deal.get(id); if(!dd) return; const on=!dd.manualOnly; patchDeal(id,on?{manualOnly:true,autoOk:false,autoHold:true,readyAfterDraft:false}:{manualOnly:false,autoHold:false}); if(on){ (async()=>{ try{ const R=await reachApi(); if(R&&R.agent) await R.agent("approve",{ids:[id],on:false}); }catch(e){} })(); } toast(on?"Marked Manual only. It will never be included in automation.":"Manual only turned off."); afterRowChange(id); return; }
+    case "dupyes": case "dupno": case "dupnote": return dupDecide(id,a);
+    case "chist": return openContactHistory(id);
     case "optout": { const dd=ix().deal.get(id); if(!dd) return; const on=!dd.doNotContact;
       patchDeal(id,on?{doNotContact:{at:Date.now(),by:"user",reason:"Marked Do not send by you"},followUpDue:"",autoOk:false,draft:"",suggest:null,agentFlag:null,nextAction:"Do not send. They asked us to stop."}:{doNotContact:null});
       (async()=>{ try{ const R=await reachApi(); if(R&&R.agent) await R.agent("opt_out",{id,on}); }catch(e){} })();
@@ -5679,6 +5713,8 @@ const AGENT_RULES=[
  "- LINKS: never write a full web address. No https://, no www., no ? or utm_ parts, no long paths. If a link is allowed, write only the bare domain (for example fullmediaalchemist.com), once, in a sentence a person would write. Tracking is added automatically when the message is sent, so never add it yourself.",
  "- WRITING: say why you are writing in the first sentence. Short plain sentences, one idea each, like one person writing to another. Be specific about what you are asking and what they get. End with one clear, easy question or next step. Banned: 'I hope this finds you well', 'reaching out', 'touch base', 'just wanted to', 'revolutionary', 'game-changing', 'cutting-edge', 'seamless', 'leverage', 'unlock', 'supercharge', exclamation marks, emoji. Read it back and cut every sentence that does not help them decide.",
  "- Use the agency and brand names exactly as given in the writing instruction. Never expand, shorten or change them.",
+ "- Never ask for a call, chat, meeting, demo, video call or discussion, and never suggest catching up or a conversation. The only ask is a plain, easy yes/no or a link to look at.",
+ "- Never use the phrase \"content conveyor belt\". Never ask how much content they publish, about their workflow or process, how many pieces or hours a week they spend, or anything about their volume.",
  "- Never mention any former or previous name of a brand or product (for example \"Content Conveyor Belt\"). Use only the current name.",
  "- Never invent facts, numbers, names, prices or reasons. If something isn't supplied below, leave it out.",
  "- Everything in the TARGET section is about THEM only (their history, years in business, experience, location). Never present it as a fact about us, our brand or our product. Never say when we built, launched or started using anything, never say how long ('since 2009', 'for 10 years'), and never claim usage, client work, results or customers, unless that exact claim is written in the brand's Proof points, Key messages or the campaign message. If the product is new, do not imply otherwise.",
@@ -5776,9 +5812,12 @@ async function agentDraft(id,opts){
     let out=await runSample(draftPrompt(d),"default"), clean=bb=>cleanSignoff((bb||"").trim(),brandById(d.brandId),(d.ownerType||"").startsWith("Client"));
     let bad=claimIssues(d,clean(out.body));
     if(bad.length){ try{ const o2=await runSample(draftPrompt(d,"Your last draft was rejected because it stated things nobody gave you: "+bad.join(", ")+". Rewrite it and leave out every history, usage, year, duration and client claim about us. Say only what the brand facts say; if the product is new, say nothing that implies otherwise."),"default"); if(o2&&o2.body){ out=o2; bad=claimIssues(d,clean(out.body)); } }catch(e2){} }
+    let sty=styleIssues(clean(out.body));
+    if(sty){ try{ const o3=await runSample(draftPrompt(d,"Your last draft was rejected because "+sty+". Rewrite it. Never ask for a call, chat, meeting or discussion. Never use the phrase content conveyor belt. Never ask about their content volume, workflow, pieces or hours per week. Say what the brand offers and give one easy yes/no or a link to look at."),"default"); if(o3&&o3.body){ out=o3; sty=styleIssues(clean(out.body)); } }catch(e3){} }
     const subject=(out.subject||"").trim(), bodyTxt=clean(out.body); if(!bodyTxt) throw {code:"empty",message:"empty draft"};
     patchDeal(id,{subject,draft:bodyTxt,draftState:"agent",draftKind:"",template:d.template||"",autoOk:false});
-    { const cur=ix().deal.get(id); if(cur&&cur.readyAfterDraft){ patchDeal(id,{readyAfterDraft:false}); if(cur.reviewState!=="proposed"&&!hasGaps(cur)&&!bad.length) markReady(id); } }
+    { const cur=ix().deal.get(id); if(cur&&cur.readyAfterDraft){ patchDeal(id,{readyAfterDraft:false}); if(cur.reviewState!=="proposed"&&!hasGaps(cur)&&!bad.length&&!sty) markReady(id); } }
+    if(sty&&!opts.quiet) toast("Held: this draft is not sent because "+sty+". Edit it or try again.");
     if(bad.length&&!opts.quiet) toast("Check this draft: it still says "+bad[0]+", which isn\u2019t in your brand facts");
     afterRowChange(id); if(state.wb.active===id) renderPane("msg");
     if(!opts.quiet) toast("Draft ready — "+nameOf(d)+(out.notes?" · "+String(out.notes).slice(0,80):""));
@@ -6087,6 +6126,7 @@ function verifyCommunity(c,run,r,brand){
   const existing=findExisting("option",{name,email:emailOk?email:"",link:url});
   if(existing){ const inBrand=(ix().byBrand.get(brand.id)||[]).some(d=>d.optionId===existing.id); if(inBrand) return {why:"already in this brand",name}; }
   { const bd=brandDupHit(brand,{name,email:emailOk?email:"",urls:[url]}); if(bd) return {why:"already in this brand ("+bd+")",name}; }
+  { const xr=reachedElsewhere(brand.id,{email:emailOk?email:"",urls:[url]}); if(xr) return {why:"Already reached via "+xr.brand+(xr.dnc?" (asked to be left alone)":"")+" ("+xr.why+")",name}; }
   const plat=String((c.platform||"")+" "+url).toLowerCase();
   const via=emailOk?"email":/reddit/.test(plat)?"reddit":/discord/.test(plat)?"discord":/telegram|t\.me/.test(plat)?"telegram":"form";
   const label={open:"posting allowed",thread_only:"allowed in a promo thread only",ask_mods:"ask the mods first",submission:"submission / pitch route",unclear:"rules unclear"}[policy]||"rules unclear";
@@ -6145,6 +6185,21 @@ function brandDupHit(brand,cand){
   return "";
 }
 function candKeys(v){ return dupKeys({name:v.name,email:v.email,urls:[v.url,v.raw&&v.raw.website,v.raw&&v.raw.contactUrl,v.raw&&v.raw.url]}); }
+/* ---- one contact = one relationship: has ANOTHER brand of this workspace already reached (or been told to leave alone) this contact? ---- */
+function reachedElsewhere(brandId,cand){
+  const ck=new Set(dupKeys({name:"",email:cand.email,urls:cand.urls||[]})); if(!ck.size) return null;
+  for(const [bid,list] of ix().byBrand){ if(bid===brandId) continue; const br=brandById(bid);
+    for(const d of list){ const ph=phaseOf(d); if(!(d.sentDate||d.lastSentDate||d.doNotContact||ph==="sent"||ph==="replied"||ph==="deal"||ph==="won")) continue;
+      const t=targetForDeal(d)||{}; const shared=!!(t.orderVia||t.inDeck||t.publicId||t.catalog==="upm-deck");
+      const tk=new Set(dupKeys({name:"",email:t.contactEmail||d.contactEmail,urls:[t.website,t.contactLink],shared}));
+      for(const x of ck){ if(tk.has(x)) return {brand:br?br.name:"another brand",when:d.lastSentDate||d.sentDate||"",replied:ph==="replied"||ph==="deal"||ph==="won",dnc:!!d.doNotContact,why:x[0]==="e"?"same email":"same company"}; } } }
+  return null; }
+function crossFor(brandId,o,lead){ if(!o) return null; return reachedElsewhere(brandId,{email:o.contactEmail,urls:[o.website,o.contactLink]}); }
+function crossNote(list){ return list.length?" · "+list.length+" already reached via another brand ("+[...new Set(list.map(x=>x.brand))].slice(0,3).join(", ")+"): they stay held until you decide":""; }
+/* drafting rules, same as the server's: no push for a call, no "content conveyor belt", no questions about their volume or workflow */
+const ST_CALL=/\b(hop|jump|get|hopping|jumping|getting) on (a |an )?(quick |short |brief )?(call|chat|zoom|meeting|video)\b|\b(book|schedule|set up|arrange|grab|have|propose|suggest|up for|open to|keen on|down for|happy to|glad to|love to|like to)\b[^.?!\n]{0,30}\b(a |an |the |our )?(quick |short |brief |little |15.?min(ute)?s? |20.?min(ute)?s? |30.?min(ute)?s? |intro |discovery |exploratory )?(call|chat|conversation|convo|discussion|discuss|meeting|zoom|demo|catch.?up|sync|talk)\b|\b(let'?s|lets|can we|could we|shall we|should we|we should) (chat|talk|discuss|connect|speak|catch up|jump on|hop on|sync)\b|\b(pick your brain|15.?minutes? of your time|a few minutes of your time)\b/i;
+const ST_VOL=/[^.?!\n]*(\b(how (much|many|often)|what('?s| is) your|do you (publish|post|produce|create|write|ship)|are you (publishing|posting|producing|creating))\b[^.?!\n]*\b(content|pieces?|posts?|articles?|videos?|blogs?|workflow|process|hours?|volume|output|calendar)\b|\b(pieces?|posts?|articles?|videos?|hours?)\s+(a|per|each|every)\s+(week|month|day)\b|\bcontent (volume|workflow|process|calendar|output)\b|\bworkflow\b)[^.?!\n]*\?/i;
+function styleIssues(t){ t=String(t||""); if(/conveyor[\s-]*belt/i.test(t)) return 'it uses the phrase "content conveyor belt"'; if(ST_CALL.test(t)) return "it pushes for a call, chat or discussion"; if(ST_VOL.test(t)) return "it asks about their content volume, workflow or hours"; return ""; }
 function verifyCandidate(c,run,r,brand,ctx){
   if(r.mode==="communities"&&r.flow!=="lead") return verifyCommunity(c,run,r,brand);
   const lead=r.flow==="lead"; const need=(r.criteria||{}).needContact!==false;
@@ -6171,6 +6226,7 @@ function verifyCandidate(c,run,r,brand,ctx){
   const existing=findExisting(lead?"lead":"option",{name,email:emailOk?email:"",link:urlOk?cUrl:"",site:/^https?:\/\//i.test(c.website||"")?c.website:""});
   if(existing){ const inBrand=(ix().byBrand.get(brand.id)||[]).some(d=>(lead?d.leadId:d.optionId)===existing.id); if(inBrand) return {why:"already in this brand",name}; }
   { const bd=brandDupHit(brand,{name,email:emailOk?email:"",urls:[cUrl,c.website]}); if(bd) return {why:"already in this brand ("+bd+")",name}; }
+  { const xr=reachedElsewhere(brand.id,{email:emailOk?email:"",urls:[cUrl,c.website]}); if(xr) return {why:"Already reached via "+xr.brand+(xr.dnc?" (asked to be left alone)":"")+" ("+xr.why+")",name}; }
   const src=/^https?:\/\//i.test(String(c.sourceUrl||""))&&urlIn(run,c.sourceUrl)?String(c.sourceUrl).trim():"";
   const quote=String(c.evidenceQuote||"").trim(); const quoteOk=quote.length>=10&&chunkHas(run,[name,quote],4);
   const fol=String(c.followersText||"").trim(); const folOk=fol&&chunkHas(run,[name,fol],3)?fol:"";
@@ -6222,7 +6278,7 @@ async function runResearch(r,ctl){
   if(!found.length&&limitErr) throw limitErr;
   /* write results */
   const wave=ix().wave.get(r.waveId); const now=Date.now(); const newIds=[];
-  { /* last check right before saving: another run or a manual add may have landed in the meantime */ const keep=found.filter(v=>{ if(v.existing){ return !(ix().byBrand.get(brand.id)||[]).some(d=>(lead?d.leadId:d.optionId)===v.existing.id); } return !brandDupHit(brand,{name:v.name,email:v.email,urls:[v.url,v.raw&&v.raw.website]}); }); if(keep.length!==found.length){ ctl.log((found.length-keep.length)+" dropped at the last check: already added meanwhile.","dim"); found.length=0; keep.forEach(v=>found.push(v)); } }
+  { /* last check right before saving: another run or a manual add may have landed in the meantime */ const keep=found.filter(v=>{ if(v.existing){ if(reachedElsewhere(brand.id,{email:v.email||v.existing.contactEmail,urls:[v.url,v.existing.website,v.existing.contactLink]})) return false; return !(ix().byBrand.get(brand.id)||[]).some(d=>(lead?d.leadId:d.optionId)===v.existing.id); } return !brandDupHit(brand,{name:v.name,email:v.email,urls:[v.url,v.raw&&v.raw.website]})&&!reachedElsewhere(brand.id,{email:v.email,urls:[v.url,v.raw&&v.raw.website]}); }); if(keep.length!==found.length){ ctl.log((found.length-keep.length)+" dropped at the last check: already added meanwhile.","dim"); found.length=0; keep.forEach(v=>found.push(v)); } }
   found.forEach((v,i)=>{
     const c=v.raw; let rid=v.existing?v.existing.id:uid(lead?"lead":"opt");
     const notes=("Found by in-app research "+todayISO()+(v.src?" — source: "+v.src:"")+(v.quote?" — “"+v.quote+"”":"")+(v.rulesNote?" — "+v.rulesNote:"")).slice(0,700);
@@ -6397,6 +6453,9 @@ async function openAutomation(){
   const brandRows=st.brands.map(b=>'<label class="chk"><input type="checkbox" data-abr="'+esc(b.id)+'"'+(b.on?" checked":"")+'><span>'+esc(b.name)+'</span></label>').join("")||'<div class="fine">No brands yet.</div>';
   const readyRows=st.ready.map(r=>'<label class="chk" data-bid="'+esc(r.brandId||"")+'" data-wid="'+esc(((ix().deal.get(r.id))||{}).waveId||"")+'" data-k="'+(r.kind==="liprep"||r.kind==="lireply"?"li":r.kind==="reply"?"reply":r.kind==="followup"?"followup":(r.route==="form"?"form":"email"))+'" data-lr="'+(r.kind==="reply"||r.kind==="lireply"?"1":"")+'"><input type="checkbox" data-aap="'+esc(r.id)+'"'+(r.approved?" checked":"")+(r.needProfile?" disabled":"")+'><span><b>'+esc(r.name)+'</b> <span class="pill p-neutral">'+pillOf(r)+'</span> <span class="pill p-neutral">'+esc(r.brand)+'</span>'+(r.flag?' <span class="pill p-warn">needs you</span>':'')+'<small>'+esc(r.route==="form"?(r.link||""):(r.to||""))+(r.subject?' · '+esc(r.subject):'')+'</small><small class="auh">'+(r.kind==="liprep"?'Claude puts this text in the LinkedIn box. You press Send.'+(r.needProfile?' <b>Add this brand\'s LinkedIn profile first (Brand → Sender &amp; signature).</b>':'')+(r.prepared?' <b>Already in the box, waiting for you.</b>':'')+'</small><small class="auh" style="white-space:pre-wrap">'+esc(r.draft||""):r.kind==="lireply"?'You approve each reply yourself. Claude puts it in the LinkedIn reply box, you press Send. Pricing, deals and payment are never prepared.'+(r.needProfile?' <b>Add this brand\'s LinkedIn profile first.</b>':'')+(r.prepared?' <b>Already in the box, waiting for you.</b>':'')+'</small><small class="auh" style="white-space:pre-wrap"><b>Their message:</b> '+esc(r.theirs||"(not saved)")+'</small><small class="auh" style="white-space:pre-wrap"><b>Your reply:</b> '+esc(r.draft||""):r.kind==="reply"?'You approve each reply yourself. Pricing, deals and payment are never sent by Claude.</small><small class="auh" style="white-space:pre-wrap"><b>Their message:</b> '+esc(r.theirs||"(not saved)")+'</small><small class="auh" style="white-space:pre-wrap"><b>Your reply:</b> '+esc(r.draft||""):r.kind==="followup"?'Already sent '+esc(r.sent||"")+(r.via?' by '+esc(r.via):'')+' · this is follow-up '+((r.followUps||0)+1)+', due '+esc(r.due||""):'Not sent yet')+'</small></span></label>').join("");
   const manualRows=st.manual.map(r=>'<div class="mini" style="margin:8px 0"><b>'+esc(r.name)+'</b> <span class="pill p-neutral">'+esc(r.brand)+'</span><br><span style="opacity:.75">'+esc(r.reason)+'</span></div>').join("");
+  const heldRows=(st.held||[]).map(r=>{ const h=r.hold||{}, hb=h.level==="block"; return '<div class="al warn" style="margin:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="t"><b>'+esc(r.name)+'</b> <span class="pill p-neutral">'+esc(r.brand)+'</span> — '+esc(r.reason)+'</span><span style="flex:1"></span>'+(hb?(h.code==="ongoing"?'<button class="btn small" data-adup="note" data-id="'+esc(r.id)+'">Add as a note</button>':''):'<button class="btn small primary" data-adup="yes" data-id="'+esc(r.id)+'">Yes, send</button>')+'<button class="btn small" data-adup="no" data-id="'+esc(r.id)+'">'+(hb?"Skip it":"No, skip")+'</button></div>'; }).join("");
+  const dncList=[].concat(((st.dnc||{}).emails||[]).map(v=>["email",v]),((st.dnc||{}).domains||[]).map(v=>["domain",v]));
+  const dncRows=dncList.map(x=>'<div class="mini" style="margin:4px 0;display:flex;gap:8px;align-items:center"><span>'+esc(x[1])+(x[0]==="domain"?' <span class="pill p-neutral">whole company</span>':'')+'</span><span style="flex:1"></span><button class="btn tiny" data-adnc="'+esc(x[1])+'" data-k="'+x[0]+'">Allow again</button></div>').join("");
   const blockedRows=st.blocked.map(r=>'<div class="mini" style="margin:8px 0"><b>'+esc(r.name)+'</b> — '+esc(r.reason)+'</div>').join("");
   const needRows=st.needsYou.map(r=>'<div class="al warn" style="margin:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="t"><b>'+esc(r.name)+'</b> — '+esc((r.flag&&r.flag.reason)||"Needs you")+'</span><span style="flex:1"></span><button class="btn small" data-aclr="'+esc(r.id)+'">I’ve handled it</button></div>').join("");
   const keyRows=st.keys.map(k=>'<div class="mini" style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><b>'+esc(k.label||"Connector")+'</b><span>'+(k.last_used_at?'<span class="pill p-good">Connected</span> last used '+esc(agoTs(k.last_used_at)):'<span class="pill p-neutral">Waiting for first use</span>')+'</span><span style="flex:1"></span><button class="btn small" data-akrev="'+esc(k.id)+'">Remove</button></div>').join("");
@@ -6443,7 +6502,10 @@ async function openAutomation(){
   const startStep='<div class="step"><h4><span class="n" id="auN4">•</span>Start it in Claude</h4><p>Turn Automation on above, then send this in your Claude project chat and leave it open:</p><div class="cmd"><code id="auCmd">Check my Alchemist Reach tasks</code><button class="btn small primary" id="aCopyCmd" type="button">Copy message</button></div><div class="runstate" id="auRunState"></div></div>';
   body.innerHTML='<div class="au">'
     +'<div class="au-top'+(S.on?" on":"")+'" id="auTop"><div class="au-state"><b id="auTitle">'+(S.on?"Automation is ON":"Automation is OFF")+'</b><span id="auSub">'+(S.on?"Claude sends what is selected below, one at a time.":"Nothing is handed to Claude until you switch this on.")+'</span></div><label class="sw" title="Turn Automation on or off"><input type="checkbox" id="aOn" aria-label="Automation mode"'+(S.on?" checked":"")+'><i></i></label></div>'
-    +brandStep+acctStep+listStep+liStep+connStep+startStep
+    +brandStep+acctStep
+    +((st.held||[]).length?'<div class="step"><h4><span class="n" style="background:var(--warn,#c77d00)">!</span>Held to protect your contacts <span class="sp"></span><span class="meta">'+st.held.length+'</span></h4><p>These were not sent because the same contact (or company) was already reached by another brand, or asked to be left alone. Nothing goes out until you decide.</p>'+heldRows+'</div>':'')
+    +listStep+liStep+connStep+startStep
+    +'<details class="fold"><summary>Do not contact ('+dncList.length+')</summary><p class="fine" style="margin:8px 0">Blocked for every brand in this workspace. Add someone here, or use <b>Contact history</b> on any card.</p>'+dncRows+'<div class="lim"><label>Add an email address or a company domain<br><input type="text" id="aDncIn" placeholder="name@company.com or company.com" style="min-width:240px"></label> <button class="btn small" id="aDncAdd" type="button">Block</button></div></details>'
     +(st.manual.length?'<details class="fold"><summary>You do these yourself ('+st.manual.length+')</summary>'+manualRows+'</details>':'')
     +(st.blocked.length?'<details class="fold"><summary>Not ready ('+st.blocked.length+')</summary>'+blockedRows+'</details>':'')
     +(logRows?'<details class="fold"><summary>Recent Claude activity</summary>'+logRows+'</details>':'')
@@ -6511,6 +6573,9 @@ async function openAutomation(){
       if(mine){ clearInterval(iv); wait.innerHTML="<b>✓ Connected.</b> Claude reached Alchemist Reach just now. Turn Automation on at the top and select some messages above when you are ready."; wait.style.color="var(--good)"; } },4000); });
   body.querySelectorAll("[data-akrev]").forEach(b=>b.addEventListener("click",async()=>{ b.disabled=true; await R.agent("revoke_key",{id:b.dataset.akrev}); openAutomation(); }));
   body.querySelectorAll("[data-aclr]").forEach(b=>b.addEventListener("click",async()=>{ b.disabled=true; await R.agent("clear_flag",{id:b.dataset.aclr}); openAutomation(); }));
+  body.querySelectorAll("[data-adup]").forEach(b=>b.addEventListener("click",async()=>{ b.disabled=true; const id=b.dataset.id, dec=b.dataset.adup; const r=await R.agent("dup_release",{id,decision:dec}); if(!r||r.ok===false){ toast((r&&r.error)||"Could not do that"); b.disabled=false; return; } if(r.patch) patchDeal(id,r.patch); if(r.other&&r.other.id) patchDeal(r.other.id,r.other.patch); toast(dec==="yes"?"Okay, it can go ahead":dec==="no"?"Skipped":"A short note is ready to review in that conversation"); openAutomation(); }));
+  body.querySelectorAll("[data-adnc]").forEach(b=>b.addEventListener("click",async()=>{ b.disabled=true; await R.agent("dnc_set",{value:b.dataset.adnc,kind:b.dataset.k,on:false}); openAutomation(); }));
+  { const ab=document.getElementById("aDncAdd"); if(ab) ab.addEventListener("click",async()=>{ const v=(document.getElementById("aDncIn").value||"").trim().toLowerCase(); if(!v) return; const kind=v.includes("@")?"email":"domain"; ab.disabled=true; const r=await R.agent("dnc_set",{value:v,kind,on:true}); if(r&&r.ok){ toast("Blocked for every brand"); openAutomation(); } else { toast((r&&r.error)||"Could not save"); ab.disabled=false; } }); }
   { const imp=document.getElementById("aLiImp"); if(imp) imp.addEventListener("click",async()=>{ imp.disabled=true; const m=document.getElementById("aLiImpMsg"); if(m) m.textContent="Saving…"; await save(); const r=await R.agent("li_import_request",{brandId:document.getElementById("aLiBr").value,limit:+document.getElementById("aLiLim").value||20,threads:document.getElementById("aLiTh").checked,connections:document.getElementById("aLiCn").checked}); if(r&&r.ok){ openAutomation(); } else { imp.disabled=false; if(m) m.textContent=(r&&r.error)||"Couldn’t start it."; } }); }
   { const c=document.getElementById("aLiClr"); if(c) c.addEventListener("click",async()=>{ c.disabled=true; await R.agent("li_import_clear",{}); openAutomation(); }); }
   { const rv=document.getElementById("aLiRev"); if(rv) rv.addEventListener("click",()=>openLiImport(st.liImport)); }
@@ -6535,6 +6600,7 @@ function openLiImport(imp){
     const wantDraft=document.getElementById("liDraft").checked&&aiAvailable(); let wid=document.getElementById("liWave").value;
     if(wid==="__new"){ wid=uid("wave"); createDoc("waves",wid,{brandId:brand.id,pipelineType:"lead",mode:"",name:"LinkedIn contacts",startedDate:todayISO(),status:"Active",nextStep:"",createdAt:Date.now()}); }
     const now=Date.now(), today=todayISO(); const made=[];
+    const liX=pick.filter(c=>reachedElsewhere(brand.id,{email:"",urls:[c.profileUrl]})).length;
     pick.forEach((c,i)=>{
       const lm=c.lastMessage; const notes=[c.headline&&("Headline: "+c.headline),c.company&&("Company: "+c.company),c.location&&("Location: "+c.location),c.about&&("About: "+c.about),"LinkedIn: "+(c.connected?"already connected":"not connected yet")].filter(Boolean).join("\n").slice(0,1500);
       const lid=uid("lead"); createDoc("leads",lid,{name:c.name,category:String(c.headline||"").slice(0,60),stage:"New",whatTheyDo:[c.headline,c.company].filter(Boolean).join(" · ").slice(0,300),website:"",contactName:c.name,contactEmail:"",contactLink:c.profileUrl,contactSource:"LinkedIn import",notes:notes,researchNotes:notes,addedBy:"linkedin-import",createdAt:now+i});
@@ -6545,7 +6611,7 @@ function openLiImport(imp){
       createDoc("deals",did,base); made.push({did,lm});
     });
     closeModal(); try{ const R=await reachApi(); if(R&&R.agent) await R.agent("li_import_clear",{}); }catch(e){}
-    scheduleRender(); toast("Added "+pick.length+" from LinkedIn"+(wantDraft?" · drafting now":""));
+    scheduleRender(); toast("Added "+pick.length+" from LinkedIn"+(liX?" · "+liX+" already reached via another brand, held until you decide":"")+(wantDraft?" · drafting now":""));
     if(wantDraft){ for(const m of made){ try{ if(m.lm&&m.lm.from==="them") await analyseReply(m.did,m.lm.text,{channel:"LinkedIn"}); else if(!m.lm) await agentDraft(m.did,{quiet:true}); }catch(e){} } toast("Drafts are ready to review in your Workbench"); scheduleRender(); }
   });
 }

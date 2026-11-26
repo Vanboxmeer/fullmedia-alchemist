@@ -1062,14 +1062,14 @@ async function appAction(u: any, client: string, body: any) {
       const lead = raw.deal_type === "lead" || d.dealType === "lead";
       d.dealStage = lead ? "Lost" : "Do Not Pursue"; d.followUpDue = ""; d.agentFlag = null; delete d.autoOk;
       d.dupSkip = { at: Date.now(), by: u.uid, reason: dup?.reason || "" }; d.nextAction = "Skipped" + (dup?.other ? " \u2014 already reached via " + dup.other.brand : "") + "."; d.updatedAt = Date.now();
-      await admin.from("ar_deals").update({ data: d }).eq("id", id); return { ok: true };
+      await admin.from("ar_deals").update({ data: d }).eq("id", id); return { ok: true, patch: { dealStage: d.dealStage, followUpDue: "", agentFlag: null, autoOk: false, dupSkip: d.dupSkip, nextAction: d.nextAction } };
     }
     if (!dup) { d.agentFlag = null; d.dupHold = null; d.updatedAt = Date.now(); await admin.from("ar_deals").update({ data: d }).eq("id", id); return { ok: true, message: "Nothing is holding this card any more." }; }
     if (decision === "yes") {
       if (dup.level === "block") return { ok: false, error: dup.code === "ongoing" ? "That person is already in a conversation. Use \"Add as a note\" instead." : "This contact is blocked and can't be released." };
       const keys = (d.dupOk && Array.isArray(d.dupOk.keys) ? d.dupOk.keys : []).concat(dup.key ? [dup.key] : []);
       d.dupOk = { keys, at: Date.now(), by: u.uid }; d.agentFlag = null; d.dupHold = null; d.updatedAt = Date.now();
-      await admin.from("ar_deals").update({ data: d }).eq("id", id); return { ok: true };
+      await admin.from("ar_deals").update({ data: d }).eq("id", id); return { ok: true, patch: { dupOk: d.dupOk, agentFlag: null, dupHold: null } };
     }
     if (decision === "note") {
       if (dup.code !== "ongoing" || !dup.other) return { ok: false, error: "A note can only be added to a conversation that is already going." };
@@ -1083,7 +1083,7 @@ async function appAction(u: any, client: string, body: any) {
       const lead = raw.deal_type === "lead" || d.dealType === "lead";
       d.dealStage = lead ? "Lost" : "Do Not Pursue"; d.agentFlag = null; delete d.autoOk; d.dupSkip = { at: Date.now(), by: u.uid, reason: "Merged into the existing conversation" }; d.nextAction = "Handled as a note in the existing conversation with " + dup.other.brand + "."; d.updatedAt = Date.now();
       await admin.from("ar_deals").update({ data: d }).eq("id", id);
-      return { ok: true, message: "A short note is ready to review in the existing conversation." };
+      return { ok: true, message: "A short note is ready to review in the existing conversation.", patch: { dealStage: d.dealStage, agentFlag: null, autoOk: false, dupSkip: d.dupSkip, nextAction: d.nextAction }, other: { id: other.id, patch: { draft: od.draft, draftKind: "reply", draftState: "", subject: od.subject, replyOk: null, nextAction: od.nextAction } } };
     }
     return { ok: false, error: "Choose yes, no or note." };
   }
