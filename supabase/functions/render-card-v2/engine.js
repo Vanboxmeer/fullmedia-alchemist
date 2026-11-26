@@ -520,6 +520,8 @@ function logoEl(ctx, mode, onDark) {
   const lh = mode === 'big' ? (ctx.logoScale === 'bigger' ? 160 : ctx.logoScale === 'smaller' ? 110 : 140) : (ctx.logoH || 92);
   const sized = (src) => img(src, { height: lh, maxWidth: Math.round(lh * 4.2), objectFit: 'contain' });
   if (!needsBadge) return div({ alignItems: 'center' }, [sized(A.logo)]);
+  // A brand that gave a second logo made for the other ground (light-on-dark vs dark-on-light) is drawn with that one, as it is.
+  if (A.logoAlt) return div({ alignItems: 'center' }, [sized(A.logoAlt)]);
   if (onDark && A.logoWhite) return div({ alignItems: 'center' }, [sized(A.logoWhite)]);
   // One-colour silhouette (white on dark cards, near-black on light ones):
   // one colour-matrix pass over the brand's own file, lifted into the card
@@ -773,6 +775,8 @@ function A_split(ctx) {
     G: { bg: G.bg, layers: [
       div({ position: 'absolute', left: radius ? M / 2 : 0, top: imgTop ? (radius ? M / 2 : 0) : H - ph - (radius ? M / 2 : 0), width: radius ? W - M : W, height: ph, borderRadius: radius, overflow: 'hidden' }, [
         img(A.photo, { width: radius ? W - M : W, height: ph, objectFit: ctx.photoFit || 'cover' }),
+        // 2026-11-25: the logo sits on this picture, so a soft dark shade at the top keeps the (light) logo readable on any photo.
+        whole ? null : div({ position: 'absolute', left: 0, top: 0, width: radius ? W - M : W, height: Math.min(ph, 230), backgroundImage: 'linear-gradient(180deg, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.3) 55%, rgba(0,0,0,0) 100%)' }),
       ]),
     ] },
     I, noOrnament: true,
@@ -782,7 +786,7 @@ function A_split(ctx) {
       subFit ? textBlock(subFit, { fontFamily: F.body, fontWeight: ctx.weights.body, color: I.muted }) : null,
       ...(hasPts ? [div({ flexDirection: 'column', gap: 14, marginTop: 6 }, ptRows)] : []),
     ]),
-    footer: true, compactFooter: true, logoTop: !imgTop, noLogoTop: whole || undefined,
+    footer: true, compactFooter: true, logoTop: !imgTop, noLogoTop: whole || undefined, logoOverPhoto: imgTop && !whole,
   };
 }
 
@@ -864,7 +868,7 @@ function A_mark(ctx) {
     : div({ width: size, height: size, borderRadius: 999, border: `6px solid ${I.accent}`, alignItems: 'center', justifyContent: 'center', fontFamily: F.display, fontWeight: ctx.weights.displayHeavy, fontSize: size * 0.42, color: I.text }, [initials || '•']);
   return {
     G: { bg: G.bg, layers: [...(G.layers || []), img(svgUri(ringsSvg), { position: 'absolute', left: 0, top: 0, width: W, height: H })] },
-    I, wordless: true, noOrnament: true, forceLogoMode: A.logoWhite && dark && r.chance(0.5) ? 'watermark' : null,
+    I, wordless: true, noOrnament: true, forceLogoMode: null,
     body: div({ position: 'absolute', left: 0, top: 0, width: W, height: H, alignItems: 'center', justifyContent: 'center' }, [content]),
     footer: false,
   };
@@ -1233,7 +1237,9 @@ export function buildCard({ design, content, assets, opts = {} }, measure) {
   // light ones, so light cards keep the logo itself. ('tile' still exists
   // for an explicit opts.logoMode, but repeating a raster logo thirty times
   // costs seconds, so it is never picked at random.)
-  const logoMode = opts.logoMode || out.forceLogoMode || (out.logoCorner ? 'badge' : r.pick(onDark && A.logoWhite ? ['corner', 'corner', 'badge', 'watermark'] : ['corner', 'corner', 'badge']));
+  // 2026-11-25: Brad: nobody likes the brand logo faded into the background. Watermark and tile logos are never drawn.
+  const logoModeRaw = opts.logoMode || out.forceLogoMode || (out.logoCorner ? 'badge' : r.pick(['corner', 'corner', 'badge']));
+  const logoMode = logoModeRaw === 'watermark' || logoModeRaw === 'tile' ? 'corner' : logoModeRaw;
   const mascotMode = out.mascotMode || extraMascot;
 
   // v12: logo size, side and presence vary per card; QR size, frame and side too.
@@ -1247,7 +1253,7 @@ export function buildCard({ design, content, assets, opts = {} }, measure) {
   // A redo that asked about the logo always shows it.
   const hideTop = !out.noLogoTop && logoMode !== 'watermark' && !!C.footer && r.chance(0.15) && !opts.showLogo;
   const top = out.noLogoTop || hideTop || opts.hideLogo ? null : div({ position: 'absolute', left: ctx.M, top: ctx.M - 14, right: ctx.M, flexDirection: 'row', justifyContent: logoSide, alignItems: 'center' }, [
-    logoMode === 'watermark' || logoMode === 'tile' ? logoEl(ctx, 'corner', onDark) : logoEl(ctx, logoMode, onDark),
+    logoEl(ctx, logoMode, out.logoOverPhoto ? true : onDark),
   ]);
   let qrSize = r.pick([150, 170, 190, 215, 240]);
   let qrStyle = r.pick(['card', 'square', 'frame', 'label']);

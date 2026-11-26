@@ -464,9 +464,10 @@ Deno.serve(async (req: Request) => {
     if (logoDirective === 'hide') avoid.add('mark');
 
     const logoWhiteUrl = logoUrl ? safeUrl(ds.logo_white_url, false) : null;
-    const [qr, logo, mascot, photo, logoWhite] = await Promise.all([
+    const logoAltUrl = logoUrl ? safeUrl(ds.logo_alt_url, false) : null;
+    const [qr, logo, mascot, photo, logoWhite, logoAlt] = await Promise.all([
       includeQr && subjectUrl && words !== 'none' ? QRCode.toString(subjectUrl, { type: 'svg', margin: 0, color: { dark: '#111111', light: '#ffffff' } }) : Promise.resolve(null),
-      toDataUri(logoUrl), toDataUri(mascotUrl), toDataUri(photoUrl), toDataUri(logoWhiteUrl), ensureWasm(),
+      toDataUri(logoUrl), toDataUri(mascotUrl), toDataUri(photoUrl), toDataUri(logoWhiteUrl), toDataUri(logoAltUrl), ensureWasm(),
     ]);
     // Sample only: images the caller already fetched and checked (PNG, JPEG
     // or SVG data, size-capped). Nobody else can pass image data.
@@ -483,7 +484,7 @@ Deno.serve(async (req: Request) => {
     const loaded = await Promise.all(requiredFonts(design).map((f: { family: string; weight: number }) => loadFont(f.family, nearestWeight(f.family, f.weight))));
     const input = {
       design, content,
-      assets: { logo: logoDirective === 'hide' ? null : logoA, logoWhite: logoDirective === 'hide' ? null : logoWhiteA, mascot: mascotA, photo: photoA, qrSvg: qr },
+      assets: { logo: logoDirective === 'hide' ? null : logoA, logoWhite: logoDirective === 'hide' ? null : logoWhiteA, logoAlt: logoDirective === 'hide' || (design.logo && (design.logo as Record<string, unknown>).any === true) ? null : logoAlt, mascot: mascotA, photo: photoA, qrSvg: qr },
       opts: { width: W, height: H, seed, words, avoid: [...avoid], photoFit: sample && body.photo_fit === 'contain' ? 'contain' : undefined, kind: typeof body.kind === 'string' && body.prefer_photo !== true ? body.kind : (body.prefer_photo === true || body.prefer_mascot === true ? undefined : (content.items && content.items.length > 0 ? 'list' : (content.headline ? 'statement' : undefined))), preferPhoto: body.prefer_photo === true && !!photoA, preferMascot: body.prefer_mascot === true && !!mascotA, vary: !(typeof body.template_url === 'string' && body.template_url) && ds.lock_look !== true, look: typeof body.look === 'string' ? body.look : undefined, avoidLooks: avoidLooks.slice(0, 18), hideLogo: logoDirective === 'hide', showLogo: logoDirective === 'as_is' || !!logoScale || !!logoSide, logoScale, logoSide, qrSide, swapColors },
     };
     const card = buildCard(input, measureWith(loaded));
